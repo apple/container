@@ -150,6 +150,41 @@ By default, clusters use `kindest/node:v1.35.5`, a Kubernetes-in-Docker image op
 container k8s create --node-image docker.io/kindest/node:v1.34.11
 ```
 
+## Custom CNI
+
+By default, clusters install the bundled kindnet CNI for pod networking. Use `--cni` to apply a different CNI manifest instead:
+
+```bash
+container k8s create --name my-cluster --cni ./my-cni.yaml
+```
+
+The manifest must be a plain Kubernetes YAML file (the same shape `kubectl apply -f` expects), not a Helm chart.
+
+### Example: Cilium
+
+Cilium is distributed as a Helm chart, so render a plain manifest from it first:
+
+```bash
+helm repo add cilium https://helm.cilium.io/
+helm repo update
+helm template cilium cilium/cilium --version 1.20.1 --namespace kube-system --set ipam.mode=kubernetes > cilium.yaml
+```
+
+`--set ipam.mode=kubernetes` avoids a CIDR conflict: the chart's default (`cluster-pool`, `10.0.0.0/8`) overlaps kubeadm's pod subnet and service CIDR on these clusters.
+
+Then create the cluster with that manifest:
+
+```bash
+container k8s create --name cilium-demo --cni ./cilium.yaml
+```
+
+Verify Cilium came up:
+
+```bash
+kubectl --context cilium-demo get pods -n kube-system
+kubectl --context cilium-demo get nodes -o wide
+```
+
 ## Cluster cleanup
 
 Remove a cluster and its data:
