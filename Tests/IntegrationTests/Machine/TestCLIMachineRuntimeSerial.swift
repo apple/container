@@ -148,6 +148,33 @@ struct TestCLIMachineRuntimeSerial {
         }
     }
 
+    @Test func testDefaultRunStartsLoginShell() async throws {
+        try await ContainerFixture.with { f in
+            let name = "\(f.testID)-machine"
+            f.addCleanup { f.cleanupMachine(name) }
+            try f.doMachineCreate(name: name, image: machineImage)
+            try f.doMachineBoot(name: name)
+            try await f.waitForMachineStatus(name, status: "running")
+
+            let sentinel = "login-shell-\(UUID().uuidString)"
+            let marker = "/tmp/\(sentinel)"
+            _ = try f.doMachineRun(
+                name: name,
+                command: ["printf", "'touch \(marker)\\n'", ">", "$HOME/.profile"]
+            )
+
+            try f.runMachine(["run", "--detach", "-n", name]).check(
+                "default machine run should start a login shell")
+            try await Task.sleep(for: .seconds(1))
+            let result = try f.runMachine(["run", "-n", name, "test", "-f", marker])
+
+            #expect(
+                result.status == 0,
+                "default machine shell did not source ~/.profile"
+            )
+        }
+    }
+
     @Test func testRunAsRoot() async throws {
         try await ContainerFixture.with { f in
             let name = "\(f.testID)-machine"

@@ -51,7 +51,7 @@ if [ "$1" = "-s" ]; then
     if [ $# -gt 0 ]; then
         exec "${USER_SHELL:-${SHELL}}" -c "$*"
     else
-        exec "${USER_SHELL:-${SHELL}}"
+        exec "${USER_SHELL:-${SHELL}}" -l
     fi
 elif [ "$1" = "-u" ]; then
     # DEPRECATED 0.11.0.0 - use `id` instead of checking `${MACHINE_INITIALIZED}` for backward compatibility, remove in 0.13.0.0
