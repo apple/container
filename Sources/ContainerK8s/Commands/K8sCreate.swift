@@ -51,12 +51,21 @@ public struct K8sCreate: AsyncParsableCommand {
     @Option(help: "Node image reference (default: \(K8sHelper.nodeImage))")
     var nodeImage: String = K8sHelper.nodeImage
 
+    @Option(name: .long, help: "Optional path to a CNI manifest to apply.")
+    var cni: String?
+
     public func run() async throws {
         LoggingSystem.bootstrap { _ in StderrLogHandler() }
         let log = Logger(label: K8sHelper.pluginName)
 
         guard ManagedContainer.nameValid(name) else {
             throw ContainerizationError(.invalidArgument, message: "cluster name \(name) is not a valid container ID")
+        }
+
+        if let cni {
+            guard FileManager.default.fileExists(atPath: cni) else {
+                throw ContainerizationError(.invalidArgument, message: "CNI manifest not found at \(cni)")
+            }
         }
 
         let isTTY = isatty(FileHandle.standardError.fileDescriptor) == 1
@@ -103,6 +112,7 @@ public struct K8sCreate: AsyncParsableCommand {
             try await K8sHelper.bootstrapControlPlane(
                 nodeID: name, apiServerSANs: sans, advertiseAddress: vmIP,
                 schedulable: provisioner.roles.contains(StandardRoles.worker),
+                cniManifestPath: cni,
                 client: client, log: log)
 
             progress.set(description: "Waiting for cluster to be ready")
