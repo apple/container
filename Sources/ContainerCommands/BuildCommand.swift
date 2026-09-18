@@ -175,7 +175,7 @@ extension Application {
                 // Ensure the builder is started (or restarted) with the correct SSH configuration
                 // before attempting to dial. This handles the case where the builder is already
                 // running but was not started with SSH forwarding enabled.
-                try await BuilderStart.start(
+                try await Builder.start(
                     cpus: cpus,
                     memory: memory,
                     log: log,
@@ -208,7 +208,7 @@ extension Application {
                                 progress.set(tasks: 0)
                                 progress.set(totalTasks: 3)
 
-                                try await BuilderStart.start(
+                                try await Builder.start(
                                     cpus: cpus,
                                     memory: memory,
                                     log: log,
@@ -297,7 +297,7 @@ extension Application {
 
                 let systemHealth = try await ClientHealthCheck.ping(timeout: .seconds(10))
                 let exportPath = systemHealth.appRoot
-                    .appendingPathComponent(Application.BuilderCommand.builderResourceDir)
+                    .appendingPathComponent(Builder.builderResourceDir)
                 let buildID = UUID().uuidString
                 let tempURL = exportPath.appendingPathComponent(buildID)
                 try FileManager.default.createDirectory(at: tempURL, withIntermediateDirectories: true, attributes: nil)
