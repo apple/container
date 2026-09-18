@@ -143,6 +143,7 @@ let package = Package(
                 .product(name: "NIOPosix", package: "swift-nio"),
                 .product(name: "Containerization", package: "containerization"),
                 .product(name: "ContainerizationArchive", package: "containerization"),
+                .product(name: "ContainerizationExtras", package: "containerization"),
                 .product(name: "ContainerizationOCI", package: "containerization"),
                 .product(name: "ContainerizationOS", package: "containerization"),
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
@@ -150,6 +151,9 @@ let package = Package(
                 .product(name: "GRPCNIOTransportHTTP2", package: "grpc-swift-nio-transport"),
                 .product(name: "GRPCProtobuf", package: "grpc-swift-protobuf"),
                 "ContainerAPIClient",
+                "ContainerPersistence",
+                "ContainerResource",
+                "TerminalProgress",
             ]
         ),
         .testTarget(
@@ -677,5 +681,19 @@ let package = Package(
             path: "Sources/Plugins/MachineAPIServer",
             exclude: ["config.toml", "Resources"]
         ),
+        // .executableTarget(
+        //     name: "container-build",
+        //     dependencies: [
+        //     ],
+        //     path: "Sources/Plugins/ContainerBuild",
+        //     exclude: ["config.toml"]
+        // ),
+        // .executableTarget(
+        //     name: "container-builder",
+        //     dependencies: [
+        //     ],
+        //     path: "Sources/Plugins/ContainerBuilder",
+        //     exclude: ["config.toml"]
+        // )
     ]
 )
