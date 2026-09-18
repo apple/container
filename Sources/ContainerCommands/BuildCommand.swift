@@ -155,7 +155,7 @@ extension Application {
         var pull: Bool = false
 
         public func run() async throws {
-            let containerSystemConfig: ContainerSystemConfig = try await Application.loadContainerSystemConfig()
+            let containerSystemConfig: ContainerSystemConfig = try await ClientHealthCheck.loadContainerSystemConfig()
             do {
                 let timeout: Duration = .seconds(300)
                 let progressConfig = try ProgressConfig(
