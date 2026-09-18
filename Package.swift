@@ -150,7 +150,10 @@ let package = Package(
                 .product(name: "GRPCCore", package: "grpc-swift-2"),
                 .product(name: "GRPCNIOTransportHTTP2", package: "grpc-swift-nio-transport"),
                 .product(name: "GRPCProtobuf", package: "grpc-swift-protobuf"),
+                .product(name: "SystemPackage", package: "swift-system"),
                 "ContainerAPIClient",
+                "ContainerImagesServiceClient",
+                "ContainerLog",
                 "ContainerPersistence",
                 "ContainerResource",
                 "TerminalProgress",
@@ -681,13 +684,25 @@ let package = Package(
             path: "Sources/Plugins/MachineAPIServer",
             exclude: ["config.toml", "Resources"]
         ),
-        // .executableTarget(
-        //     name: "container-build",
-        //     dependencies: [
-        //     ],
-        //     path: "Sources/Plugins/ContainerBuild",
-        //     exclude: ["config.toml"]
-        // ),
+        .executableTarget(
+            name: "container-build",
+            dependencies: [
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                .product(name: "Logging", package: "swift-log"),
+                .product(name: "NIO", package: "swift-nio"),
+                .product(name: "Containerization", package: "containerization"),
+                .product(name: "ContainerizationOCI", package: "containerization"),
+                .product(name: "ContainerizationOS", package: "containerization"),
+                "ContainerAPIClient",
+                "ContainerBuild",
+                "ContainerImagesServiceClient",
+                "ContainerLog",
+                "ContainerPersistence",
+                "TerminalProgress",
+            ],
+            path: "Sources/Plugins/ContainerBuild",
+            exclude: ["config.toml"]
+        ),
         // .executableTarget(
         //     name: "container-builder",
         //     dependencies: [

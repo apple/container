@@ -72,7 +72,6 @@ public struct Application: AsyncLoggableCommand {
             CommandGroup(
                 name: "Image",
                 subcommands: [
-                    BuildCommand.self,
                     ImageCommand.self,
                     RegistryCommand.self,
                 ]
