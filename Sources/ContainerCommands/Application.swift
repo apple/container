@@ -162,13 +162,11 @@ public struct Application: AsyncLoggableCommand {
     private static func otherCommands() -> [any ParsableCommand.Type] {
         guard #available(macOS 26, *) else {
             return [
-                BuilderCommand.self,
                 SystemCommand.self,
             ]
         }
 
         return [
-            BuilderCommand.self,
             NetworkCommand.self,
             SystemCommand.self,
         ]

@@ -703,12 +703,20 @@ let package = Package(
             path: "Sources/Plugins/ContainerBuild",
             exclude: ["config.toml"]
         ),
-        // .executableTarget(
-        //     name: "container-builder",
-        //     dependencies: [
-        //     ],
-        //     path: "Sources/Plugins/ContainerBuilder",
-        //     exclude: ["config.toml"]
-        // )
+        .executableTarget(
+            name: "container-builder",
+            dependencies: [
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                .product(name: "Logging", package: "swift-log"),
+                "ContainerAPIClient",
+                "ContainerBuild",
+                "ContainerLog",
+                "ContainerPersistence",
+                "ContainerResource",
+                "TerminalProgress",
+            ],
+            path: "Sources/Plugins/ContainerBuilder",
+            exclude: ["config.toml"]
+        )
     ]
 )

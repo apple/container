@@ -17,21 +17,20 @@
 import ArgumentParser
 import ContainerAPIClient
 
-extension Application {
-    public struct BuilderCommand: AsyncLoggableCommand {
-        public init() {}
+@main
+struct Application: AsyncParsableCommand {
+    public init() {}
 
-        public static let configuration = CommandConfiguration(
-            commandName: "builder",
-            abstract: "Manage an image builder instance",
-            subcommands: [
-                BuilderStart.self,
-                BuilderStatus.self,
-                BuilderStop.self,
-                BuilderDelete.self,
-            ])
+    public static let configuration = CommandConfiguration(
+        commandName: "builder",
+        abstract: "Manage an image builder instance",
+        subcommands: [
+            BuilderStart.self,
+            BuilderStatus.self,
+            BuilderStop.self,
+            BuilderDelete.self,
+        ])
 
-        @OptionGroup
-        public var logOptions: Flags.Logging
-    }
+    @OptionGroup
+    public var logOptions: Flags.Logging
 }
