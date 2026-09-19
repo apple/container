@@ -34,10 +34,10 @@ extension K8sHelper {
     }
 
     static func bootstrapControlPlane(
-        nodeID: String, apiServerSANs: [String], advertiseAddress: String,
-        schedulable: Bool, client: ContainerClient, log: Logger
+        nodeID: String, nodeImage: String, apiServerSANs: [String], advertiseAddress: String,
+        schedulable: Bool, cniManifestPath: String? = nil, client: ContainerClient, log: Logger
     ) async throws {
-        let configYAML = initConfigYAML(advertiseAddress: advertiseAddress, certSANs: apiServerSANs)
+        let configYAML = try initConfigYAML(nodeImage: nodeImage, advertiseAddress: advertiseAddress, certSANs: apiServerSANs)
         var r = try await execCapture(
             containerId: nodeID, executable: "/bin/sh",
             arguments: ["-c", "cat > /etc/kubernetes/kubeadm-config.yaml <<'EOF'\n\(configYAML)\nEOF"],
@@ -73,11 +73,9 @@ extension K8sHelper {
                 arguments: ["taint", "nodes", "--all", "node-role.kubernetes.io/control-plane-"])
         }
 
-        log.info("Applying kindnet CNI", metadata: ["node": "\(nodeID)"])
-        let manifest = try await loadKindnetManifest(log: log)
-        let apply =
-            "cat > /tmp/kindnet.yaml <<'EOF'\n\(manifest)\nEOF\n"
-            + "\(kubeconfigEnv) kubectl apply -f /tmp/kindnet.yaml"
+        log.info("Applying CNI manifest", metadata: ["node": "\(nodeID)"])
+        let manifest = try await loadCNIManifest(path: cniManifestPath, log: log)
+        let apply = "\(kubeconfigEnv) kubectl apply -f - <<'EOF'\n\(manifest)\nEOF"
         r = try await execCapture(
             containerId: nodeID, executable: "/bin/sh",
             arguments: ["-c", apply], client: client)
@@ -101,6 +99,17 @@ extension K8sHelper {
             throw ContainerizationError(.internalError, message: "could not parse join command output from kubeadm on \(nodeID)")
         }
         return (token: parts[tokenIdx + 1], caCertHash: parts[hashIdx + 1])
+    }
+
+    static func loadCNIManifest(path: String?, log: Logger) async throws -> String {
+        if let path {
+            do {
+                return try String(contentsOfFile: path, encoding: .utf8)
+            } catch {
+                throw ContainerizationError(.invalidArgument, message: "failed to read CNI manifest at \(path): \(error)")
+            }
+        }
+        return try await loadKindnetManifest(log: log)
     }
 
     private static func loadKindnetManifest(log: Logger) async throws -> String {
@@ -135,7 +144,7 @@ extension K8sHelper {
         """
     }
 
-    private static func initConfigYAML(advertiseAddress: String, certSANs: [String]) -> String {
+    private static func initConfigYAML(nodeImage: String, advertiseAddress: String, certSANs: [String]) throws -> String {
         let sans = certSANs.map { "  - \($0)" }.joined(separator: "\n")
         return """
             apiVersion: kubeadm.k8s.io/v1beta4
@@ -148,7 +157,7 @@ extension K8sHelper {
             ---
             apiVersion: kubeadm.k8s.io/v1beta4
             kind: ClusterConfiguration
-            kubernetesVersion: \(kubernetesVersion())
+            kubernetesVersion: \(try kubernetesVersion(nodeImage: nodeImage))
             networking:
               podSubnet: \(podSubnet)
             apiServer:
@@ -162,9 +171,14 @@ extension K8sHelper {
             """
     }
 
-    private static func kubernetesVersion() -> String {
+    /// kubeadm needs the exact version, and only the tag carries it.
+    static func kubernetesVersion(nodeImage: String) throws -> String {
         let nameAndTag = nodeImage.split(separator: "@").first.map(String.init) ?? nodeImage
-        guard let ref = try? Reference.parse(nameAndTag), let tag = ref.tag else { return "v1.35" }
+        guard let ref = try? Reference.parse(nameAndTag), let tag = ref.tag else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "node image \(nodeImage) has no tag; use a tagged image such as docker.io/kindest/node:v1.34.11")
+        }
         return tag
     }
 }
