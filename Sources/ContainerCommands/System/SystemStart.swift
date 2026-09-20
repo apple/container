@@ -73,7 +73,15 @@ extension Application {
         public init() {}
 
         public func run() async throws {
-            try ConfigurationLoader.copyConfigurationToReadOnly(to: appRoot)
+            do {
+                try ConfigurationLoader.copyConfigurationToReadOnly(to: appRoot)
+            } catch {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message:
+                        "cannot prepare configuration under app-root \(appRoot): path must be writable (\(error.localizedDescription))"
+                )
+            }
             // Pass appRoot before installRoot: ConfigurationLoader uses first-match-wins
             // precedence, so user-provided config in appRoot overrides the defaults
             // shipped under installRoot. Both layers are passed explicitly because
@@ -103,8 +111,7 @@ extension Application {
             }
 
             let apiServerDataPath = appRoot.appending(FilePath.Component("apiserver"))
-            let apiServerDataURL = URL(fileURLWithPath: apiServerDataPath.string)
-            try FileManager.default.createDirectory(at: apiServerDataURL, withIntermediateDirectories: true)
+            try Self.ensureWritableDirectory(at: apiServerDataPath)
 
             var env = PluginLoader.filterEnvironment()
             env[ApplicationRoot.environmentName] = appRoot.string
@@ -124,7 +131,15 @@ extension Application {
             let plistPath = apiServerDataPath.appending(FilePath.Component("apiserver.plist"))
             let plistURL = URL(fileURLWithPath: plistPath.string)
             let data = try plist.encode()
-            try data.write(to: plistURL)
+            do {
+                try data.write(to: plistURL)
+            } catch {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message:
+                        "cannot write apiserver launchd plist at \(plistPath): app-root must be writable (\(error.localizedDescription))"
+                )
+            }
 
             log.info("Launching container-apiserver...")
             try ServiceManager.register(plistPath: plistURL.path)
@@ -220,6 +235,23 @@ extension Application {
                 return true
             } catch {
                 return false
+            }
+        }
+
+        /// Create `path` if needed, surfacing a clear error when the app-root is not writable.
+        ///
+        /// Prefer this over a bare `FileManager` call so permission failures become a normal
+        /// CLI error instead of an opaque Cocoa error (see apple/container#1802).
+        static func ensureWritableDirectory(at path: FilePath) throws {
+            let url = URL(fileURLWithPath: path.string)
+            do {
+                try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+            } catch {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message:
+                        "cannot create application data directory at \(path): app-root must be writable (\(error.localizedDescription))"
+                )
             }
         }
     }
