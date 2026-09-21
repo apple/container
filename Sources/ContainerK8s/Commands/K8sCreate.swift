@@ -68,6 +68,9 @@ public struct K8sCreate: AsyncParsableCommand {
             }
         }
 
+        // Fail before provisioning the node VM.
+        _ = try K8sHelper.kubernetesVersion(nodeImage: nodeImage)
+
         let isTTY = isatty(FileHandle.standardError.fileDescriptor) == 1
         let progressConfig = try ProgressConfig(
             showSpinner: isTTY,
@@ -110,7 +113,7 @@ public struct K8sCreate: AsyncParsableCommand {
             progress.set(description: "Running kubeadm init")
             try await K8sHelper.prepareNode(nodeID: name, client: client, log: log)
             try await K8sHelper.bootstrapControlPlane(
-                nodeID: name, apiServerSANs: sans, advertiseAddress: vmIP,
+                nodeID: name, nodeImage: nodeImage, apiServerSANs: sans, advertiseAddress: vmIP,
                 schedulable: provisioner.roles.contains(StandardRoles.worker),
                 cniManifestPath: cni,
                 client: client, log: log)
