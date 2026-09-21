@@ -313,7 +313,12 @@ define RUN_INTEGRATION
 endef
 
 .PHONY: integration
-integration: init-block
+integration: all
+	@echo "HOSTNAME: $$(hostname)"
+	$(RUN_INTEGRATION)
+
+.PHONY: integration-only
+integration-only: init-block
 	@echo "HOSTNAME: $$(hostname)"
 	$(RUN_INTEGRATION)
 
