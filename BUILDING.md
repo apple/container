@@ -11,13 +11,13 @@ To build the `container` project, you need:
 
 ## Compile and test
 
-Build `container` and the background services from source, and run the unit and integration tests in an isolated application data directory:
+Build `container` and the background services from source, then run the unit and integration tests in an isolated application data directory:
 
 ```bash
-make APP_ROOT=test-data all test integration
+make verify
 ```
 
-This is the quickest way to verify your toolchain after cloning. The integration suite boots virtual machines and downloads a kernel and images, so the first run takes a while.
+This is the quickest way to verify your toolchain after cloning. `make verify` runs the `all`, `test`, and `integration` targets. The integration suite boots virtual machines and downloads a kernel and images, so the first run takes a while.
 
 > [!IMPORTANT]
 > `make integration` stops any `container` services you already have running and leaves them stopped when it finishes; run `container system start` afterward to get back to your own installation.
@@ -26,23 +26,24 @@ This is the quickest way to verify your toolchain after cloning. The integration
 
 | Target | What it does |
 | --- | --- |
+| `make verify` | Runs `all`, `test`, and `integration`. |
 | `make all` | Compiles, then installs the binaries into `bin/` and `libexec/` in your project directory. |
 | `make test` | Runs the unit tests. |
 | `make integration` | Runs the CLI and integration test suites. These start the `container` services, create containers, and boot virtual machines. |
 | `make install` | Builds an installer package and installs it to `/usr/local`. |
-| `make clean` | Removes `bin/`, `libexec/`, generated docs, and coverage output. |
-
-`make integration` runs the `container` CLI from `bin/`, so build the binaries with `make all` first, either as a separate command or in the same invocation as shown above.
+| `make clean` | Runs `cleantest`, then `cleanbuild`. |
+| `make cleanbuild` | Removes `bin/`, `libexec/`, generated docs, and coverage output. |
+| `make cleantest` | Stops the `container` services and removes the `APP_ROOT` and `SCRATCH_ROOT` directories. |
 
 ### Isolating test data with `APP_ROOT`
 
-By default, `container` stores its data in `~/Library/Application Support/com.apple.container`, alongside the images, containers, and volumes you use day to day. 
+By default, the test targets use `.test-data` in your project directory, so they do not disturb the images, containers, and volumes you use day to day, which live in `~/Library/Application Support/com.apple.container`.
 
-Setting `APP_ROOT` passes `--app-root` to the services that the test targets start, so the tests read from and write to an application data directory of your choosing instead.
+`APP_ROOT` sets that directory, and is passed as `--app-root` to the services the test targets start.
 
 How `make integration` treats `APP_ROOT`:
 - It erases the directory's contents before each run.
-- If you leave `APP_ROOT` unset, the integration tests run against your default data directory. They will not erase it, but they will create and delete containers in it. Always set `APP_ROOT` when running the integration tests.
+- Set `APP_ROOT=` (empty) to run against `~/Library/Application Support/com.apple.container` instead. The tests will not erase it, but they will create and delete containers in it. Use this when you want the tests to exercise a realistic installation.
 
 ### Recommended iteration loop
 
@@ -50,21 +51,14 @@ How `make integration` treats `APP_ROOT`:
 > If you have an instance of `container` running, stop it using `container system stop` before starting the dev CLI. Each user account has a single set of `com.apple.container.*` services, so a test run cannot coexist with an installation you are using.
 
 ```bash
-# 1. Build 
-make APP_ROOT=test-data all
+# 1. Build
+make all
 
 # 2. Unit tests
-make APP_ROOT=test-data test
+make test
 
 # 3. Test the dev CLI
-./bin/container system start --app-root test-data
-```
-
-When you're done, start over from a clean application data directory by stopping the services first
-
-```bash
-./bin/container system stop
-rm -rf test-data
+./bin/container system start --app-root .test-data
 ```
 
 ### Integration test options
@@ -77,7 +71,7 @@ rm -rf test-data
 A typical iteration on the integration tests:
 
 ```bash
-make APP_ROOT=test-data PRESERVE_KERNELS=true LOG_ROOT=test-data/logs integration
+make PRESERVE_KERNELS=true LOG_ROOT=.test-data/logs integration
 ```
 
 ### Build installer package
@@ -91,25 +85,19 @@ make install
 Or to install a release build, with better performance than the debug build:
 
 ```bash
-BUILD_CONFIGURATION=release make all test integration
+BUILD_CONFIGURATION=release make verify
 BUILD_CONFIGURATION=release make install
 ```
 
 ### Clean up
 
+Stop the services, remove the build outputs, and delete the test directories:
+
 ```bash
-# 1. Stop all container services, including any installed container you are using
-./bin/container system stop
-container system stop
-scripts/ensure-container-stopped.sh -a
-
-# 2. Remove build outputs
 make clean
-
-# 3. Remove the scratch app root
-rm -rf test-data
 ```
 
+Use `make cleanbuild` to remove only the build outputs, or `make cleantest` to stop the services and remove only the `APP_ROOT` and `SCRATCH_ROOT` directories.
 
 ## Compile protobufs
 
@@ -171,7 +159,7 @@ to prepare your build environment.
 6. Build `container`.
 
     ```
-    make clean all
+    make APP_ROOT= clean all
     ```
 
 7. Restart the `container` services.
