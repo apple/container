@@ -64,7 +64,31 @@ actor BuildFSSync: BuildPipelineHandler {
             throw Error.contextIsNotDirectory(contextDir.cleanPath)
         }
 
-        self.contextDir = resolved
+        // Foundation can leave a symlinked ancestor such as /tmp unresolved,
+        // while FileManager enumerates its children under the physical path.
+        // Use the same canonical root for matching, containment, and archiving.
+        guard let canonicalPath = realpath(resolved.cleanPath, nil) else {
+            throw Error.contextNotFound(contextDir.cleanPath)
+        }
+        defer { free(canonicalPath) }
+        self.contextDir = URL(fileURLWithPath: String(cString: canonicalPath), isDirectory: true)
+    }
+
+    private func canonicalizingAncestors(of path: URL) throws -> URL {
+        guard let canonicalParent = realpath(path.deletingLastPathComponent().cleanPath, nil) else {
+            throw POSIXError.fromErrno()
+        }
+        defer { free(canonicalParent) }
+        return URL(fileURLWithPath: String(cString: canonicalParent), isDirectory: true)
+            .appendingPathComponent(path.lastPathComponent, isDirectory: path.hasDirectoryPath)
+    }
+
+    private func physicallyResolved(_ path: URL) throws -> URL {
+        guard let canonicalPath = realpath(path.cleanPath, nil) else {
+            throw POSIXError.fromErrno()
+        }
+        defer { free(canonicalPath) }
+        return URL(fileURLWithPath: String(cString: canonicalPath))
     }
 
     nonisolated func accept(_ packet: ServerStream) throws -> Bool {
@@ -115,7 +139,8 @@ actor BuildFSSync: BuildPipelineHandler {
             path = URL(filePath: self.contextDir.cleanPath)
             path.append(components: packet.source.cleanPathComponent)
         }
-        let resolved = path.resolvingSymlinksInPath()
+        path = try canonicalizingAncestors(of: path)
+        let resolved = try physicallyResolved(path)
         guard self.contextDir.parentOf(resolved) else {
             throw Error.pathIsNotChild(resolved.cleanPath, self.contextDir.cleanPath)
         }
@@ -142,7 +167,7 @@ actor BuildFSSync: BuildPipelineHandler {
     /// normal `Walk`-based build. Must reject paths that escape the context root
     /// via symlinks for the same reasons as ``read(_:_:_:)``.
     func info(_ sender: AsyncStream<ClientStream>.Continuation, _ packet: BuildTransfer, _ buildID: String) async throws {
-        let path: URL
+        var path: URL
         if packet.source.hasPrefix("/") {
             path = URL(fileURLWithPath: packet.source).standardizedFileURL
         } else {
@@ -151,7 +176,8 @@ actor BuildFSSync: BuildPipelineHandler {
                 .appendingPathComponent(packet.source)
                 .standardizedFileURL
         }
-        let resolved = path.resolvingSymlinksInPath()
+        path = try canonicalizingAncestors(of: path)
+        let resolved = try physicallyResolved(path)
         guard self.contextDir.parentOf(resolved) else {
             throw Error.pathIsNotChild(resolved.cleanPath, self.contextDir.cleanPath)
         }
@@ -267,16 +293,21 @@ actor BuildFSSync: BuildPipelineHandler {
             format: .paxRestricted,
             filter: .none)
 
+        // Archiver standardizes its source URL before enumerating. On macOS,
+        // that can spell /private/tmp as /tmp, so compare its callback URLs
+        // against the same representation of the root.
+        let archiveRoot = contextDir.standardizedFileURL
+
         let tarHash = try Archiver.compress(
             source: contextDir,
             destination: tarURL,
             writerConfiguration: writerCfg
         ) { url in
-            guard let rel = try? url.relativeChildPath(to: contextDir) else {
+            guard let rel = try? url.relativeChildPath(to: archiveRoot) else {
                 return nil
             }
 
-            guard let parent = try? url.deletingLastPathComponent().relativeChildPath(to: self.contextDir) else {
+            guard let parent = try? url.deletingLastPathComponent().relativeChildPath(to: archiveRoot) else {
                 return nil
             }
 

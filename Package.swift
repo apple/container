@@ -155,7 +155,8 @@ let package = Package(
         .testTarget(
             name: "ContainerBuildTests",
             dependencies: [
-                "ContainerBuild"
+                "ContainerBuild",
+                .product(name: "ContainerizationArchive", package: "containerization"),
             ]
         ),
         .testTarget(

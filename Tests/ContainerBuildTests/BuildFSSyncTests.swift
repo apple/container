@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerizationArchive
 import ContainerizationOS
 import Foundation
 import SystemPackage
@@ -295,6 +296,61 @@ import Testing
             }
         }
         return fileInfos
+    }
+
+    private func walkTar(_ fssync: BuildFSSync, followPaths: [String]) async throws -> [String: Data] {
+        var packet = BuildTransfer()
+        packet.id = UUID().uuidString
+        packet.source = "."
+        packet.metadata = [
+            "followpaths": followPaths.joined(separator: ","),
+            "mode": "tar",
+        ]
+
+        var continuation: AsyncStream<ClientStream>.Continuation!
+        let stream = AsyncStream<ClientStream> { continuation = $0 }
+        try await fssync.walk(continuation, packet, "build-0")
+        continuation.finish()
+
+        var tarData = Data()
+        for await response in stream {
+            tarData.append(response.buildTransfer.data)
+        }
+
+        let tarURL = base.appendingPathComponent("\(UUID().uuidString).tar")
+        try tarData.write(to: tarURL)
+        defer { try? fm.removeItem(at: tarURL) }
+
+        var files: [String: Data] = [:]
+        for (entry, data) in try ArchiveReader(file: tarURL) {
+            if let path = entry.path {
+                files[path] = data
+            }
+        }
+        return files
+    }
+
+    @Test func testWalkIncludesDirectoryContentsUnderTmp() async throws {
+        // /tmp is a symlink to /private/tmp on macOS. Directory enumeration
+        // returns physical paths even when the context was opened through /tmp.
+        let context = URL(fileURLWithPath: "/tmp").appendingPathComponent("container-build-\(UUID().uuidString)")
+        try fm.createDirectory(at: context.appendingPathComponent("srcdir"), withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: context) }
+        try write("hello", to: context.appendingPathComponent("srcdir/file.txt"))
+
+        let fssync = try BuildFSSync(context)
+        let infos = try await walkJSON(fssync, followPaths: ["srcdir"])
+
+        #expect(infos.contains { $0.name == "srcdir/file.txt" })
+        let files = try await walkTar(fssync, followPaths: ["srcdir"])
+        #expect(files["srcdir/file.txt"] == Data("hello".utf8), "archive entries: \(files.keys.sorted())")
+
+        var continuation: AsyncStream<ClientStream>.Continuation!
+        _ = AsyncStream<ClientStream> { continuation = $0 }
+        defer { continuation.finish() }
+        let source = context.appendingPathComponent("srcdir/file.txt").path
+        try await fssync.info(continuation, readPacket(source: source), "build-0")
+        try await fssync.read(continuation, readPacket(source: source), "build-0")
     }
 
     @Test func testWalkJSONReportsEmptyTargetForRegularFile() async throws {
