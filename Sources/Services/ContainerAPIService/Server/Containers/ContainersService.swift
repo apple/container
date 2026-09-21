@@ -627,6 +627,25 @@ public actor ContainersService {
         do {
             client = try state.getClient()
         } catch {
+            // No in-memory runtime client for this container (e.g. this apiserver
+            // instance was restarted after a crash and never reconnected). Before
+            // treating this as "already stopped" and returning success, check
+            // whether the runtime's launchd job is still actually registered.
+            // If it is, the container is very likely still running and we must
+            // not silently report success without having stopped anything.
+            let label = Self.bareLaunchdServiceLabel(
+                runtimeName: state.snapshot.configuration.runtimeHandler,
+                instanceId: id
+            )
+            if (try? ServiceManager.isRegistered(fullServiceLabel: label)) == true {
+                throw ContainerizationError(
+                    .invalidState,
+                    message:
+                        "container \(id) has no active connection to its runtime process, "
+                        + "but the runtime's service is still registered and may still be running "
+                        + "(this can happen after an apiserver restart); use `container delete` to remove it"
+                )
+            }
             return
         }
 
@@ -1015,6 +1034,13 @@ public actor ContainersService {
 
     private static func fullLaunchdServiceLabel(runtimeName: String, instanceId: String) -> String {
         "\(Self.launchdDomainString)/\(Self.machServicePrefix).\(runtimeName).\(instanceId)"
+    }
+
+    // `ServiceManager.isRegistered` shells out to `launchctl list <label>`, which (unlike
+    // `bootout`) only accepts a bare label scoped to the current session domain, not the
+    // domain-qualified form used by `fullLaunchdServiceLabel`/`bootout`.
+    private static func bareLaunchdServiceLabel(runtimeName: String, instanceId: String) -> String {
+        "\(Self.machServicePrefix).\(runtimeName).\(instanceId)"
     }
 
     private func _cleanUp(id: String) async throws {
