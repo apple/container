@@ -157,6 +157,22 @@ struct TestCLIBuilder {
         }
     }
 
+    @Test func testBuildArgDefaultExpansionInFrom() async throws {
+        try await ContainerFixture.with { f in
+            let dir = try f.createTempDir()
+            try f.createContext(
+                dir: dir,
+                dockerfile: """
+                    ARG TAG="${TAG:-3.20}"
+                    FROM ghcr.io/linuxcontainers/alpine:${TAG}
+                    RUN test -f /etc/alpine-release
+                    """)
+            let image = "registry.local/build-arg-default-expansion:\(UUID().uuidString)"
+            try f.build(tag: image, contextDir: dir)
+            try f.assertImageBuilt(image)
+        }
+    }
+
     @Test func testBuildSecret() async throws {
         try await ContainerFixture.with { f in
             let dir = try f.createTempDir()
