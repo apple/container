@@ -32,7 +32,10 @@ public struct UserSetup: Sendable, Codable, Equatable {
     }
 
     public var user: ProcessConfiguration.User {
-        .id(uid: uid, gid: gid)
+        if !username.isEmpty {
+            return .raw(userString: username)
+        }
+        return .id(uid: uid, gid: gid)
     }
 
     public init(username: String, uid: UInt32, gid: UInt32) {

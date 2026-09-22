@@ -99,7 +99,7 @@ extension Application {
 
             // Build environment with HOME set correctly
             let envVars = try Parser.allEnv(
-                imageEnvs: ["PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"],
+                imageEnvs: Self.baseEnvironment(configuration: snapshot.configuration, user: user),
                 envFiles: processFlags.envFile,
                 envs: processFlags.env
             )
@@ -159,6 +159,25 @@ extension Application {
                 return fallback
             }
             return cwd.string
+        }
+
+        static let defaultPath = "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+        /// Environment supplied to the guest before env files and `--env` flags.
+        ///
+        /// The guest init resolves the login shell from `CONTAINER_USER`, so pass the
+        /// provisioned name through when running as the machine's own user. The image
+        /// may already use that account's UID under a different name, in which case
+        /// the guest cannot recover the name from the UID alone.
+        static func baseEnvironment(
+            configuration: MachineConfiguration,
+            user: ProcessConfiguration.User
+        ) -> [String] {
+            let username = configuration.userSetup.username
+            guard !username.isEmpty, user == configuration.user else {
+                return [defaultPath]
+            }
+            return [defaultPath, "CONTAINER_USER=\(username)"]
         }
     }
 }
