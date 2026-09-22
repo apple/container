@@ -68,12 +68,15 @@ extension K8sHelper {
 
         if schedulable {
             log.info("Removing control-plane taint for single-node scheduling", metadata: ["node": "\(nodeID)"])
-            _ = try await runProbe(
+            let taintCode = try await runProbe(
                 client: client, containerId: nodeID,
                 arguments: ["taint", "nodes", "--all", "node-role.kubernetes.io/control-plane-"])
+            guard taintCode == 0 else {
+                throw ContainerizationError(.internalError, message: "failed to remove control-plane taint on \(nodeID)")
+            }
         }
 
-        if cniManifestPath == noCNIName {
+        if cniManifestPath?.uppercased() == noCNIName {
             log.info("Skipping CNI installation", metadata: ["node": "\(nodeID)"])
         } else {
             log.info("Applying CNI manifest", metadata: ["node": "\(nodeID)"])

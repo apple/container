@@ -35,9 +35,10 @@ struct K8sCreateCNIFlagTests {
         #expect(command.cni == "/tmp/my-cni.yaml")
     }
 
-    @Test func cniAcceptsNone() throws {
-        let command = try K8sCreate.parse(["--cni", "none"])
-        #expect(command.cni == "none")
+    @Test(arguments: ["NONE", "none", "None"])
+    func cniAcceptsNone(value: String) throws {
+        let command = try K8sCreate.parse(["--cni", value])
+        #expect(command.cni == value)
     }
 }
 

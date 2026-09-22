@@ -27,8 +27,8 @@ struct TestK8sCNISerial {
             f.addCleanup { _ = try? f.run(["k8s", "delete", "--name", name]) }
 
             try f.restoreWarmupImage(.kindestNodeV1_35_5)
-            print("[k8s-cni] k8s create --name \(name) --cni none")
-            let result = try f.run(["k8s", "create", "--name", name, "--cni", "none"])
+            print("[k8s-cni] k8s create --name \(name) --cni NONE")
+            let result = try f.run(["k8s", "create", "--name", name, "--cni", "NONE"])
             print("[k8s-cni] k8s create exit=\(result.status)")
             if result.status != 0 {
                 print("[k8s-cni] k8s create stderr: \(result.error)")

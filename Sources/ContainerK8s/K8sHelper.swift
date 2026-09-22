@@ -44,8 +44,8 @@ public struct K8sHelper {
     public static let ignorePreflightErrors =
         "Swap,SystemVerification,FileContent--proc-sys-net-bridge-bridge-nf-call-iptables"
     static let podSubnet = "10.244.0.0/16"
-    /// Sentinel value for `--cni` that skips installing a CNI entirely.
-    public static let noCNIName = "none"
+    /// Sentinel value for `--cni` (compared case-insensitively) that skips installing a CNI entirely.
+    static let noCNIName = "NONE"
     // kubeadm default service subnet; must stay in sync if ClusterConfiguration.serviceSubnet is ever set.
     static let serviceSubnet = "10.96.0.0/12"
 
