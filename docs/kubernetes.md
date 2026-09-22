@@ -199,6 +199,15 @@ To have a cluster automatically remove itself when stopped, create it with `--rm
 container k8s create --name temp-cluster --rm
 ```
 
+### Recovering a stopped cluster
+
+If a cluster's control plane node stops (for example, after `container stop`), delete and re-create the cluster:
+
+```bash
+container k8s delete --name my-cluster
+container k8s create --name my-cluster
+```
+
 ## Common workflows
 
 ### Test a deployment locally before production
