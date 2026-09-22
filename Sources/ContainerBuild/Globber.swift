@@ -83,19 +83,17 @@ public class Globber {
     /// (same as a regular file) so pattern components after it never match —
     /// mirrors the containment check `BuildFSSync` applies before reading.
     ///
-    /// Children are named by their resolved (physical) path, not by `url`, so
-    /// that `walk(root:includePatterns:)`'s later filter — which is driven by
-    /// `Archiver.compress`'s own physical directory walk — reliably finds a
-    /// matching entry regardless of whether that walk itself follows `url`'s
-    /// symlink. `url` is separately inserted into `results` so the symlink
-    /// entry is still present in the tar for the builder to resolve the
-    /// original path against.
+    /// Children are named by appending each entry's basename onto `dir`
+    /// rather than using `contentsOfDirectory(at:)`'s own URLs, which silently
+    /// re-resolve `dir` (e.g. `/tmp` → `/private/tmp`) even when `dir` itself
+    /// isn't a symlink, breaking the lexical `parentOf` containment checks
+    /// downstream.
     private func children(of url: URL) -> [URL] {
         // TODO: modifying object state and returning results is odd, rework
         guard let dir = self.resolvedDirectory(of: url) else { return [] }
         if url.isSymlink { self.results.insert(url) }
-        return (try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil))
-            ?? []
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? []
+        return names.map { dir.appendingPathComponent($0) }
     }
 
     /// Recursive form of ``children(of:)``, used once a full pattern (or `**`)
