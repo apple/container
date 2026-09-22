@@ -32,6 +32,7 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
     private let maxConcurrentDownloads: Int
     private let remove: Bool
     private let fqdn: String?
+    private let mounts: [String]
 
     public init(
         clusterName: String,
@@ -42,7 +43,8 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
         registryScheme: String = "https",
         maxConcurrentDownloads: Int = 3,
         remove: Bool = false,
-        fqdn: String? = nil
+        fqdn: String? = nil,
+        mounts: [String] = []
     ) throws {
         guard !roles.isEmpty else {
             throw ContainerizationError(.invalidArgument, message: "LinuxNode roles must not be empty")
@@ -63,6 +65,7 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
         self.maxConcurrentDownloads = maxConcurrentDownloads
         self.remove = remove
         self.fqdn = fqdn
+        self.mounts = mounts
     }
 
     public func provision(name: String, log: Logger) async throws {
@@ -90,7 +93,7 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
                 "\(ResourceLabelKeys.role)=\(roles.joined(separator: ","))",
             ],
             maskedPaths: [],
-            mounts: [],
+            mounts: mounts,
             name: name,
             networks: [],
             os: "linux",

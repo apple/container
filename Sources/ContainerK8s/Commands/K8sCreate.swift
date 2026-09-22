@@ -36,6 +36,9 @@ public struct K8sCreate: AsyncParsableCommand {
     @Option(name: .long, help: "Cluster name (default: \(K8sHelper.defaultName))")
     var name: String = K8sHelper.defaultName
 
+    @Option(name: .customLong("mount"), help: "Add a mount to the container (format: type=<>,source=<>,target=<>,readonly)")
+    var mounts: [String] = []
+
     @Flag(name: [.customLong("rm"), .long], help: "Remove the cluster container after it stops")
     var remove: Bool = false
 
@@ -98,7 +101,8 @@ public struct K8sCreate: AsyncParsableCommand {
             registryScheme: registryFlags.scheme,
             maxConcurrentDownloads: imageFetchFlags.maxConcurrentDownloads,
             remove: remove,
-            fqdn: fqdn
+            fqdn: fqdn,
+            mounts: mounts
         )
 
         progress.set(description: "Starting cluster")
