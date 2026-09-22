@@ -717,6 +717,6 @@ let package = Package(
             ],
             path: "Sources/Plugins/ContainerBuilder",
             exclude: ["config.toml"]
-        )
+        ),
     ]
 )
