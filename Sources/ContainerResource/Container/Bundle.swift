@@ -137,7 +137,7 @@ extension Bundle {
 
     public func setContainerRootFs(fs: Filesystem) throws {
         let fsData = try JSONEncoder().encode(fs)
-        try fsData.write(to: self.containerRootfsConfig)
+        try fsData.write(to: self.containerRootfsConfig, options: .atomic)
     }
 
     public func cloneContainerRootFs(cloning fs: Filesystem, readonly: Bool = false) throws {
@@ -160,7 +160,7 @@ extension Bundle {
 
     private static func write(_ path: URL, value: Encodable) throws {
         let data = try JSONEncoder().encode(value)
-        try data.write(to: path)
+        try data.write(to: path, options: .atomic)
     }
 
     public func load<T>(filename: String) throws -> T where T: Decodable {
