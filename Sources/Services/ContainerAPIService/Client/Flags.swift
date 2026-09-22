@@ -39,6 +39,7 @@ public struct Flags {
             envFile: [String],
             gid: UInt32?,
             interactive: Bool,
+            noNewPrivileges: Bool = false,
             tty: Bool,
             uid: UInt32?,
             ulimits: [String],
@@ -49,6 +50,7 @@ public struct Flags {
             self.envFile = envFile
             self.gid = gid
             self.interactive = interactive
+            self.noNewPrivileges = noNewPrivileges
             self.tty = tty
             self.uid = uid
             self.ulimits = ulimits
@@ -69,6 +71,9 @@ public struct Flags {
 
         @Flag(name: .shortAndLong, help: "Keep the standard input open even if not attached")
         public var interactive = false
+
+        @Flag(name: .long, help: "Prevent the process from gaining new privileges")
+        public var noNewPrivileges = false
 
         @Flag(name: .shortAndLong, help: "Open a TTY with the process")
         public var tty = false

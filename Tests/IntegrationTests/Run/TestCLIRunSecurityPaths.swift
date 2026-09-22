@@ -14,6 +14,8 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerAPIClient
+import ContainerResource
 import ContainerTestSupport
 import Containerization
 import Foundation
@@ -44,6 +46,105 @@ struct TestCLIRunSecurityPaths {
 
     private func trimmed(_ value: String) -> String {
         value.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func directExecNoNewPrivilegesStatus(
+        containerId: String, noNewPrivileges: Bool
+    ) async throws -> String {
+        let pipe = Pipe()
+        let config = ProcessConfiguration(
+            executable: "sh",
+            arguments: ["-c", "awk '/^NoNewPrivs:/ { print $2 }' /proc/self/status"],
+            environment: [],
+            noNewPrivileges: noNewPrivileges
+        )
+        let process = try await ContainerClient().createProcess(
+            containerId: containerId,
+            processId: UUID().uuidString.lowercased(),
+            configuration: config,
+            stdio: [nil, pipe.fileHandleForWriting, pipe.fileHandleForWriting]
+        )
+        try await process.start()
+        pipe.fileHandleForWriting.closeFile()
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        try? pipe.fileHandleForReading.close()
+        _ = try await process.wait()
+        return trimmed(String(data: data, encoding: .utf8) ?? "")
+    }
+
+    // MARK: - No new privileges
+
+    @Test func testNoNewPrivilegesAppliesToInitAndExecProcesses() async throws {
+        try await ContainerFixture.with { f in
+            let initResult = try f.run([
+                "run", "--rm", "--no-new-privileges", alpine.rawValue,
+                "sh", "-c", "awk '/^NoNewPrivs:/ { print $2 }' /proc/self/status",
+            ]).check()
+            #expect(trimmed(initResult.output) == "1")
+
+            let c = "\(f.testID)-c"
+            try await f.doLongRun(
+                name: c,
+                image: alpine.rawValue,
+                args: ["--no-new-privileges"],
+                autoRemove: false,
+                waitUntilRunning: true
+            )
+            f.addCleanup {
+                try? f.doStop(c)
+                try? f.doRemove(c)
+            }
+
+            let inspect = try f.inspectContainer(c)
+            #expect(inspect.configuration.initProcess.noNewPrivileges)
+
+            let execStatus = try f.doExec(
+                c,
+                cmd: ["sh", "-c", "awk '/^NoNewPrivs:/ { print $2 }' /proc/self/status"]
+            )
+            #expect(trimmed(execStatus) == "1")
+        }
+    }
+
+    @Test func testNoNewPrivilegesCannotBeWeakenedThroughTheContainerAPI() async throws {
+        try await ContainerFixture.with { f in
+            let hardened = "\(f.testID)-hardened"
+            try await f.doLongRun(
+                name: hardened,
+                image: alpine.rawValue,
+                args: ["--no-new-privileges"],
+                autoRemove: false,
+                waitUntilRunning: true
+            )
+            f.addCleanup {
+                try? f.doStop(hardened)
+                try? f.doRemove(hardened)
+            }
+
+            let hardenedStatus = try await directExecNoNewPrivilegesStatus(
+                containerId: hardened,
+                noNewPrivileges: false
+            )
+            #expect(hardenedStatus == "1")
+
+            let ordinary = "\(f.testID)-ordinary"
+            try await f.doLongRun(
+                name: ordinary,
+                image: alpine.rawValue,
+                autoRemove: false,
+                waitUntilRunning: true
+            )
+            f.addCleanup {
+                try? f.doStop(ordinary)
+                try? f.doRemove(ordinary)
+            }
+
+            let ordinaryStatus = try await directExecNoNewPrivilegesStatus(
+                containerId: ordinary,
+                noNewPrivileges: false
+            )
+            #expect(ordinaryStatus == "0")
+        }
     }
 
     // MARK: - Invalid paths
