@@ -18,12 +18,20 @@ import ContainerAPIClient
 import ContainerResource
 import ContainerizationError
 import ContainerizationOS
+import Darwin
 import Foundation
 import Logging
 
 // MARK: - K8sHelper
 
 public struct K8sHelper {
+    struct ExecProcess: Sendable {
+        let start: @Sendable () async throws -> Void
+        let wait: @Sendable () async throws -> Int32
+    }
+
+    typealias ProcessCreator = @Sendable (ProcessConfiguration, [FileHandle?]) async throws -> ExecProcess
+
     public static let pluginName: String = "k8s"
     public static let defaultName: String = "k8s-dev"
     public static let controlPlaneRoleName: String = "control-plane"
@@ -64,19 +72,99 @@ public struct K8sHelper {
     // Shared exec helper used by bootstrap, readiness, and kubeconfig extensions.
     public static func execCapture(
         containerId: String, executable: String, arguments: [String],
+        environment: [String] = [], standardInput: URL? = nil,
         client: ContainerClient
     ) async throws -> (code: Int32, output: String) {
+        try await execCapture(
+            executable: executable,
+            arguments: arguments,
+            environment: environment,
+            standardInput: standardInput,
+            processCreator: { configuration, stdio in
+                let process = try await client.createProcess(
+                    containerId: containerId,
+                    processId: UUID().uuidString.lowercased(),
+                    configuration: configuration,
+                    stdio: stdio)
+                return ExecProcess(
+                    start: { try await process.start() },
+                    wait: { try await process.wait() })
+            })
+    }
+
+    /// Executes a process while capturing stdout and stderr together.
+    ///
+    /// Standard input is restricted to a regular file so output can be drained synchronously without
+    /// introducing a pipe producer that could block this task. `processCreator` takes ownership of every
+    /// non-nil stdio handle, including when process creation fails.
+    static func execCapture(
+        executable: String, arguments: [String], environment: [String] = [],
+        standardInput: URL? = nil, processCreator: ProcessCreator
+    ) async throws -> (code: Int32, output: String) {
         let pipe = Pipe()
+        defer { try? pipe.fileHandleForReading.close() }
+        let outputDescriptor = pipe.fileHandleForWriting.fileDescriptor
+        let stdoutDescriptor = dup(outputDescriptor)
+        guard stdoutDescriptor >= 0 else {
+            throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+        }
+        let stderrDescriptor = dup(outputDescriptor)
+        guard stderrDescriptor >= 0 else {
+            close(stdoutDescriptor)
+            throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+        }
+        do {
+            try pipe.fileHandleForWriting.close()
+        } catch {
+            close(stdoutDescriptor)
+            close(stderrDescriptor)
+            throw error
+        }
+
+        let inputHandle: FileHandle?
+        if let standardInput {
+            let inputDescriptor = open(standardInput.path, O_RDONLY | O_CLOEXEC)
+            guard inputDescriptor >= 0 else {
+                close(stdoutDescriptor)
+                close(stderrDescriptor)
+                let cause = POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "failed to open standard input at \(standardInput.path)",
+                    cause: cause)
+            }
+            var status = stat()
+            guard fstat(inputDescriptor, &status) == 0 else {
+                let cause = POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+                close(inputDescriptor)
+                close(stdoutDescriptor)
+                close(stderrDescriptor)
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "failed to inspect standard input at \(standardInput.path)",
+                    cause: cause)
+            }
+            guard (status.st_mode & S_IFMT) == S_IFREG else {
+                close(inputDescriptor)
+                close(stdoutDescriptor)
+                close(stderrDescriptor)
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "standard input at \(standardInput.path) is not a regular file")
+            }
+            inputHandle = FileHandle(fileDescriptor: inputDescriptor, closeOnDealloc: false)
+        } else {
+            inputHandle = nil
+        }
+
+        let stdoutHandle = FileHandle(fileDescriptor: stdoutDescriptor, closeOnDealloc: false)
+        let stderrHandle = FileHandle(fileDescriptor: stderrDescriptor, closeOnDealloc: false)
         let config = ProcessConfiguration(
-            executable: executable, arguments: arguments, environment: [], terminal: false)
-        let proc = try await client.createProcess(
-            containerId: containerId, processId: UUID().uuidString.lowercased(),
-            configuration: config, stdio: [nil, pipe.fileHandleForWriting, pipe.fileHandleForWriting])
-        try await proc.start()
-        pipe.fileHandleForWriting.closeFile()
+            executable: executable, arguments: arguments, environment: environment, terminal: false)
+        let process = try await processCreator(config, [inputHandle, stdoutHandle, stderrHandle])
+        try await process.start()
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        try? pipe.fileHandleForReading.close()
-        let code = try await proc.wait()
+        let code = try await process.wait()
         return (code, String(data: data, encoding: .utf8) ?? "")
     }
 

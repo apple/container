@@ -36,13 +36,13 @@ struct K8sCreateCNIFlagTests {
     }
 }
 
-// MARK: - K8sHelper.loadCNIManifest
+// MARK: - K8sHelper CNI manifest handling
 
 @Suite("K8sHelper.loadCNIManifest")
 struct LoadCNIManifestTests {
     private let log = Logger(label: "test")
 
-    @Test func customPathReturnsItsContents() async throws {
+    @Test func customPathReturnsReadableFileURL() async throws {
         let contents = "kind: DaemonSet\nmetadata:\n  name: my-custom-cni\n"
         let dir = FileManager.default.temporaryDirectory
         let url = dir.appendingPathComponent(UUID().uuidString + ".yaml")
@@ -50,7 +50,8 @@ struct LoadCNIManifestTests {
         defer { try? FileManager.default.removeItem(at: url) }
 
         let result = try await K8sHelper.loadCNIManifest(path: url.path, log: log)
-        #expect(result == contents)
+        #expect(result == url)
+        #expect(try String(contentsOf: result, encoding: .utf8) == contents)
     }
 
     @Test func missingPathThrowsInvalidArgument() async throws {
@@ -60,5 +61,101 @@ struct LoadCNIManifestTests {
         await #expect(throws: ContainerizationError.self) {
             _ = try await K8sHelper.loadCNIManifest(path: missingPath, log: log)
         }
+    }
+}
+
+@Suite("K8sHelper.applyCNIManifest")
+struct ApplyCNIManifestTests {
+    @Test func streamsLargeManifestWithLiteralEOFIntact() async throws {
+        let marker = "$(touch /tmp/must-not-run)"
+        let contents = """
+            apiVersion: v1
+            kind: ConfigMap
+            metadata:
+              name: large-manifest
+            data:
+              payload: |
+                \(String(repeating: "a", count: 132_000))
+                EOF
+                content-after-eof
+                \(marker)
+            """
+        let expected = Data(contents.utf8)
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + ".yaml")
+        try expected.write(to: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let recorder = ManifestInvocationRecorder(result: (0, "configured"))
+        try await K8sHelper.applyCNIManifest(manifestURL: url, nodeID: "test-node") {
+            executable, arguments, environment, standardInput in
+            try await recorder.execute(
+                executable: executable,
+                arguments: arguments,
+                environment: environment,
+                standardInput: standardInput)
+        }
+
+        let invocation = await recorder.invocation
+        #expect(invocation?.executable == K8sHelper.kubectlPath)
+        #expect(invocation?.arguments == ["apply", "-f", "-"])
+        #expect(invocation?.environment == [K8sHelper.kubeconfigEnv])
+        #expect(invocation?.input == expected)
+        #expect(String(decoding: invocation?.input ?? Data(), as: UTF8.self).contains("\nEOF\n"))
+        #expect(String(decoding: invocation?.input ?? Data(), as: UTF8.self).contains("content-after-eof"))
+        #expect(String(decoding: invocation?.input ?? Data(), as: UTF8.self).contains(marker))
+    }
+
+    @Test func failurePreservesManifestPathAndKubectlOutput() async throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + ".yaml")
+        try Data("not: [valid".utf8).write(to: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let recorder = ManifestInvocationRecorder(result: (1, "error: invalid YAML"))
+        do {
+            try await K8sHelper.applyCNIManifest(manifestURL: url, nodeID: "test-node") {
+                executable, arguments, environment, standardInput in
+                try await recorder.execute(
+                    executable: executable,
+                    arguments: arguments,
+                    environment: environment,
+                    standardInput: standardInput)
+            }
+            Issue.record("expected CNI application to fail")
+        } catch let error as ContainerizationError {
+            #expect(error.message.contains(url.path))
+            #expect(error.message.contains("error: invalid YAML"))
+        }
+    }
+}
+
+private actor ManifestInvocationRecorder {
+    struct Invocation: Sendable {
+        let executable: String
+        let arguments: [String]
+        let environment: [String]
+        let input: Data
+    }
+
+    private(set) var invocation: Invocation?
+    private let result: (code: Int32, output: String)
+
+    init(result: (code: Int32, output: String)) {
+        self.result = result
+    }
+
+    func execute(
+        executable: String, arguments: [String], environment: [String], standardInput: URL?
+    ) throws -> (code: Int32, output: String) {
+        guard let standardInput else {
+            throw ContainerizationError(.invalidArgument, message: "missing standard input")
+        }
+        invocation = Invocation(
+            executable: executable,
+            arguments: arguments,
+            environment: environment,
+            input: try Data(contentsOf: standardInput))
+        return result
     }
 }
