@@ -33,6 +33,20 @@ struct TestCLIMachineCommand {
         }
     }
 
+    @Test func testCreateRejectsImageWithoutInit() async throws {
+        try await ContainerFixture.with { f in
+            // hello-world contains a single binary and no /sbin/init, so it can
+            // never boot as a container machine.
+            let name = "\(f.testID)-noinit"
+            f.addCleanup { f.cleanupMachine(name) }
+            let result = try f.runMachine(["create", "--name", name, "docker.io/library/hello-world:latest"])
+            #expect(result.status != 0, "create should reject an image without /sbin/init")
+            #expect(result.error.contains("/sbin/init"), "error should name the missing init, got: \(result.error)")
+            let list = try f.runMachine(["list"])
+            #expect(!list.output.contains(name), "failed create should not leave a machine behind")
+        }
+    }
+
     @Test func testCreateRejectsDots() async throws {
         try await ContainerFixture.with { f in
             let result = try f.runMachine(["create", "--name", "my.bad.name", machineImage])
