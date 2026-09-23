@@ -1,7 +1,7 @@
 {
   "name": "container",
-  "description": "Teaches Claude container's command surface and how it maps to Docker, Lima, Colima, and Podman on macOS",
-  "version": "0.1.0",
+  "description": "Teaches Claude how to use container on macOS and diagnose failures",
+  "version": "0.2.0",
   "homepage": "https://github.com/apple/container",
   "repository": "https://github.com/apple/container",
   "license": "Apache-2.0",
@@ -17,6 +17,7 @@
     "apple-silicon"
   ],
   "skills": [
-    "./skills/container"
+    "./skills/container",
+    "./skills/container-troubleshooting"
   ]
 }
