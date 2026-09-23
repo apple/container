@@ -449,6 +449,11 @@ public actor ContainersService {
                     onExit: self.handleContainerExit
                 )
 
+                // Bootstrap persists the granted addresses, so re-read to keep `inspect`
+                // from serving the pre-start configuration.
+                if let (bootstrapped, _) = try? Self.getContainerConfiguration(at: path) {
+                    state.snapshot.configuration = bootstrapped
+                }
                 state.client = runtimeClient
                 await self.setContainerState(id, state, context: context)
             } catch {

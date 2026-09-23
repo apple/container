@@ -285,7 +285,10 @@ extension Application {
                 throw ContainerizationError(.invalidState, message: "default network is not present")
             }
             config.networks = [
-                AttachmentConfiguration(network: defaultNetwork.id, options: AttachmentOptions(hostname: Builder.builderContainerId))
+                AttachmentConfiguration(
+                    network: defaultNetwork.id,
+                    options: AttachmentOptions(hostname: Builder.builderContainerId, macAddress: .generate())
+                )
             ]
             config.dns = ContainerConfiguration.DNSConfiguration(
                 nameservers: dnsNameservers,
