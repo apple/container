@@ -172,12 +172,6 @@ public actor RuntimeService {
                 }
                 kernel.commandLine.kernelArgs.append("\(key)=\(value)")
             }
-            let vmm = VZVirtualMachineManager(
-                kernel: kernel,
-                initialFilesystem: bundle.initialFilesystem.asMount,
-                rosetta: config.rosetta,
-                logger: self.log
-            )
 
             let networkBootstrapInfos = try message.networkBootstrapInfos()
 
@@ -207,6 +201,12 @@ public actor RuntimeService {
                             variant: attachment.variant
                         )
                     }
+
+                    // enable DHCP if the attachment has not been assigned an explicit IP address
+                    if attachment.ipv4Address == nil {
+                        kernel.commandLine.kernelArgs.append("ip=::::\(attachment.hostname):eth\(index):dhcp")
+                    }
+
                     guard let iStrategy = self.interfaceStrategies[NetworkInterfaceKey(plugin: info.plugin, variant: attachment.variant)] else {
                         throw ContainerizationError(
                             .internalError,
@@ -225,17 +225,23 @@ public actor RuntimeService {
                 throw error
             }
 
+            let vmm = VZVirtualMachineManager(
+                kernel: kernel,
+                initialFilesystem: bundle.initialFilesystem.asMount,
+                rosetta: config.rosetta,
+                logger: self.log
+            )
+
             // Dynamically configure the DNS nameserver from a network if no explicit configuration
+            // For bridge networks (unspecified gateway), nameservers and domain come from DHCP (/proc/net/pnp).
             if let dns = config.dns, dns.nameservers.isEmpty {
                 let defaultNameservers = self.getDefaultNameservers(from: attachments)
-                if !defaultNameservers.isEmpty {
-                    config.dns = ContainerConfiguration.DNSConfiguration(
-                        nameservers: defaultNameservers,
-                        domain: dns.domain,
-                        searchDomains: dns.searchDomains,
-                        options: dns.options
-                    )
-                }
+                config.dns = ContainerConfiguration.DNSConfiguration(
+                    nameservers: defaultNameservers.isEmpty ? dns.nameservers : defaultNameservers,
+                    domain: defaultNameservers.isEmpty ? nil : dns.domain,
+                    searchDomains: dns.searchDomains,
+                    options: dns.options
+                )
             }
 
             let stdio = message.stdio()
@@ -272,11 +278,10 @@ public actor RuntimeService {
                 // NOTE: We can support a user providing new entries eventually, but for now craft
                 // a default /etc/hosts.
                 var hostsEntries = [Hosts.Entry.localHostIPV4()]
-                if !interfaces.isEmpty {
-                    let primaryIfaceAddr = interfaces[0].ipv4Address
+                if !interfaces.isEmpty, let ipv4Address = interfaces[0].ipv4Address, !ipv4Address.address.isUnspecified {
                     hostsEntries.append(
                         Hosts.Entry(
-                            ipAddress: primaryIfaceAddr.address.description,
+                            ipAddress: ipv4Address.address.description,
                             hostnames: [czConfig.hostname ?? id],
                         ))
                 }
@@ -1023,7 +1028,10 @@ public actor RuntimeService {
                     let containerIPAddress: String
                     switch publishedPort.hostAddress {
                     case .v4(_):
-                        containerIPAddress = attachment.ipv4Address.address.description
+                        guard let ipv4Address = attachment.ipv4Address else {
+                            throw ContainerizationError(.invalidState, message: "cannot configure IPv4 port forwarding for container with unknown IPv4 address")
+                        }
+                        containerIPAddress = ipv4Address.address.description
                     case .v6(_):
                         guard let ipv6Address = attachment.ipv6Address else {
                             throw ContainerizationError(.invalidState, message: "cannot configure IPv6 port forwarding for container with unknown IPv6 address")
@@ -1204,7 +1212,10 @@ public actor RuntimeService {
 
     private nonisolated func getDefaultNameservers(from attachments: [Attachment]) -> [String] {
         for attachment in attachments {
-            return [attachment.ipv4Gateway.description]
+            guard let ipv4Gateway: IPv4Address = attachment.ipv4Gateway else {
+                continue
+            }
+            return [ipv4Gateway.description]
         }
         return []
     }

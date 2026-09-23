@@ -14,18 +14,17 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerNetworkClient
 import ContainerResource
 import ContainerRuntimeClient
 import ContainerXPC
 import Containerization
 import ContainerizationError
 import Logging
-import Virtualization
-import vmnet
 
 /// Interface strategy for containers that use macOS's custom network feature.
 @available(macOS 26, *)
-public struct NonisolatedInterfaceStrategy: InterfaceStrategy {
+public struct BridgedInterfaceStrategy: InterfaceStrategy {
     private let log: Logger
 
     public init(log: Logger) {
@@ -33,27 +32,25 @@ public struct NonisolatedInterfaceStrategy: InterfaceStrategy {
     }
 
     public func toInterface(attachment: Attachment, interfaceIndex: Int, additionalData: XPCMessage?) throws -> Interface {
-        guard let additionalData else {
-            throw ContainerizationError(.invalidState, message: "network state does not contain custom network reference")
+        guard let bridgeDictionary = additionalData?.xpcDictionary(key: NetworkKeys.additionalData.rawValue) else {
+            throw ContainerizationError(.internalError, message: "did not receive bridge dictionary in interface additional message")
+        }
+        let bridgeData = XPCMessage(object: bridgeDictionary)
+
+        guard let ifaceName = bridgeData.string(key: BridgeNetworkKeys.hostInterface.rawValue)
+        else {
+            throw ContainerizationError(.invalidState, message: "bridge network missing host interface name")
+        }
+        guard let containerBridgeEndpoint = bridgeData.fileHandle(key: BridgeNetworkKeys.sandboxEndpoint.rawValue) else {
+            return BridgedNetworkInterface(
+                hostInterfaceName: ifaceName,
+                macAddress: attachment.macAddress
+            )
         }
 
-        var status: vmnet_return_t = .VMNET_SUCCESS
-        guard let networkRef = vmnet_network_create_with_serialization(additionalData.underlying, &status) else {
-            throw ContainerizationError(.invalidState, message: "cannot deserialize custom network reference, status \(status)")
-        }
-
-        guard let ipv4Address = attachment.ipv4Address else {
-            throw ContainerizationError(.invalidState, message: "NAT attachment missing IPv4 address")
-        }
-        log.info("creating NATNetworkInterface with network reference")
-        let ipv4Gateway = interfaceIndex == 0 ? attachment.ipv4Gateway : nil
-        return NATNetworkInterface(
-            ipv4Address: ipv4Address,
-            ipv4Gateway: ipv4Gateway,
-            reference: networkRef,
-            macAddress: attachment.macAddress,
-            // https://github.com/apple/containerization/pull/38
-            mtu: attachment.mtu ?? 1280
+        return FileHandleNetworkInterface(
+            fileHandle: containerBridgeEndpoint,
+            macAddress: attachment.macAddress
         )
     }
 }
