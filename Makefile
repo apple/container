@@ -36,6 +36,10 @@ DSYM_DIR := bin/$(BUILD_CONFIGURATION)/bundle/container-dSYM
 DSYM_PATH := bin/$(BUILD_CONFIGURATION)/bundle/container-dSYM.zip
 CODESIGN_OPTS ?= --force --sign - --timestamp=none
 
+# Default isolated application data root under the project directory so test runs do not touch your
+# own installation. Override with APP_ROOT=/your/path, or APP_ROOT= (empty) to run against
+# the default ~/Library/Application Support/com.apple.container.
+APP_ROOT ?= $(ROOT_DIR)/.test-data
 
 # Conditionally use a temporary data directory for integration tests
 SYSTEM_START_OPTS :=
@@ -62,6 +66,9 @@ SUDO ?= sudo
 .DEFAULT_GOAL := all
 
 include Protobuf.Makefile
+
+.PHONY: verify
+verify: all test integration
 
 .PHONY: all
 all: container
@@ -313,7 +320,12 @@ define RUN_INTEGRATION
 endef
 
 .PHONY: integration
-integration: init-block
+integration: container init-block
+	@echo "HOSTNAME: $$(hostname)"
+	$(RUN_INTEGRATION)
+
+.PHONY: integration-only
+integration-only: init-block
 	@echo "HOSTNAME: $$(hostname)"
 	$(RUN_INTEGRATION)
 
@@ -424,10 +436,22 @@ cleancontent:
 	@rm -rf ~/Library/Application\ Support/com.apple.container
 
 .PHONY: clean
-clean:
+clean: cleantest cleanbuild
+
+.PHONY: cleanbuild
+cleanbuild:
 	@echo Cleaning build files...
 	@rm -rf bin/ libexec/
 	@rm -rf _site _serve
 	@rm -f $(COV_REPORT_FILE)
 	@rm -rf $(COVERAGE_OUTPUT_DIR)
 	@$(SWIFT) package clean
+
+.PHONY: cleantest
+cleantest:
+	@echo Stopping container services...
+	@bin/container system stop 2>/dev/null || true
+	@scripts/ensure-container-stopped.sh -a || true
+	@if [ -n "$(APP_ROOT)" ]; then echo "Removing $(APP_ROOT)..." ; rm -rf "$(APP_ROOT)" ; fi
+	@echo "Removing $(SCRATCH_ROOT)..."
+	@rm -rf "$(SCRATCH_ROOT)"
