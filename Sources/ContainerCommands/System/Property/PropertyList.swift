@@ -18,6 +18,7 @@ import ArgumentParser
 import ContainerAPIClient
 import ContainerPersistence
 import ContainerPlugin
+import ContainerResource
 import Foundation
 
 enum ListOutputFormat: String, Decodable, ExpressibleByArgument {

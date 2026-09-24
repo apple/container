@@ -19,8 +19,16 @@ import ContainerAPIClient
 import ContainerLog
 import ContainerResource
 import ContainerizationError
+import ContainerizationExtras
 import Foundation
 import Logging
+
+// `ListFormat` lives in `ContainerResource`, which doesn't depend on ArgumentParser.
+// ArgumentParser already provides a free `init?(argument:)` for any
+// `RawRepresentable where RawValue == String` type, so this retroactive conformance
+// is zero-cost — declared once here since this is the only file in this executable
+// target that needs it.
+extension ListFormat: ExpressibleByArgument {}
 
 struct BuilderStatus: AsyncParsableCommand {
     public static var configuration: CommandConfiguration {
@@ -30,12 +38,11 @@ struct BuilderStatus: AsyncParsableCommand {
         return config
     }
 
-    // NOTE: The `ContainerCommands` version of this command supported `--format
-    // json|yaml|toml|table` and `--quiet`, backed by `Output`/`ListFormat`/`ListDisplayable`
-    // (Sources/ContainerCommands/OutputRendering.swift). Those types live in the
-    // `ContainerCommands` monolith, not a shared library, so pulling them in here would
-    // mean either depending on the whole `ContainerCommands` target or duplicating that
-    // rendering system. Dropped instead: this always prints a plain table.
+    @Option(name: .long, help: "Format of the output")
+    var format: ListFormat = .table
+
+    @Flag(name: .shortAndLong, help: "Only output the container ID")
+    var quiet = false
 
     @OptionGroup
     public var logOptions: Flags.Logging
@@ -52,15 +59,38 @@ struct BuilderStatus: AsyncParsableCommand {
         do {
             let client = ContainerClient()
             let container = try await client.get(id: "buildkit")
-            print(Self.table(for: container))
+
+            if format == .table && quiet && container.status != .running {
+                return
+            }
+
+            try Output.render(
+                payload: [ManagedContainer(container)],
+                display: [PrintableBuilder(container)],
+                format: format,
+                quiet: quiet
+            )
         } catch let error as ContainerizationError where error.code == .notFound {
-            print("builder is not running")
+            try Output.render(payload: [ManagedContainer](), format: format) {
+                quiet ? "" : "builder is not running"
+            }
         }
     }
+}
 
-    private static func table(for snapshot: ContainerSnapshot) -> String {
-        let header = ["ID", "IMAGE", "STATE", "IP", "CPUS", "MEMORY"]
-        let row = [
+private struct PrintableBuilder: ListDisplayable {
+    let snapshot: ContainerSnapshot
+
+    init(_ snapshot: ContainerSnapshot) {
+        self.snapshot = snapshot
+    }
+
+    static var tableHeader: [String] {
+        ["ID", "IMAGE", "STATE", "IP", "CPUS", "MEMORY"]
+    }
+
+    var tableRow: [String] {
+        [
             snapshot.id,
             snapshot.configuration.image.reference,
             snapshot.status.rawValue,
@@ -68,10 +98,9 @@ struct BuilderStatus: AsyncParsableCommand {
             "\(snapshot.configuration.resources.cpus)",
             "\(snapshot.configuration.resources.memoryInBytes / (1024 * 1024)) MB",
         ]
-        let widths = header.indices.map { max(header[$0].count, row[$0].count) }
-        func formatted(_ columns: [String]) -> String {
-            columns.indices.map { columns[$0].padding(toLength: widths[$0] + 2, withPad: " ", startingAt: 0) }.joined()
-        }
-        return "\(formatted(header))\n\(formatted(row))"
+    }
+
+    var quietValue: String {
+        snapshot.id
     }
 }
