@@ -126,7 +126,7 @@ extension Application {
 
             let defaultBuildCPUs: Int = containerSystemConfig.build.cpus
             let defaultBuildMemory = containerSystemConfig.build.memory
-            let resources = try Parser.resources(
+            var resources = try Parser.resources(
                 cpus: cpus,
                 memory: memory,
                 defaultCPUs: defaultBuildCPUs,
@@ -138,6 +138,12 @@ extension Application {
             if let existingContainer {
                 let existingImage = existingContainer.configuration.image.reference
                 let existingResources = existingContainer.configuration.resources
+                resources = BuilderStart.resourcesForStart(
+                    requested: resources,
+                    existing: existingResources,
+                    cpus: cpus,
+                    memory: memory
+                )
                 let existingEnv = existingContainer.configuration.initProcess.environment
                 let existingDNS = existingContainer.configuration.dns
 
@@ -322,6 +328,23 @@ extension Application {
 
             try await startBuildKit(client: client, id: Builder.builderContainerId, progressUpdate, taskManager)
             log.debug("starting BuildKit and BuildKit-shim")
+        }
+
+        // A nil flag means the caller expressed no preference, so preserve the existing value.
+        static func resourcesForStart(
+            requested: ContainerConfiguration.Resources,
+            existing: ContainerConfiguration.Resources,
+            cpus: Int64?,
+            memory: String?
+        ) -> ContainerConfiguration.Resources {
+            var resources = requested
+            if cpus == nil {
+                resources.cpus = existing.cpus
+            }
+            if memory == nil {
+                resources.memoryInBytes = existing.memoryInBytes
+            }
+            return resources
         }
     }
 }
