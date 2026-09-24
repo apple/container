@@ -80,6 +80,25 @@ public struct K8sHelper {
         return (code, String(data: data, encoding: .utf8) ?? "")
     }
 
+    // MARK: - Node enumeration
+
+    /// Names of worker containers belonging to `clusterName`, sorted (e.g. `<clusterName>-worker-1`).
+    static func workerContainerNames(clusterName: String, client: ContainerClient) async throws -> [String] {
+        let snapshots = try await client.list(
+            filters: ContainerListFilters(labels: [ResourceLabelKeys.plugin: pluginName])
+        )
+        return workerContainerNames(from: snapshots, clusterName: clusterName)
+    }
+
+    /// Pure filtering logic behind `workerContainerNames(clusterName:client:)`, split out for unit testing.
+    static func workerContainerNames(from snapshots: [ContainerSnapshot], clusterName: String) -> [String] {
+        snapshots
+            .filter { $0.configuration.labels[ResourceLabelKeys.role] == workerRoleName }
+            .map { $0.configuration.id }
+            .filter { $0.hasPrefix("\(clusterName)-worker-") }
+            .sorted()
+    }
+
     // MARK: - List rows
 
     static func buildK8sRows(from snapshots: [ContainerSnapshot]) -> [K8sNodeResource] {
