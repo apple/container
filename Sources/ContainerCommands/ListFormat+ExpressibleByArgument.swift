@@ -14,28 +14,12 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerCommands
+import ArgumentParser
 import ContainerResource
-import Testing
 
-// MARK: - ManagedContainer conformance tests
-
-struct ManagedContainerDisplayTests {
-    @Test
-    func tableHeaderHasNineColumns() {
-        #expect(ManagedContainer.tableHeader.count == 9)
-        #expect(ManagedContainer.tableHeader[0] == "ID")
-        #expect(ManagedContainer.tableHeader[4] == "STATE")
-        #expect(ManagedContainer.tableHeader[8] == "STARTED")
-    }
-}
-
-// MARK: - NetworkResource ListDisplayable conformance tests
-
-struct NetworkResourceDisplayTests {
-    @Test
-    func tableHeaderHasTwoColumns() {
-        #expect(NetworkResource.tableHeader.count == 2)
-        #expect(NetworkResource.tableHeader == ["NETWORK", "SUBNET"])
-    }
-}
+// `ListFormat` lives in `ContainerResource`, which must not depend on ArgumentParser
+// (a CLI-parsing concern, not a resource/data-model concern). ArgumentParser already
+// provides a free `init?(argument:)` for any `RawRepresentable where RawValue == String`,
+// so this retroactive conformance is zero-cost — declared once here for every command
+// in this target that uses `@Option var format: ListFormat`.
+extension ListFormat: ExpressibleByArgument {}

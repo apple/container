@@ -14,9 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ArgumentParser
-
-public enum ListFormat: String, CaseIterable, ExpressibleByArgument, Sendable {
+public enum ListFormat: String, CaseIterable, Sendable {
     case json
     case table
     case yaml
