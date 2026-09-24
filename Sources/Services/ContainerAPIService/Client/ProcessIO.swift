@@ -30,8 +30,22 @@ public struct ProcessIO: Sendable {
         SIGINT,
         SIGUSR1,
         SIGUSR2,
-        SIGWINCH,
     ]
+
+    static func signalName(_ signal: Int32) -> String {
+        switch signal {
+        case SIGTERM:
+            "SIGTERM"
+        case SIGINT:
+            "SIGINT"
+        case SIGUSR1:
+            "SIGUSR1"
+        case SIGUSR2:
+            "SIGUSR2"
+        default:
+            "\(signal)"
+        }
+    }
 
     public struct IoTracker: Sendable {
         let stream: AsyncStream<Void>
@@ -198,7 +212,7 @@ public struct ProcessIO: Sendable {
                 _ = group.addTaskUnlessCancelled {
                     for await sig in signals.signals {
                         do {
-                            try await process.kill(sig)
+                            try await process.kill(Self.signalName(sig))
                         } catch {
                             log.error(
                                 "failed to send signal",
