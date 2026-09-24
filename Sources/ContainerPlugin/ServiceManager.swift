@@ -18,25 +18,46 @@ import ContainerizationError
 import Foundation
 
 public struct ServiceManager {
-    private static func runLaunchctlCommand(args: [String]) throws -> Int32 {
+    private static func runLaunchctlCommand(args: [String]) throws -> (status: Int32, stderr: String) {
         let launchctl = Foundation.Process()
         launchctl.executableURL = URL(fileURLWithPath: "/bin/launchctl")
         launchctl.arguments = args
 
         let null = FileHandle.nullDevice
+        let stderrPipe = Pipe()
         launchctl.standardOutput = null
-        launchctl.standardError = null
+        launchctl.standardError = stderrPipe
 
         try launchctl.run()
+        let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
         launchctl.waitUntilExit()
 
-        return launchctl.terminationStatus
+        let stderr = String(data: stderrData, encoding: .utf8) ?? ""
+        return (launchctl.terminationStatus, stderr)
     }
 
     /// Register a service by providing the path to a plist.
     public static func register(plistPath: String) throws {
         let domain = try Self.getDomainString()
-        _ = try runLaunchctlCommand(args: ["bootstrap", domain, plistPath])
+        let command = "launchctl bootstrap \(domain) \(plistPath)"
+        let (status, stderr) = try runLaunchctlCommand(args: ["bootstrap", domain, plistPath])
+        guard status == 0 else {
+            // `container system start` is idempotent: if the service is already
+            // bootstrapped, launchctl returns non-zero. Treat that as success.
+            // Use try? so a launchctl spawn failure does not replace the bootstrap error.
+            // Query the same domain we bootstrapped into.
+            if let label = try? launchdLabel(fromPlistAt: plistPath),
+                (try? isRegistered(fullServiceLabel: "\(domain)/\(label)")) == true
+            {
+                return
+            }
+            let detail = stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+            let message =
+                detail.isEmpty
+                ? "command `\(command)` failed with status \(status)"
+                : "command `\(command)` failed with status \(status), message: \(detail)"
+            throw ContainerizationError(.internalError, message: message)
+        }
     }
 
     /// Deregister a service by a launchd label.
@@ -46,7 +67,7 @@ public struct ServiceManager {
 
     /// Deregister a service and pass return status
     public static func deregister(fullServiceLabel label: String, status: inout Int32) throws {
-        status = try runLaunchctlCommand(args: ["bootout", label])
+        status = try runLaunchctlCommand(args: ["bootout", label]).status
     }
 
     /// Restart a service by a launchd label.
@@ -93,8 +114,13 @@ public struct ServiceManager {
     }
 
     /// Check if a service has been registered or not.
+    ///
+    /// Prefer a domain-qualified service target (`gui/501/label`, `system/label`)
+    /// so the lookup agrees with the domain used by `register`. Bare labels still
+    /// use `launchctl list` for compatibility with existing callers.
     public static func isRegistered(fullServiceLabel label: String) throws -> Bool {
-        let exitStatus = try runLaunchctlCommand(args: ["list", label])
+        let args = label.contains("/") ? ["print", label] : ["list", label]
+        let exitStatus = try runLaunchctlCommand(args: args).status
         return exitStatus == 0
     }
 
@@ -122,16 +148,38 @@ public struct ServiceManager {
     }
 
     public static func getDomainString() throws -> String {
-        let currentSessionType = try getLaunchdSessionType()
-        switch currentSessionType {
+        try domainString(sessionType: getLaunchdSessionType(), uid: getuid(), euid: geteuid())
+    }
+
+    /// Compute the launchd domain target for the given session and credentials.
+    ///
+    /// When running as root outside an Aqua session (for example `sudo` on a CI
+    /// runner), bootstrap into the `system` domain. `user/0` and `gui/0` are not
+    /// valid bootstrap targets in that context.
+    static func domainString(sessionType: String, uid: uid_t, euid: uid_t) throws -> String {
+        if euid == 0 && sessionType != LaunchPlist.Domain.Aqua.rawValue {
+            return LaunchPlist.Domain.System.rawValue.lowercased()
+        }
+        switch sessionType {
         case LaunchPlist.Domain.System.rawValue:
             return LaunchPlist.Domain.System.rawValue.lowercased()
         case LaunchPlist.Domain.Background.rawValue:
-            return "user/\(getuid())"
+            return "user/\(uid)"
         case LaunchPlist.Domain.Aqua.rawValue:
-            return "gui/\(getuid())"
+            return "gui/\(uid)"
         default:
-            throw ContainerizationError(.internalError, message: "unsupported session type \(currentSessionType)")
+            throw ContainerizationError(.internalError, message: "unsupported session type \(sessionType)")
         }
+    }
+
+    private static func launchdLabel(fromPlistAt path: String) throws -> String {
+        let data = try Data(contentsOf: URL(fileURLWithPath: path))
+        let plist = try PropertyListSerialization.propertyList(from: data, format: nil)
+        guard let dict = plist as? [String: Any],
+            let label = dict[LaunchPlist.CodingKeys.label.rawValue] as? String
+        else {
+            throw ContainerizationError(.internalError, message: "launchd plist at \(path) is missing Label")
+        }
+        return label
     }
 }
