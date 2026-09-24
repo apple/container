@@ -39,19 +39,31 @@ public struct MemorySize: Codable, Sendable, Equatable, CustomStringConvertible 
         try container.encode(formatted)
     }
 
-    private static let unitLabels: [UnitInformationStorage: String] = [
-        .bytes: "b",
-        .kibibytes: "kb",
-        .mebibytes: "mb",
-        .gibibytes: "gb",
-        .tebibytes: "tb",
-        .pebibytes: "pb",
+    /// Unit labels ordered largest first, so that a size can be stepped down to the
+    /// largest unit that still expresses it as a whole number.
+    private static let unitLabels: [(unit: UnitInformationStorage, label: String)] = [
+        (.pebibytes, "pb"),
+        (.tebibytes, "tb"),
+        (.gibibytes, "gb"),
+        (.mebibytes, "mb"),
+        (.kibibytes, "kb"),
+        (.bytes, "b"),
     ]
 
     public var formatted: String {
-        let value = Int64(measurement.value)
-        let label = Self.unitLabels[measurement.unit] ?? "unknown"
-        return "\(value)\(label)"
+        // This is what `encode(to:)` writes, so it has to parse back into the same size.
+        // A whole value keeps the unit it was given; a fractional one steps down to a
+        // smaller unit, because truncating it here shrinks the persisted configuration.
+        guard let start = Self.unitLabels.firstIndex(where: { $0.unit == measurement.unit }) else {
+            return "\(Int64(measurement.value))unknown"
+        }
+        for entry in Self.unitLabels[start...] {
+            let value = measurement.converted(to: entry.unit).value
+            if value == value.rounded() {
+                return "\(Int64(value))\(entry.label)"
+            }
+        }
+        return "\(Int64(measurement.converted(to: .bytes).value.rounded()))b"
     }
 }
 
