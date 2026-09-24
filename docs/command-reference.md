@@ -1600,7 +1600,7 @@ Creates and starts a local Kubernetes cluster. Pulls the node image if needed, r
 **Usage**
 
 ```bash
-container k8s create [--name <name>] [--node-image <image>] [--cni <path>] [--rm] [<resource options>] [--debug]
+container k8s create [--name <name>] [--node-image <image>] [--cni <path>] [--rm] [--volume <volume>] [--mount <mount>] [<resource options>] [--debug]
 ```
 
 **Options**
@@ -1609,6 +1609,8 @@ container k8s create [--name <name>] [--node-image <image>] [--cni <path>] [--rm
 *   `--node-image <image>`: Node image reference (default: `docker.io/kindest/node:v1.35.5`)
 *   `--cni <path>`: Optional path to a CNI manifest to apply. If not provided, the bundled kindnet CNI is used.
 *   `--rm`: Remove the cluster container after it stops
+*   `--volume, -v <volume>`: Bind mount a host directory or named volume into the cluster node (format: `[source:]destination[:options]`, repeatable). Uses the same syntax as `container run --volume`.
+*   `--mount <mount>`: Add a mount to the cluster node (format: `type=<>,source=<>,target=<>,readonly`, repeatable). Uses the same syntax as `container run --mount`.
 
 **Resource Options**
 
@@ -1637,6 +1639,15 @@ container k8s create --name temp-cluster --rm
 
 # create a cluster using a custom CNI manifest instead of the bundled kindnet
 container k8s create --cni ./my-cni.yaml
+
+# create a cluster with a host directory bind-mounted into the node
+container k8s create --volume /Users/me/data:/mnt/data
+
+# create a cluster with a named, managed volume mounted read-only
+container k8s create --volume mydata:/mnt/data:ro
+
+# create a cluster with an explicit mount using type=/source=/target= syntax
+container k8s create --mount type=bind,source=/Users/me/data,target=/mnt/data,readonly
 ```
 
 ### `container k8s delete (rm)`
