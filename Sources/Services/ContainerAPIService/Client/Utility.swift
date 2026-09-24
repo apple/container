@@ -356,7 +356,7 @@ public struct Utility {
     public static func parseKeyValuePairs(_ pairs: [String]) -> [String: String] {
         var result: [String: String] = Dictionary(minimumCapacity: pairs.count)
         for pair in pairs {
-            let components = pair.split(separator: "=", maxSplits: 1)
+            let components = pair.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
             if components.count == 2 {
                 result[String(components[0])] = String(components[1])
             } else {
