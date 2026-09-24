@@ -497,6 +497,16 @@ extension Application {
                 break
             case .none:
                 guard let defaultDockerfile = try BuildFile.resolvePath(contextDir: contextDir) else {
+                    // "Not found" and "not allowed to look" arrive here as the same answer,
+                    // because `FileManager.fileExists` returns false for both — so a build
+                    // whose context the process may not read reported a missing Dockerfile
+                    // that was sitting right there, and the message sent people to inspect
+                    // their context. Listing the directory separates the two cases: a
+                    // denial fails, and a directory that simply holds no Dockerfile lists
+                    // fine. Naming the file with -f already surfaces the real error.
+                    guard (try? FileManager.default.contentsOfDirectory(atPath: contextDir)) != nil else {
+                        throw ValidationError("cannot read context dir \(contextDir): permission denied")
+                    }
                     throw ValidationError("dockerfile not found in context dir")
                 }
 
