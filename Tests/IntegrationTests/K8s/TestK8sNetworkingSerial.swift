@@ -37,31 +37,17 @@ struct TestK8sNetworkingSerial {
         print("=== END ENV DUMP ===")
     }
 
-    @discardableResult
-    private func kubectl(_ f: ContainerFixture, node: String, args: [String]) throws -> (output: String, status: Int32) {
-        print("[k8s-net] kubectl \(args.joined(separator: " ")) (node: \(node))")
-        let result = try f.run(["exec", node, "kubectl"] + args)
-        print("[k8s-net] kubectl exit=\(result.status) output=\(result.output.prefix(120).trimmingCharacters(in: .whitespacesAndNewlines))")
-        let filteredStderr = result.error.components(separatedBy: "\n")
-            .filter { !$0.contains("Warning! Running debug build") && !$0.isEmpty }
-            .joined(separator: "\n")
-        if !filteredStderr.isEmpty {
-            print("[k8s-net] kubectl stderr: \(filteredStderr.prefix(300))")
-        }
-        return (result.output, result.status)
-    }
-
     private func waitForPod(_ f: ContainerFixture, node: String, podName: String, timeoutSeconds: Int) throws {
         print("[k8s-net] waitForPod \(podName) on \(node) (timeout=\(timeoutSeconds)s)")
-        let (_, status) = try kubectl(
-            f, node: node,
+        let (_, status) = try f.kubectl(
+            node: node,
             args: [
                 "wait", "--for=condition=Ready", "pod/\(podName)", "--timeout=\(timeoutSeconds)s",
             ])
         guard status == 0 else {
-            let (podStatus, _) = try kubectl(f, node: node, args: ["get", "pod", podName, "--no-headers"])
+            let (podStatus, _) = try f.kubectl(node: node, args: ["get", "pod", podName, "--no-headers"])
             print("[k8s-net] pod \(podName) status: \(podStatus.trimmingCharacters(in: .whitespacesAndNewlines))")
-            let (podDesc, _) = try kubectl(f, node: node, args: ["describe", "pod", podName])
+            let (podDesc, _) = try f.kubectl(node: node, args: ["describe", "pod", podName])
             print("[k8s-net] pod \(podName) describe:\n\(podDesc.prefix(1000))")
             throw CommandError.executionFailed("pod \(podName) did not become ready within \(timeoutSeconds)s")
         }
@@ -94,8 +80,8 @@ struct TestK8sNetworkingSerial {
             if loadResult.status != 0 { print("[k8s-net] k8s load-image stderr: \(loadResult.error)") }
             #expect(loadResult.status == 0)
 
-            let (_, createStatus) = try kubectl(
-                f, node: name,
+            let (_, createStatus) = try f.kubectl(
+                node: name,
                 args: [
                     "run", "test-pod",
                     "--image=\(Self.testImage.rawValue)",
@@ -107,8 +93,8 @@ struct TestK8sNetworkingSerial {
 
             try waitForPod(f, node: name, podName: "test-pod", timeoutSeconds: 300)
 
-            let (output, execStatus) = try kubectl(
-                f, node: name,
+            let (output, execStatus) = try f.kubectl(
+                node: name,
                 args: [
                     "exec", "test-pod", "--", "echo", "hello",
                 ])
@@ -143,8 +129,8 @@ struct TestK8sNetworkingSerial {
             #expect(loadResult.status == 0)
 
             // Server: alpine busybox httpd serving a static response.
-            let (_, serverStatus) = try kubectl(
-                f, node: name,
+            let (_, serverStatus) = try f.kubectl(
+                node: name,
                 args: [
                     "run", "server",
                     "--image=\(Self.testImage.rawValue)",
@@ -158,16 +144,16 @@ struct TestK8sNetworkingSerial {
             try waitForPod(f, node: name, podName: "server", timeoutSeconds: 300)
 
             // Expose server as a ClusterIP service.
-            let (_, exposeStatus) = try kubectl(
-                f, node: name,
+            let (_, exposeStatus) = try f.kubectl(
+                node: name,
                 args: [
                     "expose", "pod", "server", "--port=8080", "--name=server-svc",
                 ])
             #expect(exposeStatus == 0)
 
             // Client pod that stays alive so we can exec into it.
-            let (_, clientStatus) = try kubectl(
-                f, node: name,
+            let (_, clientStatus) = try f.kubectl(
+                node: name,
                 args: [
                     "run", "client",
                     "--image=\(Self.testImage.rawValue)",
@@ -180,8 +166,8 @@ struct TestK8sNetworkingSerial {
 
             // Reach server via the service DNS name — exercises CoreDNS + kube-proxy.
             print("[k8s-net] wget from client to server-svc:8080")
-            let (response, wgetStatus) = try kubectl(
-                f, node: name,
+            let (response, wgetStatus) = try f.kubectl(
+                node: name,
                 args: [
                     "exec", "client", "--", "sh", "-c",
                     "sleep 2 && wget -qO- http://server-svc:8080",

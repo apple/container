@@ -51,7 +51,7 @@ public struct K8sCreate: AsyncParsableCommand {
     @Option(help: "Node image reference (default: \(K8sHelper.nodeImage))")
     var nodeImage: String = K8sHelper.nodeImage
 
-    @Option(name: .long, help: "Optional path to a CNI manifest to apply.")
+    @Option(name: .long, help: "Optional path to a CNI manifest to apply, or \"none\" to skip installing a CNI.")
     var cni: String?
 
     public func run() async throws {
@@ -62,7 +62,8 @@ public struct K8sCreate: AsyncParsableCommand {
             throw ContainerizationError(.invalidArgument, message: "cluster name \(name) is not a valid container ID")
         }
 
-        if let cni {
+        let skipCNI = cni == K8sHelper.noCNIName
+        if let cni, !skipCNI {
             guard FileManager.default.fileExists(atPath: cni) else {
                 throw ContainerizationError(.invalidArgument, message: "CNI manifest not found at \(cni)")
             }
@@ -118,13 +119,18 @@ public struct K8sCreate: AsyncParsableCommand {
                 cniManifestPath: cni,
                 client: client, log: log)
 
-            progress.set(description: "Waiting for cluster to be ready")
-            try await K8sHelper.waitForReady(containerId: name, client: client, log: log)
+            if skipCNI {
+                progress.set(description: "Waiting for API server")
+                try await K8sHelper.waitForAPIServer(containerId: name, client: client, log: log)
+            } else {
+                progress.set(description: "Waiting for cluster to be ready")
+                try await K8sHelper.waitForReady(containerId: name, client: client, log: log)
+            }
 
             progress.set(description: "Writing kubeconfig")
+            let rawConfig = try await K8sHelper.fetchConfig(containerId: name, client: client, log: log)
+            let kubeConfig = try await K8sHelper.transformConfig(rawConfig, containerId: name, fqdn: fqdn, client: client)
             do {
-                let rawConfig = try await K8sHelper.fetchConfig(containerId: name, client: client, log: log)
-                let kubeConfig = try await K8sHelper.transformConfig(rawConfig, containerId: name, fqdn: fqdn, client: client)
                 try K8sHelper.mergeConfig(kubeConfig, containerId: name, setCurrentContext: true, log: log)
             } catch {
                 log.warning("failed to write kubeconfig", metadata: ["name": "\(name)", "error": "\(error)"])

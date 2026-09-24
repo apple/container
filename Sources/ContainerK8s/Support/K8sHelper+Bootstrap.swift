@@ -68,19 +68,26 @@ extension K8sHelper {
 
         if schedulable {
             log.info("Removing control-plane taint for single-node scheduling", metadata: ["node": "\(nodeID)"])
-            _ = try await runProbe(
+            let taintCode = try await runProbe(
                 client: client, containerId: nodeID,
                 arguments: ["taint", "nodes", "--all", "node-role.kubernetes.io/control-plane-"])
+            guard taintCode == 0 else {
+                throw ContainerizationError(.internalError, message: "failed to remove control-plane taint on \(nodeID)")
+            }
         }
 
-        log.info("Applying CNI manifest", metadata: ["node": "\(nodeID)"])
-        let manifest = try await loadCNIManifest(path: cniManifestPath, log: log)
-        let apply = "\(kubeconfigEnv) kubectl apply -f - <<'EOF'\n\(manifest)\nEOF"
-        r = try await execCapture(
-            containerId: nodeID, executable: "/bin/sh",
-            arguments: ["-c", apply], client: client)
-        guard r.code == 0 else {
-            throw ContainerizationError(.internalError, message: "apply CNI failed on \(nodeID): \(r.output)")
+        if cniManifestPath == noCNIName {
+            log.info("Skipping CNI installation", metadata: ["node": "\(nodeID)"])
+        } else {
+            log.info("Applying CNI manifest", metadata: ["node": "\(nodeID)"])
+            let manifest = try await loadCNIManifest(path: cniManifestPath, log: log)
+            let apply = "\(kubeconfigEnv) kubectl apply -f - <<'EOF'\n\(manifest)\nEOF"
+            r = try await execCapture(
+                containerId: nodeID, executable: "/bin/sh",
+                arguments: ["-c", apply], client: client)
+            guard r.code == 0 else {
+                throw ContainerizationError(.internalError, message: "apply CNI failed on \(nodeID): \(r.output)")
+            }
         }
     }
 
