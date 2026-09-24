@@ -304,10 +304,19 @@ public struct ContainersHarness: Sendable {
         guard ManagedContainer.nameValid(id) else {
             throw ContainerizationError(.invalidArgument, message: "container ID \(id) is not a valid container ID")
         }
-        let fds = try await service.logs(id: id)
+
+        let options = Self.logOptions(from: message)
+
+        let fds = try await service.logs(id: id, options: options)
         let reply = message.reply()
         try reply.set(key: .logs, value: fds)
         return reply
+    }
+
+    static func logOptions(from message: XPCMessage) -> ContainerLogOptions {
+        let since = message.contains(key: .logSince) ? message.date(key: .logSince) : nil
+        let timestamps = message.bool(key: .logTimestamps)
+        return ContainerLogOptions(since: since, timestamps: timestamps)
     }
 
     @Sendable
