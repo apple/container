@@ -25,6 +25,7 @@ import ContainerizationError
 import ContainerizationExtras
 import ContainerizationOCI
 import ContainerizationOS
+import Darwin
 import Foundation
 import Logging
 import NIO
@@ -979,6 +980,14 @@ public actor RuntimeService {
         guard let processInfo = self.processes[id] else {
             throw ContainerizationError(.notFound, message: "process with id \(id)")
         }
+        var processStarted = false
+        defer {
+            if !processStarted {
+                for handle in processInfo.io.compactMap({ $0 }) {
+                    try? self.closeHandle(handle.fileDescriptor)
+                }
+            }
+        }
 
         let containerInfo = try self.getContainer()
         let czConfig = try self.configureProcessConfig(
@@ -991,6 +1000,7 @@ public actor RuntimeService {
         try self.setUnderlyingProcess(id, process)
 
         try await process.start()
+        processStarted = true
 
         let waitFunc: ExitMonitor.WaitHandler = {
             let code = try await process.wait()
@@ -1261,7 +1271,7 @@ public actor RuntimeService {
         throws -> LinuxProcessConfiguration
     {
         var proc = LinuxProcessConfiguration()
-        proc.stdin = stdio[0]
+        proc.stdin = stdio[0].map(OwnedFileHandleReader.init)
         proc.stdout = stdio[1]
         proc.stderr = stdio[2]
 
@@ -1591,6 +1601,47 @@ extension FileHandle: @retroactive ReaderStream, @retroactive Writer {
                 cont.yield(data)
             }
         }
+    }
+}
+
+/// Owns the `closeOnDealloc: false` descriptor duplicated from an XPC process request.
+private final class OwnedFileHandleReader: @unchecked Sendable, ReaderStream {
+    private let handle: FileHandle
+    private let descriptor: Int32
+    private let lock = NSLock()
+    private var closed = false
+
+    init(_ handle: FileHandle) {
+        self.handle = handle
+        self.descriptor = handle.fileDescriptor
+    }
+
+    func stream() -> AsyncStream<Data> {
+        .init { continuation in
+            continuation.onTermination = { @Sendable termination in
+                guard case .cancelled = termination else { return }
+                self.handle.readabilityHandler = nil
+                self.close()
+            }
+            self.handle.readabilityHandler = { handle in
+                let data = handle.availableData
+                if data.isEmpty {
+                    self.handle.readabilityHandler = nil
+                    self.close()
+                    continuation.finish()
+                    return
+                }
+                continuation.yield(data)
+            }
+        }
+    }
+
+    private func close() {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !closed else { return }
+        closed = true
+        _ = Darwin.close(descriptor)
     }
 }
 

@@ -23,6 +23,14 @@ import Logging
 
 extension K8sHelper {
 
+    typealias ExecCaptureFunction =
+        @Sendable (
+            _ executable: String,
+            _ arguments: [String],
+            _ environment: [String],
+            _ standardInput: URL?
+        ) async throws -> (code: Int32, output: String)
+
     public static func prepareNode(nodeID: String, client: ContainerClient, log: Logger) async throws {
         log.info("Preparing node", metadata: ["id": "\(nodeID)"])
         let result = try await execCapture(
@@ -74,13 +82,16 @@ extension K8sHelper {
         }
 
         log.info("Applying CNI manifest", metadata: ["node": "\(nodeID)"])
-        let manifest = try await loadCNIManifest(path: cniManifestPath, log: log)
-        let apply = "\(kubeconfigEnv) kubectl apply -f - <<'EOF'\n\(manifest)\nEOF"
-        r = try await execCapture(
-            containerId: nodeID, executable: "/bin/sh",
-            arguments: ["-c", apply], client: client)
-        guard r.code == 0 else {
-            throw ContainerizationError(.internalError, message: "apply CNI failed on \(nodeID): \(r.output)")
+        let manifestURL = try await loadCNIManifest(path: cniManifestPath, log: log)
+        try await applyCNIManifest(manifestURL: manifestURL, nodeID: nodeID) {
+            executable, arguments, environment, standardInput in
+            try await execCapture(
+                containerId: nodeID,
+                executable: executable,
+                arguments: arguments,
+                environment: environment,
+                standardInput: standardInput,
+                client: client)
         }
     }
 
@@ -101,18 +112,18 @@ extension K8sHelper {
         return (token: parts[tokenIdx + 1], caCertHash: parts[hashIdx + 1])
     }
 
-    static func loadCNIManifest(path: String?, log: Logger) async throws -> String {
+    static func loadCNIManifest(path: String?, log: Logger) async throws -> URL {
         if let path {
-            do {
-                return try String(contentsOfFile: path, encoding: .utf8)
-            } catch {
-                throw ContainerizationError(.invalidArgument, message: "failed to read CNI manifest at \(path): \(error)")
+            let url = URL(fileURLWithPath: path)
+            guard FileManager.default.isReadableFile(atPath: url.path) else {
+                throw ContainerizationError(.invalidArgument, message: "failed to read CNI manifest at \(path)")
             }
+            return url
         }
         return try await loadKindnetManifest(log: log)
     }
 
-    private static func loadKindnetManifest(log: Logger) async throws -> String {
+    private static func loadKindnetManifest(log: Logger) async throws -> URL {
         let pluginLoader = try await Utility.createPluginLoader(log: log)
         guard let plugin = pluginLoader.findPlugin(forExecutable: CommandLine.executablePath),
             let resourceURL = plugin.resourceURL
@@ -120,10 +131,33 @@ extension K8sHelper {
             throw ContainerizationError(.internalError, message: "unable to locate k8s plugin installation or resources")
         }
         let url = resourceURL.appendingPathComponent("kindnet.yaml")
-        guard let contents = try? String(contentsOf: url, encoding: .utf8) else {
+        guard FileManager.default.isReadableFile(atPath: url.path) else {
             throw ContainerizationError(.internalError, message: "kindnet manifest resource missing at \(url.path)")
         }
-        return contents
+        return url
+    }
+
+    static func applyCNIManifest(
+        manifestURL: URL, nodeID: String, execCapture: ExecCaptureFunction
+    ) async throws {
+        let result: (code: Int32, output: String)
+        do {
+            result = try await execCapture(
+                kubectlPath,
+                ["apply", "-f", "-"],
+                [kubeconfigEnv],
+                manifestURL)
+        } catch {
+            throw ContainerizationError(
+                .internalError,
+                message: "apply CNI manifest \(manifestURL.path) failed on \(nodeID)",
+                cause: error)
+        }
+        guard result.code == 0 else {
+            throw ContainerizationError(
+                .internalError,
+                message: "apply CNI manifest \(manifestURL.path) failed on \(nodeID): \(result.output)")
+        }
     }
 
     private static var nodePrepScript: String {
