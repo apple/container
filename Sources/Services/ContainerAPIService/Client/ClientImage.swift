@@ -322,6 +322,18 @@ extension ClientImage {
         return ImageLoadResult(images: images, rejectedMembers: rejectedMembers)
     }
 
+    public static func `import`(from tarFile: String, reference: String, platform: Platform, containerSystemConfig: ContainerSystemConfig) async throws -> ClientImage {
+        let reference = try self.normalizeReference(reference, containerSystemConfig: containerSystemConfig)
+        let client = newXPCClient()
+        let request = newRequest(.imageImport)
+        request.set(key: .filePath, value: tarFile)
+        request.set(key: .imageReference, value: reference)
+        try request.set(platform: platform)
+        let reply = try await client.send(request)
+        let description = try reply.imageDescription()
+        return ClientImage(description: description)
+    }
+
     public static func cleanUpOrphanedBlobs() async throws -> ([String], UInt64) {
         let client = newXPCClient()
         let request = newRequest(.imageCleanupOrphanedBlobs)

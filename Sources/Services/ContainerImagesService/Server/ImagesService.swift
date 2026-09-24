@@ -251,6 +251,36 @@ public actor ImagesService {
         return (images, rejectedMembers)
     }
 
+    public func `import`(from tarFile: URL, reference: String, platform: Platform) async throws -> ImageDescription {
+        self.log.debug(
+            "ImagesService: enter",
+            metadata: [
+                "func": "\(#function)",
+                "tarFile": "\(tarFile.path)",
+                "reference": "\(reference)",
+                "platform": "\(platform.description)",
+            ]
+        )
+        defer {
+            self.log.debug(
+                "ImagesService: exit",
+                metadata: [
+                    "func": "\(#function)",
+                    "reference": "\(reference)",
+                ]
+            )
+        }
+
+        let description = try await ImageImporter.`import`(
+            tarball: tarFile,
+            reference: reference,
+            platform: platform,
+            contentStore: self.contentStore,
+            imageStore: self.imageStore
+        )
+        return description.fromCZ
+    }
+
     public func cleanUpOrphanedBlobs() async throws -> ([String], UInt64) {
         self.log.debug(
             "ImagesService: enter",
