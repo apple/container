@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerResource
 import ContainerTestSupport
 import ContainerizationExtras
 import Foundation
@@ -21,6 +22,24 @@ import Testing
 
 @Suite
 struct TestCLICreateCommand {
+    @Test func testJSONCreateReturnsPersistedServerIdentity() async throws {
+        try await ContainerFixture.with { f in
+            let name = "\(f.testID)-json"
+            f.addCleanup { try f.doRemoveIfExists(name, ignoreFailure: true) }
+
+            var args = ["create", "--format", "json", "--name", name]
+            args += f.proxyEnvironmentArgs
+            args += [WarmupImage.alpine320.rawValue, "sleep", "infinity"]
+            let command = try f.run(args).check()
+            let result = try JSONDecoder().decode(ContainerCreateResult.self, from: command.outputData)
+            let inspected = try f.inspectContainer(name)
+
+            #expect(result.id == name)
+            #expect(!result.instanceToken.isEmpty)
+            #expect(inspected.configuration.instanceToken == result.instanceToken)
+        }
+    }
+
     @Test func testCreateArgsPassthrough() async throws {
         try await ContainerFixture.with { f in
             let image = WarmupImage.alpine320.rawValue
