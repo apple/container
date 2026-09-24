@@ -22,7 +22,7 @@ import NIOFoundationCompat
 import Synchronization
 
 // Proxy backend for a single client address (clientIP, clientPort).
-private final class UDPProxyBackend: ChannelInboundHandler {
+final class UDPProxyBackend: ChannelInboundHandler {
     typealias InboundIn = AddressedEnvelope<ByteBuffer>
     typealias OutboundOut = AddressedEnvelope<ByteBuffer>
 
@@ -35,6 +35,7 @@ private final class UDPProxyBackend: ChannelInboundHandler {
     private struct State {
         var queuedPayloads: Deque<ByteBuffer>
         var channel: (any Channel)?
+        var closed: Bool
     }
 
     private let clientAddress: SocketAddress
@@ -48,7 +49,7 @@ private final class UDPProxyBackend: ChannelInboundHandler {
         self.serverAddress = serverAddress
         self.frontendChannel = frontendChannel
         self.log = log
-        let initialState = State(queuedPayloads: Deque(), channel: nil)
+        let initialState = State(queuedPayloads: Deque(), channel: nil, closed: false)
         self.state = initialState
     }
 
@@ -61,6 +62,16 @@ private final class UDPProxyBackend: ChannelInboundHandler {
     }
 
     func channelActive(context: ChannelHandlerContext) {
+        guard !state.closed else {
+            // close() ran while this channel was still binding, so there was no channel to
+            // close at the time. Close it now rather than adopting it: the backend has
+            // already been evicted from the proxy cache, so no reference remains that could
+            // close it later.
+            self.log?.trace("backend - closing channel that became active after close")
+            state.queuedPayloads.removeAll()
+            context.channel.close(promise: nil)
+            return
+        }
         if !state.queuedPayloads.isEmpty {
             self.log?.trace("backend - writing \(state.queuedPayloads.count) queued datagrams to server")
             while let queuedData = state.queuedPayloads.popFirst() {
@@ -88,8 +99,9 @@ private final class UDPProxyBackend: ChannelInboundHandler {
     }
 
     func close() {
+        state.closed = true
         guard let channel = state.channel else {
-            self.log?.warning("backend - close on inactive channel")
+            self.log?.trace("backend - close requested before the channel became active")
             return
         }
         _ = channel.close()
