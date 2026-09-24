@@ -1554,26 +1554,6 @@ extension Filesystem.SyncMode {
     }
 }
 
-struct MultiWriter: Writer {
-    let handles: [FileHandle]
-
-    init(handles: [FileHandle]) {
-        self.handles = handles
-    }
-
-    func close() throws {
-        for handle in handles {
-            try handle.close()
-        }
-    }
-
-    func write(_ data: Data) throws {
-        for handle in handles {
-            try handle.write(contentsOf: data)
-        }
-    }
-}
-
 extension FileHandle: @retroactive ReaderStream, @retroactive Writer {
     public func write(_ data: Data) throws {
         try self.write(contentsOf: data)
