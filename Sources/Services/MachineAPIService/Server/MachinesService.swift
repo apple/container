@@ -378,7 +378,7 @@ public actor MachinesService {
                     platform: self.systemPlatform(from: state.snapshot.configuration.platform)
                 )
             } else {
-                kernel = try await ClientKernel.getDefaultKernel(for: .current)
+                kernel = try await ClientKernel.getDefaultKernel(for: self.systemPlatform(from: state.snapshot.configuration.platform))
             }
 
             var fhs: [FileHandle] = []
