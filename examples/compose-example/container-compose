@@ -1,0 +1,804 @@
+#!/usr/bin/env python3
+"""
+container-compose — docker-compose compatibility layer for Apple's `container` CLI.
+
+Parses docker-compose.yml and translates to `container` commands.
+
+Usage:
+  container-compose up [-d] [--build] [--remove-orphans] [service...]
+  container-compose down [--volumes] [--remove-orphans]
+  container-compose ps
+  container-compose logs [-f] [--tail N] [service...]
+  container-compose exec <service> <cmd> [args...]
+  container-compose build [--no-cache] [service...]
+  container-compose pull [service...]
+  container-compose restart [service...]
+  container-compose stop [service...]
+  container-compose start [service...]
+  container-compose rm [-f] [--stop] [service...]
+  container-compose run [--rm] <service> [cmd] [args...]
+  container-compose config
+"""
+
+import argparse
+import json
+import os
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+try:
+    import yaml
+except ImportError:
+    print("Error: PyYAML required — run: pip3 install pyyaml --break-system-packages", file=sys.stderr)
+    sys.exit(1)
+
+CONTAINER_BIN = os.environ.get("CONTAINER_BIN", "container")
+COMPOSE_LABEL_PROJECT = "com.container-compose.project"
+
+import shutil as _shutil
+if not _shutil.which(CONTAINER_BIN):
+    print(
+        f"Error: '{CONTAINER_BIN}' not found in PATH.\n"
+        "Install it from https://github.com/apple/container/releases\n"
+        "then run: container system start",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
+COMPOSE_LABEL_SERVICE = "com.container-compose.service"
+COMPOSE_LABEL_ONEOFF  = "com.container-compose.oneoff"
+
+
+def check_system_running():
+    """Fail fast with a clear message if the container daemon is not up."""
+    result = subprocess.run(
+        [CONTAINER_BIN, "system", "status"],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0 or "XPC" in (result.stdout + result.stderr):
+        print(
+            "Error: container system service is not running.\n"
+            "Start it with:\n\n    container system start\n",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def run(cmd: list[str], *, check=True, capture=False, input=None) -> subprocess.CompletedProcess:
+    """Run a shell command, printing it first."""
+    print(f"+ {' '.join(cmd)}", file=sys.stderr)
+    return subprocess.run(
+        cmd,
+        check=check,
+        capture_output=capture,
+        text=True,
+        input=input,
+    )
+
+
+def container(*args, check=True, capture=False) -> subprocess.CompletedProcess:
+    return run([CONTAINER_BIN, *args], check=check, capture=capture)
+
+
+def container_out(*args) -> str:
+    result = container(*args, capture=True)
+    return result.stdout.strip()
+
+
+# ---------------------------------------------------------------------------
+# Compose file loading
+# ---------------------------------------------------------------------------
+
+def find_compose_file(file_path: str | None) -> Path:
+    candidates = [file_path] if file_path else [
+        "docker-compose.yml", "docker-compose.yaml",
+        "compose.yml", "compose.yaml",
+    ]
+    for c in candidates:
+        p = Path(c)
+        if p.exists():
+            return p
+    print("Error: no compose file found in current directory.", file=sys.stderr)
+    sys.exit(1)
+
+
+def load_compose(path: Path) -> dict:
+    with open(path) as f:
+        data = yaml.safe_load(f)
+    return data or {}
+
+
+def project_name(override: str | None, compose_path: Path) -> str:
+    if override:
+        return override
+    env = os.environ.get("COMPOSE_PROJECT_NAME")
+    if env:
+        return env
+    # Try x-project-name in compose file
+    return Path(os.getcwd()).name
+
+
+# ---------------------------------------------------------------------------
+# Volume / Network helpers
+# ---------------------------------------------------------------------------
+
+def ensure_network(project: str, net_name: str, net_config: dict) -> str:
+    """Create network if it doesn't exist. Returns full network name."""
+    full = f"{project}_{net_name}"
+    result = container("network", "list", "--format", "json", check=False, capture=True)
+    # JSON field is "id" (equals configuration.name)
+    existing = {n.get("id") for n in _parse_json_lines(result.stdout)}
+    if full not in existing:
+        cmd = ["network", "create"]
+        for k, v in (net_config.get("labels") or {}).items():
+            cmd += ["--label", f"{k}={v}"]
+        cmd.append(full)
+        container(*cmd, check=False)
+    return full
+
+
+def ensure_volume(project: str, vol_name: str, vol_config: dict) -> str:
+    """Create named volume if it doesn't exist. Returns full volume name."""
+    full = f"{project}_{vol_name}"
+    result = container("volume", "list", "--format", "json", check=False, capture=True)
+    # JSON field is "id" (equals configuration.name)
+    existing = {v.get("id") for v in _parse_json_lines(result.stdout)}
+    if full not in existing:
+        container("volume", "create", full, check=False)
+    return full
+
+
+def _parse_json_lines(text: str) -> list[dict]:
+    """Parse newline-delimited JSON or a JSON array."""
+    text = text.strip()
+    if not text:
+        return []
+    try:
+        parsed = json.loads(text)
+        if isinstance(parsed, list):
+            return parsed
+        return [parsed]
+    except json.JSONDecodeError:
+        pass
+    results = []
+    for line in text.splitlines():
+        line = line.strip()
+        if line:
+            try:
+                results.append(json.loads(line))
+            except json.JSONDecodeError:
+                pass
+    return results
+
+
+# ---------------------------------------------------------------------------
+# Service → container args translation
+# ---------------------------------------------------------------------------
+
+def service_container_name(project: str, service: str, index: int = 1) -> str:
+    return f"{project}-{service}-{index}"
+
+
+def build_run_args(
+    project: str,
+    service_name: str,
+    svc: dict,
+    compose: dict,
+    *,
+    detach: bool = True,
+    override_cmd: list[str] | None = None,
+    remove_on_exit: bool = False,
+    index: int = 1,
+) -> list[str]:
+    """Build `container run` argument list for a service."""
+    args: list[str] = ["run"]
+
+    # Respect container_name if set, otherwise generate
+    name = svc.get("container_name") or service_container_name(project, service_name, index)
+    args += ["--name", name]
+
+    if detach:
+        args.append("-d")
+    if remove_on_exit:
+        args.append("--rm")
+
+    # Labels
+    args += ["-l", f"{COMPOSE_LABEL_PROJECT}={project}"]
+    args += ["-l", f"{COMPOSE_LABEL_SERVICE}={service_name}"]
+    for k, v in (svc.get("labels") or {}).items():
+        args += ["-l", f"{k}={v}"]
+
+    # Environment variables
+    env_vars = svc.get("environment") or {}
+    if isinstance(env_vars, list):
+        for item in env_vars:
+            args += ["-e", item]
+    else:
+        for k, v in env_vars.items():
+            if v is None:
+                args += ["-e", k]
+            else:
+                args += ["-e", f"{k}={v}"]
+
+    env_files = svc.get("env_file") or []
+    if isinstance(env_files, str):
+        env_files = [env_files]
+    for ef in env_files:
+        args += ["--env-file", ef]
+
+    # Ports
+    ports = svc.get("ports") or []
+    for p in ports:
+        args += ["-p", str(p)]
+
+    # Volumes
+    all_named_volumes = set((compose.get("volumes") or {}).keys())
+    vols = svc.get("volumes") or []
+    for v in vols:
+        if isinstance(v, dict):
+            src = v.get("source", "")
+            tgt = v.get("target", "")
+            ro  = ",readonly" if v.get("read_only") else ""
+            if v.get("type") == "tmpfs":
+                args += ["--tmpfs", tgt]
+                continue
+            vol_str = f"{src}:{tgt}{ro}"
+        else:
+            vol_str = str(v)
+
+        # Prefix named volumes with project name
+        parts = vol_str.split(":")
+        if parts[0] in all_named_volumes:
+            parts[0] = f"{project}_{parts[0]}"
+            vol_str = ":".join(parts)
+        args += ["-v", vol_str]
+
+    # Tmpfs mounts
+    for t in (svc.get("tmpfs") or []):
+        args += ["--tmpfs", t]
+
+    # Networks — attach to all specified networks; if none, use default
+    svc_networks = svc.get("networks") or list((compose.get("networks") or {}).keys()) or ["default"]
+    if isinstance(svc_networks, list):
+        svc_networks = {n: {} for n in svc_networks}
+    first = True
+    for net_name in svc_networks:
+        full_net = f"{project}_{net_name}"
+        if first:
+            args += ["--network", full_net]
+            first = False
+        # Additional networks need `container network connect` after run (handled in up())
+
+    # Hostname
+    hostname = svc.get("hostname") or service_name
+    # Note: container CLI may not have --hostname, skip if unsupported
+
+    # Working directory
+    if wd := svc.get("working_dir"):
+        args += ["--workdir", wd]
+
+    # User
+    if user := svc.get("user"):
+        args += ["--user", str(user)]
+
+    # TTY / stdin
+    if svc.get("tty"):
+        args.append("-t")
+    if svc.get("stdin_open"):
+        args.append("-i")
+
+    # Capabilities
+    for cap in (svc.get("cap_add") or []):
+        args += ["--cap-add", cap]
+    for cap in (svc.get("cap_drop") or []):
+        args += ["--cap-drop", cap]
+
+    # DNS
+    for dns in _as_list(svc.get("dns")):
+        args += ["--dns", dns]
+    for ds in _as_list(svc.get("dns_search")):
+        args += ["--dns-search", ds]
+
+    # extra_hosts — skip Docker-specific "host-gateway" magic; pass real IP mappings only
+    for entry in _as_list(svc.get("extra_hosts")):
+        if "host-gateway" in str(entry):
+            print(
+                f"  Warning: extra_hosts 'host-gateway' is Docker-specific and skipped. "
+                f"Use --dns or configure host IP manually.",
+                file=sys.stderr,
+            )
+            continue
+        # format: "hostname:ip" — pass as label or note (container CLI has no --add-host yet)
+        print(f"  Warning: extra_hosts '{entry}' skipped — not supported by container CLI.", file=sys.stderr)
+
+    # Resources
+    if mem := svc.get("mem_limit"):
+        args += ["--memory", str(mem)]
+    if cpus := svc.get("cpus"):
+        args += ["--cpus", str(cpus)]
+
+    # deploy.resources.limits (Compose v3 style)
+    deploy = svc.get("deploy") or {}
+    limits = (deploy.get("resources") or {}).get("limits") or {}
+    if mem := limits.get("memory"):
+        args += ["--memory", str(mem)]
+    if cpus := limits.get("cpus"):
+        args += ["--cpus", str(cpus)]
+
+    # Entrypoint
+    if ep := svc.get("entrypoint"):
+        if isinstance(ep, list):
+            ep = " ".join(ep)
+        args += ["--entrypoint", ep]
+
+    # Shm size
+    if shm := svc.get("shm_size"):
+        args += ["--shm-size", str(shm)]
+
+    # Read-only root
+    if svc.get("read_only"):
+        args.append("--read-only")
+
+    # init
+    if svc.get("init"):
+        args.append("--init")
+
+    # Image
+    image = svc.get("image") or f"{project}_{service_name}"
+    args.append(image)
+
+    # Command
+    if override_cmd is not None:
+        args.extend(override_cmd)
+    elif cmd := svc.get("command"):
+        if isinstance(cmd, str):
+            args += cmd.split()
+        else:
+            args.extend(cmd)
+
+    return args
+
+
+def _as_list(val) -> list:
+    if val is None:
+        return []
+    if isinstance(val, list):
+        return val
+    return [val]
+
+
+# ---------------------------------------------------------------------------
+# Dependency ordering (simple topological sort)
+# ---------------------------------------------------------------------------
+
+def ordered_services(services: dict, selected: list[str] | None) -> list[str]:
+    """Return services in dependency order."""
+    all_svcs = list(services.keys())
+    wanted = selected if selected else all_svcs
+
+    visited: set[str] = set()
+    order: list[str] = []
+
+    def visit(name: str):
+        if name in visited:
+            return
+        visited.add(name)
+        deps = services.get(name, {}).get("depends_on") or []
+        if isinstance(deps, dict):
+            deps = list(deps.keys())
+        for dep in deps:
+            if dep in services:
+                visit(dep)
+        order.append(name)
+
+    for svc in wanted:
+        visit(svc)
+
+    return order
+
+
+# ---------------------------------------------------------------------------
+# Container state queries
+# ---------------------------------------------------------------------------
+
+def list_project_containers(project: str) -> list[dict]:
+    """List containers belonging to this project."""
+    result = container(
+        "list", "--all", "--format", "json",
+        check=False, capture=True,
+    )
+    containers = _parse_json_lines(result.stdout)
+    return [
+        c for c in containers
+        if _label_value(c, COMPOSE_LABEL_PROJECT) == project
+    ]
+
+
+def _label_value(container_info: dict, label: str) -> str | None:
+    # container CLI JSON: labels live at configuration.labels (dict[str,str])
+    labels = (
+        (container_info.get("configuration") or {}).get("labels")
+        or container_info.get("labels")
+        or {}
+    )
+    if isinstance(labels, dict):
+        return labels.get(label)
+    return None
+
+
+def container_name_for(project: str, service_name: str, svc: dict, index: int = 1) -> str:
+    """Return the actual container name, respecting container_name if set."""
+    return svc.get("container_name") or service_container_name(project, service_name, index)
+
+
+def container_is_running(name: str) -> bool:
+    result = container("inspect", name, check=False, capture=True)
+    if result.returncode != 0:
+        return False
+    info = _parse_json_lines(result.stdout)
+    if not info:
+        return False
+    # container CLI JSON: {"id":..., "configuration":{...}, "status":{"state":"running",...}}
+    status_block = info[0].get("status") or {}
+    state = status_block.get("state") or ""
+    return state.lower() == "running"
+
+
+# ---------------------------------------------------------------------------
+# Subcommand implementations
+# ---------------------------------------------------------------------------
+
+def cmd_up(args, project: str, compose: dict, services: dict):
+    services_to_start = ordered_services(services, args.service or None)
+
+    # Create networks
+    all_networks = compose.get("networks") or {"default": {}}
+    for net_name, net_cfg in all_networks.items():
+        if (net_cfg or {}).get("external"):
+            continue
+        ensure_network(project, net_name, net_cfg or {})
+
+    # Create named volumes
+    all_volumes = compose.get("volumes") or {}
+    for vol_name, vol_cfg in all_volumes.items():
+        if (vol_cfg or {}).get("external"):
+            continue
+        ensure_volume(project, vol_name, vol_cfg or {})
+
+    # Build images if requested
+    if args.build:
+        cmd_build(args, project, compose, services)
+
+    for svc_name in services_to_start:
+        svc = services[svc_name]
+        cname = container_name_for(project, svc_name, svc)
+
+        # Skip if already running
+        if container_is_running(cname):
+            print(f"  {svc_name}: already running", file=sys.stderr)
+            continue
+
+        # Build image if no `image` but has `build` and --build not set
+        if not svc.get("image") and svc.get("build"):
+            _build_service(project, svc_name, svc, no_cache=False)
+            svc = dict(svc)
+            svc["image"] = f"{project}_{svc_name}"
+
+        run_args = build_run_args(
+            project, svc_name, svc, compose,
+            detach=args.detach,
+        )
+        container(*run_args, check=True)
+
+        # Note: container CLI has no `network connect` — only first network is attached at run time.
+        # Services that declare multiple networks will only join the first one.
+        svc_networks = svc.get("networks") or []
+        if len(svc_networks) > 1:
+            print(
+                f"  Warning: service '{svc_name}' declares multiple networks but container CLI "
+                f"does not support 'network connect'. Only '{svc_networks[0]}' will be attached.",
+                file=sys.stderr,
+            )
+
+    if not args.detach:
+        print("\nContainers started in foreground. Press Ctrl+C to stop.", file=sys.stderr)
+
+
+def cmd_down(args, project: str, compose: dict, services: dict):
+    ctrs = list_project_containers(project)
+    for c in ctrs:
+        # container CLI JSON uses "id" as the container name
+        name = c.get("id")
+        if not name:
+            continue
+        state_val = (c.get("status") or {}).get("state") or ""
+        if state_val.lower() == "running":
+            container("stop", name, check=False)
+        container("delete", name, check=False)
+
+    # Remove networks
+    if not (args.keep_orphans if hasattr(args, "keep_orphans") else False):
+        for net_name in (compose.get("networks") or {"default": {}}).keys():
+            full = f"{project}_{net_name}"
+            container("network", "delete", full, check=False)
+
+    # Remove volumes if requested
+    if args.volumes:
+        for vol_name in (compose.get("volumes") or {}).keys():
+            full = f"{project}_{vol_name}"
+            container("volume", "delete", full, check=False)
+
+
+def cmd_ps(args, project: str, compose: dict, services: dict):
+    ctrs = list_project_containers(project)
+    if not ctrs:
+        print(f"No containers for project '{project}'.")
+        return
+    print(f"{'NAME':<40} {'SERVICE':<20} {'STATUS':<15}")
+    print("-" * 75)
+    for c in ctrs:
+        name = c.get("id") or ""
+        svc  = _label_value(c, COMPOSE_LABEL_SERVICE) or ""
+        status = (c.get("status") or {}).get("state") or "unknown"
+        print(f"{name:<40} {svc:<20} {status:<15}")
+
+
+def cmd_logs(args, project: str, compose: dict, services: dict):
+    target_services = args.service if args.service else list(services.keys())
+    for svc_name in target_services:
+        svc = services.get(svc_name, {})
+        cname = container_name_for(project, svc_name, svc)
+        log_args = ["logs"]
+        if args.follow:
+            log_args.append("-f")
+        if args.tail:
+            log_args += ["-n", str(args.tail)]
+        log_args.append(cname)
+        container(*log_args, check=False)
+
+
+def cmd_exec(args, project: str, compose: dict, services: dict):
+    svc = services.get(args.service, {})
+    cname = container_name_for(project, args.service, svc)
+    container("exec", cname, *args.cmd)
+
+
+def _build_service(project: str, svc_name: str, svc: dict, *, no_cache: bool):
+    build = svc.get("build")
+    if not build:
+        return
+    if isinstance(build, str):
+        context = build
+        dockerfile = None
+        build_args = {}
+    else:
+        context = build.get("context", ".")
+        dockerfile = build.get("dockerfile")
+        build_args = build.get("args") or {}
+
+    image_tag = svc.get("image") or f"{project}_{svc_name}"
+    cmd = ["build", "-t", image_tag]
+    if dockerfile:
+        cmd += ["-f", dockerfile]
+    if no_cache:
+        cmd.append("--no-cache")
+    if isinstance(build_args, dict):
+        for k, v in build_args.items():
+            cmd += ["--build-arg", f"{k}={v}"]
+    elif isinstance(build_args, list):
+        for item in build_args:
+            cmd += ["--build-arg", item]
+    cmd.append(context)
+    container(*cmd)
+
+
+def cmd_build(args, project: str, compose: dict, services: dict):
+    target = args.service if args.service else list(services.keys())
+    for svc_name in target:
+        svc = services[svc_name]
+        if svc.get("build"):
+            _build_service(project, svc_name, svc, no_cache=getattr(args, "no_cache", False))
+
+
+def cmd_pull(args, project: str, compose: dict, services: dict):
+    target = args.service if args.service else list(services.keys())
+    for svc_name in target:
+        svc = services[svc_name]
+        if image := svc.get("image"):
+            container("image", "pull", image, check=False)
+
+
+def cmd_stop(args, project: str, compose: dict, services: dict):
+    target = args.service if args.service else list(services.keys())
+    for svc_name in target:
+        svc = services.get(svc_name, {})
+        cname = container_name_for(project, svc_name, svc)
+        container("stop", cname, check=False)
+
+
+def cmd_start(args, project: str, compose: dict, services: dict):
+    target = args.service if args.service else list(services.keys())
+    for svc_name in target:
+        svc = services.get(svc_name, {})
+        cname = container_name_for(project, svc_name, svc)
+        container("start", cname, check=False)
+
+
+def cmd_restart(args, project: str, compose: dict, services: dict):
+    cmd_stop(args, project, compose, services)
+    cmd_start(args, project, compose, services)
+
+
+def cmd_rm(args, project: str, compose: dict, services: dict):
+    target = args.service if args.service else list(services.keys())
+    if args.stop:
+        for svc_name in target:
+            svc = services.get(svc_name, {})
+            cname = container_name_for(project, svc_name, svc)
+            container("stop", cname, check=False)
+    for svc_name in target:
+        svc = services.get(svc_name, {})
+        cname = container_name_for(project, svc_name, svc)
+        container("delete", cname, check=False)
+
+
+def cmd_run(args, project: str, compose: dict, services: dict):
+    svc_name = args.service
+    svc = services.get(svc_name)
+    if not svc:
+        print(f"Error: unknown service '{svc_name}'", file=sys.stderr)
+        sys.exit(1)
+
+    # Ensure networks and volumes exist
+    for net_name, net_cfg in (compose.get("networks") or {"default": {}}).items():
+        if not (net_cfg or {}).get("external"):
+            ensure_network(project, net_name, net_cfg or {})
+    for vol_name, vol_cfg in (compose.get("volumes") or {}).items():
+        if not (vol_cfg or {}).get("external"):
+            ensure_volume(project, vol_name, vol_cfg or {})
+
+    run_args = build_run_args(
+        project, svc_name, svc, compose,
+        detach=False,
+        override_cmd=args.cmd if args.cmd else None,
+        remove_on_exit=args.rm,
+        index=int(time.time()),
+    )
+    container(*run_args)
+
+
+def cmd_config(args, project: str, compose: dict, services: dict):
+    print(yaml.dump(compose, default_flow_style=False))
+
+
+# ---------------------------------------------------------------------------
+# CLI parser
+# ---------------------------------------------------------------------------
+
+def build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(
+        prog="container-compose",
+        description="docker-compose compatibility for Apple's container CLI",
+    )
+    p.add_argument("-f", "--file", metavar="FILE", help="Compose file path")
+    p.add_argument("-p", "--project-name", metavar="NAME", help="Project name")
+
+    sub = p.add_subparsers(dest="subcmd", required=True)
+
+    # up
+    up = sub.add_parser("up", help="Create and start containers")
+    up.add_argument("-d", "--detach", action="store_true", default=True, help="Run in background (default)")
+    up.add_argument("--no-detach", dest="detach", action="store_false")
+    up.add_argument("--build", action="store_true", help="Build images before starting")
+    up.add_argument("--remove-orphans", action="store_true")
+    up.add_argument("service", nargs="*")
+
+    # down
+    dn = sub.add_parser("down", help="Stop and remove containers")
+    dn.add_argument("-v", "--volumes", action="store_true", help="Remove named volumes")
+    dn.add_argument("--remove-orphans", action="store_true")
+
+    # ps
+    sub.add_parser("ps", help="List containers")
+
+    # logs
+    lg = sub.add_parser("logs", help="View container output")
+    lg.add_argument("-f", "--follow", action="store_true")
+    lg.add_argument("--tail", type=int, metavar="N")
+    lg.add_argument("service", nargs="*")
+
+    # exec
+    ex = sub.add_parser("exec", help="Execute a command in a running container")
+    ex.add_argument("service")
+    ex.add_argument("cmd", nargs=argparse.REMAINDER)
+
+    # build
+    bd = sub.add_parser("build", help="Build or rebuild services")
+    bd.add_argument("--no-cache", action="store_true")
+    bd.add_argument("service", nargs="*")
+
+    # pull
+    pl = sub.add_parser("pull", help="Pull service images")
+    pl.add_argument("service", nargs="*")
+
+    # stop
+    st = sub.add_parser("stop", help="Stop services")
+    st.add_argument("service", nargs="*")
+
+    # start
+    sa = sub.add_parser("start", help="Start services")
+    sa.add_argument("service", nargs="*")
+
+    # restart
+    rs = sub.add_parser("restart", help="Restart services")
+    rs.add_argument("service", nargs="*")
+
+    # rm
+    rm = sub.add_parser("rm", help="Remove stopped containers")
+    rm.add_argument("-f", "--force", action="store_true")
+    rm.add_argument("-s", "--stop", action="store_true", help="Stop containers before removing")
+    rm.add_argument("service", nargs="*")
+
+    # run
+    rn = sub.add_parser("run", help="Run a one-off command on a service")
+    rn.add_argument("--rm", action="store_true", help="Remove container after run")
+    rn.add_argument("service")
+    rn.add_argument("cmd", nargs=argparse.REMAINDER)
+
+    # config
+    sub.add_parser("config", help="Validate and view compose config")
+
+    return p
+
+
+SUBCMD_MAP = {
+    "up":      cmd_up,
+    "down":    cmd_down,
+    "ps":      cmd_ps,
+    "logs":    cmd_logs,
+    "exec":    cmd_exec,
+    "build":   cmd_build,
+    "pull":    cmd_pull,
+    "stop":    cmd_stop,
+    "start":   cmd_start,
+    "restart": cmd_restart,
+    "rm":      cmd_rm,
+    "run":     cmd_run,
+    "config":  cmd_config,
+}
+
+
+def main():
+    parser = build_parser()
+    args = parser.parse_args()
+
+    # Skip system check for config (no daemon needed)
+    if args.subcmd != "config":
+        check_system_running()
+
+    compose_path = find_compose_file(args.file)
+    compose = load_compose(compose_path)
+    project = project_name(args.project_name, compose_path)
+    services = compose.get("services") or {}
+
+    fn = SUBCMD_MAP.get(args.subcmd)
+    if fn is None:
+        print(f"Unknown subcommand: {args.subcmd}", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        fn(args, project, compose, services)
+    except subprocess.CalledProcessError as e:
+        print(f"\nError: command failed with exit code {e.returncode}:", file=sys.stderr)
+        print(f"  {' '.join(e.cmd)}", file=sys.stderr)
+        sys.exit(e.returncode)
+
+
+if __name__ == "__main__":
+    main()
