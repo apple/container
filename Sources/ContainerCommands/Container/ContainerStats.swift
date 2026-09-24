@@ -199,9 +199,9 @@ extension Application {
 
         /// Calculate CPU percentage from two stat snapshots
         /// - Parameters:
-        ///   - cpuUsageUsec1: CPU usage in microseconds from first sample
-        ///   - cpuUsageUsec2: CPU usage in microseconds from second sample
-        ///   - timeDeltaUsec: Time delta between samples in microseconds
+        ///   - cpuUsage1: Cumulative CPU time from the first sample
+        ///   - cpuUsage2: Cumulative CPU time from the second sample
+        ///   - timeInterval: Elapsed wall-clock time between the two samples
         /// - Returns: CPU percentage where 100% = one fully utilized core
         static func calculateCPUPercent(
             cpuUsage1: Duration,
