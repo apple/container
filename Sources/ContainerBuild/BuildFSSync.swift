@@ -53,6 +53,8 @@ import GRPCCore
 /// Dockerignore filtering is **not** applied here; the shim applies it after
 /// unpacking the tar.
 actor BuildFSSync: BuildPipelineHandler {
+    private static let archiveRootURL = URL(filePath: "/", directoryHint: .isDirectory)
+
     let contextDir: URL
 
     init(_ contextDir: URL) throws {
@@ -164,7 +166,6 @@ actor BuildFSSync: BuildPipelineHandler {
     }
 
     private struct DirEntry: Hashable {
-        let url: URL
         let isDirectory: Bool
         let relativePath: String
 
@@ -200,30 +201,32 @@ actor BuildFSSync: BuildPipelineHandler {
         _ buildID: String
     ) async throws {
         let wantsTar = packet.mode() == "tar"
+        let contextPath = contextDir.path
+        let contextPrefix = contextPath.hasSuffix("/") ? contextPath : contextPath + "/"
 
         var entries: [String: Set<DirEntry>] = [:]
         let followPaths: [String] = packet.followPaths() ?? []
 
         let followPathsWalked = try walk(root: self.contextDir, includePatterns: followPaths)
         for url in followPathsWalked {
-            guard self.contextDir.absoluteURL.cleanPath != url.absoluteURL.cleanPath else {
+            let path = url.path
+            guard path != contextPath else {
                 continue
             }
-            guard self.contextDir.parentOf(url) else {
+            guard let relPath = Self.relativeChildPath(path: path, contextPath: contextPath, contextPrefix: contextPrefix) else {
                 continue
             }
 
-            let relPath = try url.relativeChildPath(to: contextDir)
-            let parentPath = try url.deletingLastPathComponent().relativeChildPath(to: contextDir)
-            let entry = DirEntry(url: url, isDirectory: url.hasDirectoryPath, relativePath: relPath)
+            let parentPath = Self.relativeParentPath(path: path, contextPath: contextPath, contextPrefix: contextPrefix)
+            let entry = DirEntry(isDirectory: url.hasDirectoryPath, relativePath: relPath)
             entries[parentPath, default: []].insert(entry)
 
             if url.isSymlink {
                 let target: URL = url.resolvingSymlinksInPath()
-                if self.contextDir.parentOf(target) {
-                    let relPath = try target.relativeChildPath(to: self.contextDir)
-                    let entry = DirEntry(url: target, isDirectory: target.hasDirectoryPath, relativePath: relPath)
-                    let parentPath: String = try target.deletingLastPathComponent().relativeChildPath(to: self.contextDir)
+                let targetPath = target.path
+                if let relPath = Self.relativeChildPath(path: targetPath, contextPath: contextPath, contextPrefix: contextPrefix) {
+                    let entry = DirEntry(isDirectory: target.hasDirectoryPath, relativePath: relPath)
+                    let parentPath = Self.relativeParentPath(path: targetPath, contextPath: contextPath, contextPrefix: contextPrefix)
                     entries[parentPath, default: []].insert(entry)
                 }
             }
@@ -267,35 +270,18 @@ actor BuildFSSync: BuildPipelineHandler {
             format: .paxRestricted,
             filter: .none)
 
+        let archiveEntries = fileOrder.map { rel in
+            Archiver.ArchiveEntryInfo(
+                pathOnHost: contextDir.appending(path: rel, directoryHint: .notDirectory),
+                pathInArchive: URL(filePath: rel, directoryHint: .notDirectory, relativeTo: Self.archiveRootURL)
+            )
+        }
+
         let tarHash = try Archiver.compress(
-            source: contextDir,
+            entries: archiveEntries,
             destination: tarURL,
             writerConfiguration: writerCfg
-        ) { url in
-            guard let rel = try? url.relativeChildPath(to: contextDir) else {
-                return nil
-            }
-
-            guard let parent = try? url.deletingLastPathComponent().relativeChildPath(to: self.contextDir) else {
-                return nil
-            }
-
-            guard let items = entries[parent] else {
-                return nil
-            }
-
-            let include = items.contains { item in
-                item.relativePath == rel
-            }
-
-            guard include else {
-                return nil
-            }
-
-            return Archiver.ArchiveEntryInfo(
-                pathOnHost: url,
-                pathInArchive: URL(fileURLWithPath: rel))
-        }
+        )
 
         let hash = tarHash.compactMap { String(format: "%02x", $0) }.joined()
         let header = BuildTransfer(
@@ -388,6 +374,21 @@ actor BuildFSSync: BuildPipelineHandler {
                 )
             }
         }
+    }
+
+    private static func relativeChildPath(path: String, contextPath: String, contextPrefix: String) -> String? {
+        if path == contextPath {
+            return ""
+        }
+        guard path.hasPrefix(contextPrefix) else {
+            return nil
+        }
+        return String(path.dropFirst(contextPrefix.count))
+    }
+
+    private static func relativeParentPath(path: String, contextPath: String, contextPrefix: String) -> String {
+        let parentPath = (path as NSString).deletingLastPathComponent
+        return relativeChildPath(path: parentPath, contextPath: contextPath, contextPrefix: contextPrefix) ?? ""
     }
 
     struct FileInfo: Codable {
