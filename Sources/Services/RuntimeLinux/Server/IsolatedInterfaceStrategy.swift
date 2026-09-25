@@ -31,8 +31,7 @@ public struct IsolatedInterfaceStrategy: InterfaceStrategy {
             ipv4Address: attachment.ipv4Address,
             ipv4Gateway: ipv4Gateway,
             macAddress: attachment.macAddress,
-            // https://github.com/apple/containerization/pull/38
-            mtu: attachment.mtu ?? 1280
+            mtu: attachment.mtu ?? 1500
         )
     }
 }
