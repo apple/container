@@ -81,7 +81,7 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
             detach: true,
             dns: .init(domain: nil, nameservers: [], options: [], searchDomains: []),
             dnsDisabled: false,
-            entrypoint: nil,
+            entrypoint: "/bin/sh",
             initImage: nil,
             kernel: nil,
             kernelArgs: [],
@@ -126,7 +126,7 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
         var (config, kernel, initfs) = try await Utility.containerConfigFromFlags(
             id: name,
             image: resolvedImage,
-            arguments: [],
+            arguments: ["-c", K8sHelper.nodeEntrypointScript, "sh", "/sbin/init"],
             process: processFlags,
             management: management,
             resource: updatedResource,

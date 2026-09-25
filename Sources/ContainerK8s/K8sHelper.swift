@@ -52,6 +52,73 @@ public struct K8sHelper {
 
     public static let clusterContainerPort: UInt16 = 6443
 
+    public static var nodeEntrypointScript: String {
+        """
+        set -e
+        log_info()  { echo "INFO: $1" >&2; }
+        log_error() { echo "ERROR: $1" >&2; }
+
+        # Disable the createContainer hook that copies /kind/product_* into every
+        # container's rootfs. Testing whether container k8s needs this at all --
+        # unconfirmed whether container's VMs already assign a unique product_uuid
+        # per node without it.
+        if [ -f /etc/containerd/cri-base.json ]; then
+        if jq 'del(.hooks.createContainer)' /etc/containerd/cri-base.json > /tmp/cri-base.json.new; then
+            mv /tmp/cri-base.json.new /etc/containerd/cri-base.json
+            log_info "removed createContainer hook from cri-base.json"
+        else
+            log_error "jq failed to patch cri-base.json, leaving it unmodified"
+        fi
+        fi
+
+        # Proxy propagation.
+        mkdir -p /etc/systemd/system.conf.d/
+        cat <<EOF >/etc/systemd/system.conf.d/proxy-default-environment.conf
+        [Manager]
+        DefaultEnvironment="HTTP_PROXY=${HTTP_PROXY:-}" "HTTPS_PROXY=${HTTPS_PROXY:-}" "NO_PROXY=${NO_PROXY:-}"
+        EOF
+
+        # Mount propagation. Unverified whether this is needed in container's VM boot.
+        mount --make-rshared /
+
+        DEFAULT_IFACE=$(ip -4 route show default 2>/dev/null | awk '{for (i=1;i<=NF;i++) if ($i=="dev") print $(i+1)}' | head -1)
+        if [ -n "$DEFAULT_IFACE" ]; then
+        CURRENT_IP=$(ip -4 -o addr show dev "$DEFAULT_IFACE" | awk '{print $4}' | head -1 | cut -d/ -f1)
+        else
+        CURRENT_IP=$(ip -4 -o addr show | awk '$2 != "lo" && $2 !~ /^veth/ {print $4}' | head -1 | cut -d/ -f1)
+        fi
+        IP_MARKER=/etc/.container-k8s-last-ip
+        OLD_IP=""
+        [ -f "$IP_MARKER" ] && OLD_IP=$(cat "$IP_MARKER")
+
+        if [ -n "$OLD_IP" ] && [ -n "$CURRENT_IP" ] && [ "$OLD_IP" != "$CURRENT_IP" ] && [ -f /etc/kubernetes/pki/apiserver.crt ]; then
+        log_info "node IP changed ($OLD_IP -> $CURRENT_IP), reconciling cluster config"
+        for f in /etc/kubernetes/kubeadm-config.yaml \\
+                /etc/kubernetes/manifests/etcd.yaml \\
+                /etc/kubernetes/manifests/kube-apiserver.yaml \\
+                /etc/kubernetes/manifests/kube-controller-manager.yaml \\
+                /etc/kubernetes/manifests/kube-scheduler.yaml \\
+                /etc/kubernetes/controller-manager.conf \\
+                /etc/kubernetes/scheduler.conf \\
+                /etc/kubernetes/kubelet.conf \\
+                /etc/kubernetes/admin.conf \\
+                /root/.kube/config \\
+                /var/lib/kubelet/kubeadm-flags.env; do
+            [ -f "$f" ] && sed -i "s#${OLD_IP}#${CURRENT_IP}#g" "$f"
+        done
+        rm -f /etc/kubernetes/pki/apiserver.crt /etc/kubernetes/pki/apiserver.key
+        if ! kubeadm init phase certs apiserver --config /etc/kubernetes/kubeadm-config.yaml; then
+            log_error "apiserver cert regeneration failed after IP change"
+            exit 1
+        fi
+        log_info "reconciliation complete"
+        fi
+
+        [ -n "$CURRENT_IP" ] && echo "$CURRENT_IP" > "$IP_MARKER"
+        exec  "$@"
+        """
+    }
+
     // MARK: - Resource defaults
 
     public static func defaultedResourceFlags(_ flags: Flags.Resource) -> Flags.Resource {
