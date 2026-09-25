@@ -51,4 +51,21 @@ struct LRUCacheTest {
         #expect(cache.get("qux") == "5")
         #expect(cache.get("quux") == "6")
     }
+
+    @Test
+    func testGetPromotesToMostRecentlyUsed() throws {
+        let cache = LRUCache<String, String>(size: 3)
+        #expect(cache.put(key: "foo", value: "1") == nil)
+        #expect(cache.put(key: "bar", value: "2") == nil)
+        #expect(cache.put(key: "baz", value: "3") == nil)
+
+        // Reading "foo" must promote it to most-recently-used, so the oldest
+        // remaining entry ("bar") is evicted next, not "foo".
+        #expect(cache.get("foo") == "1")
+
+        let evicted = try #require(cache.put(key: "qux", value: "4"))
+        #expect(evicted == ("bar", "2"))
+        #expect(cache.get("foo") == "1")
+        #expect(cache.get("bar") == nil)
+    }
 }
