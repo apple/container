@@ -113,6 +113,24 @@ struct UtilityTests {
         #expect(Utility.trimDigest(digest: "sha256:abc") == "abc")
     }
 
+    @Test("Attachments default to a 1500 MTU")
+    func testAttachmentDefaultMTU() throws {
+        let implicit = try Utility.getAttachmentConfigurations(containerId: "c", builtinNetworkId: "default", networks: [], dnsDomain: nil)
+        let explicit = try Utility.getAttachmentConfigurations(
+            containerId: "c", builtinNetworkId: "default", networks: [Parser.ParsedNetwork(name: "default")], dnsDomain: nil)
+
+        #expect(implicit.map(\.options.mtu) == [1500])
+        #expect(explicit.map(\.options.mtu) == [1500])
+    }
+
+    @Test("Attachments keep an explicit MTU")
+    func testAttachmentExplicitMTU() throws {
+        let result = try Utility.getAttachmentConfigurations(
+            containerId: "c", builtinNetworkId: "default", networks: [Parser.ParsedNetwork(name: "default", mtu: 1280)], dnsDomain: nil)
+
+        #expect(result.map(\.options.mtu) == [1280])
+    }
+
     @Test
     func testPublishPortParser() throws {
         let ports = try Parser.publishPorts([
