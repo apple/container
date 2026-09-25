@@ -63,4 +63,18 @@ struct TestCLIMachineCommand {
             #expect(result.status != 0, "create should reject names longer than max")
         }
     }
+
+    @Test func testCopyValidation() async throws {
+        try await ContainerFixture.with { f in
+            // Rejects copying when neither argument is a container machine reference
+            let resultLocalOnly = try f.runMachine(["cp", "foo.txt", "bar.txt"])
+            #expect(resultLocalOnly.status != 0)
+            #expect(resultLocalOnly.error.contains("must be a container machine reference"))
+
+            // Rejects copying between two machines
+            let resultMachineToMachine = try f.runMachine(["cp", "mach1:/foo", "mach2:/bar"])
+            #expect(resultMachineToMachine.status != 0)
+            #expect(resultMachineToMachine.error.contains("not supported"))
+        }
+    }
 }
