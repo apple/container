@@ -50,30 +50,25 @@ extension Application {
                 try? FileManager.default.removeItem(at: tempFile)
             }
 
-            // Read from stdin; otherwise read from the input file
+            // Stage inputs that cannot be reopened by the image service process.
             let resolvedPath: FilePath
             if let input {
                 guard FileManager.default.fileExists(atPath: input.string) else {
                     log.error("file does not exist", metadata: ["path": "\(input)"])
                     Application.exit(withError: ArgumentParser.ExitCode(1))
                 }
-                resolvedPath = input
+                if try Self.shouldStageInput(input) {
+                    let fileHandle = try FileHandle(forReadingFrom: URL(fileURLWithPath: input.string))
+                    defer {
+                        try? fileHandle.close()
+                    }
+                    try Self.copyArchive(from: fileHandle, to: tempFile)
+                    resolvedPath = FilePath(tempFile.path())
+                } else {
+                    resolvedPath = input
+                }
             } else {
-                guard FileManager.default.createFile(atPath: tempFile.path(), contents: nil) else {
-                    throw ContainerizationError(.internalError, message: "unable to create temporary file")
-                }
-
-                guard let fileHandle = try? FileHandle(forWritingTo: tempFile) else {
-                    throw ContainerizationError(.internalError, message: "unable to open temporary file for writing")
-                }
-
-                let bufferSize = 4096
-                while true {
-                    let chunk = FileHandle.standardInput.readData(ofLength: bufferSize)
-                    if chunk.isEmpty { break }
-                    fileHandle.write(chunk)
-                }
-                try fileHandle.close()
+                try Self.copyArchive(from: .standardInput, to: tempFile)
                 resolvedPath = FilePath(tempFile.path())
             }
 
@@ -107,6 +102,35 @@ extension Application {
             progress.finish()
             for image in result.images {
                 print(image.reference)
+            }
+        }
+
+        static func shouldStageInput(_ input: FilePath) throws -> Bool {
+            if input.string.hasPrefix("/dev/fd/") || input.string == "/dev/stdin" {
+                return true
+            }
+
+            let attributes = try FileManager.default.attributesOfItem(atPath: input.string)
+            return attributes[.type] as? FileAttributeType != .typeRegular
+        }
+
+        static func copyArchive(from input: FileHandle, to outputURL: URL) throws {
+            guard FileManager.default.createFile(atPath: outputURL.path(), contents: nil) else {
+                throw ContainerizationError(.internalError, message: "unable to create temporary file")
+            }
+
+            guard let output = try? FileHandle(forWritingTo: outputURL) else {
+                throw ContainerizationError(.internalError, message: "unable to open temporary file for writing")
+            }
+            defer {
+                try? output.close()
+            }
+
+            let bufferSize = 1024 * 1024
+            while true {
+                let chunk = input.readData(ofLength: bufferSize)
+                if chunk.isEmpty { break }
+                output.write(chunk)
             }
         }
     }
