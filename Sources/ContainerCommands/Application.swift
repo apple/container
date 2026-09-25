@@ -17,14 +17,12 @@
 import ArgumentParser
 import ContainerAPIClient
 import ContainerLog
-import ContainerPersistence
 import ContainerPlugin
 import ContainerVersion
 import ContainerizationError
 import ContainerizationOS
 import Foundation
 import Logging
-import SystemPackage
 import TerminalProgress
 
 // This logger is only used until `asyncCommand.run()`.
@@ -74,7 +72,6 @@ public struct Application: AsyncLoggableCommand {
             CommandGroup(
                 name: "Image",
                 subcommands: [
-                    BuildCommand.self,
                     ImageCommand.self,
                     RegistryCommand.self,
                 ]
@@ -144,20 +141,6 @@ public struct Application: AsyncLoggableCommand {
         }
     }
 
-    /// Load the system configuration using `appRoot` / `installRoot` reported by the
-    /// daemon. `container system start` MUST have previously been run to start the daemon.
-    public static func loadContainerSystemConfig() async throws -> ContainerSystemConfig {
-        let health = try await ClientHealthCheck.ping(timeout: .seconds(10))
-        let appRoot = FilePath(health.appRoot.path(percentEncoded: false))
-        let installRoot = FilePath(health.installRoot.path(percentEncoded: false))
-        return try await ConfigurationLoader.load(
-            configurationFiles: [
-                ConfigurationLoader.configurationFile(in: appRoot, of: .appRoot),
-                ConfigurationLoader.configurationFile(in: installRoot, of: .installRoot),
-            ]
-        )
-    }
-
     public func validate() throws {
         // Not really a "validation", but a cheat to run this before
         // any of the commands do their business.
@@ -179,13 +162,11 @@ public struct Application: AsyncLoggableCommand {
     private static func otherCommands() -> [any ParsableCommand.Type] {
         guard #available(macOS 26, *) else {
             return [
-                BuilderCommand.self,
-                SystemCommand.self,
+                SystemCommand.self
             ]
         }
 
         return [
-            BuilderCommand.self,
             NetworkCommand.self,
             SystemCommand.self,
         ]

@@ -15,10 +15,22 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
+import ContainerAPIClient
 
-public enum ListFormat: String, CaseIterable, ExpressibleByArgument, Sendable {
-    case json
-    case table
-    case yaml
-    case toml
+@main
+struct Application: AsyncParsableCommand {
+    public init() {}
+
+    public static let configuration = CommandConfiguration(
+        commandName: "builder",
+        abstract: "Manage an image builder instance",
+        subcommands: [
+            BuilderStart.self,
+            BuilderStatus.self,
+            BuilderStop.self,
+            BuilderDelete.self,
+        ])
+
+    @OptionGroup
+    public var logOptions: Flags.Logging
 }
