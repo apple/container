@@ -185,7 +185,7 @@ extension ClientImage {
     public static func get(reference: String, containerSystemConfig: ContainerSystemConfig) async throws -> ClientImage {
         let all = try await self.list()
         guard let found = try self._search(reference: reference, in: all, containerSystemConfig: containerSystemConfig) else {
-            throw ContainerizationError(.notFound, message: "image with reference \(reference)")
+            throw ContainerizationError(.notFound, message: "image with reference \(reference) not found")
         }
         return found
     }
@@ -226,10 +226,6 @@ extension ClientImage {
             let withDefaultTag = r.description
 
             let localImageMatches = all.filter { $0.description.nameFromAnnotation() == withDefaultTag }
-            guard localImageMatches.count > 1 else {
-                return localImageMatches.first
-            }
-            // More than one image matched. Check against the tagged reference
             return localImageMatches.first { $0.reference == withDefaultTag }
         }()
         if let locallyBuiltImage {
