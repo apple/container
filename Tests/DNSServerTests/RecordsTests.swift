@@ -23,6 +23,97 @@ import Testing
 @Suite("DNS Records Tests")
 struct RecordsTests {
 
+    // MARK: - Binding Tests
+
+    /// The DNS wire codec writes multi-byte integers (`UInt16` type/class,
+    /// `UInt32` ttl) at variable offsets that follow a variable-length name, so
+    /// they routinely land on unaligned addresses. These tests exercise
+    /// `copyIn`/`copyOut` at every offset in a machine word to ensure the codec
+    /// reads and writes correct big-endian bytes regardless of alignment.
+    @Suite("Binding")
+    struct BindingTests {
+        @Test("UInt16 round-trips at every offset")
+        func uint16RoundTripEveryOffset() throws {
+            let value: UInt16 = 0x1234
+            for offset in 0..<8 {
+                var buffer = [UInt8](repeating: 0, count: offset + MemoryLayout<UInt16>.size)
+
+                let writeEnd = buffer.copyIn(as: UInt16.self, value: value.bigEndian, offset: offset)
+                #expect(writeEnd == offset + 2)
+                // Stored as big-endian bytes at the requested offset.
+                #expect(buffer[offset] == 0x12)
+                #expect(buffer[offset + 1] == 0x34)
+
+                let (readEnd, raw) = try #require(buffer.copyOut(as: UInt16.self, offset: offset))
+                #expect(readEnd == offset + 2)
+                #expect(UInt16(bigEndian: raw) == value)
+            }
+        }
+
+        @Test("UInt32 round-trips at every offset")
+        func uint32RoundTripEveryOffset() throws {
+            let value: UInt32 = 0x1234_5678
+            for offset in 0..<8 {
+                var buffer = [UInt8](repeating: 0, count: offset + MemoryLayout<UInt32>.size)
+
+                let writeEnd = buffer.copyIn(as: UInt32.self, value: value.bigEndian, offset: offset)
+                #expect(writeEnd == offset + 4)
+                // Stored as big-endian bytes at the requested offset.
+                #expect(buffer[offset] == 0x12)
+                #expect(buffer[offset + 1] == 0x34)
+                #expect(buffer[offset + 2] == 0x56)
+                #expect(buffer[offset + 3] == 0x78)
+
+                let (readEnd, raw) = try #require(buffer.copyOut(as: UInt32.self, offset: offset))
+                #expect(readEnd == offset + 4)
+                #expect(UInt32(bigEndian: raw) == value)
+            }
+        }
+
+        @Test("copyIn returns nil when the buffer is too small")
+        func copyInBufferTooSmall() {
+            var buffer = [UInt8](repeating: 0, count: 1)
+            #expect(buffer.copyIn(as: UInt16.self, value: 0, offset: 0) == nil)
+            #expect(buffer.copyIn(as: UInt16.self, value: 0, offset: 1) == nil)
+        }
+
+        @Test("copyOut returns nil when the buffer is too small")
+        func copyOutBufferTooSmall() {
+            let buffer = [UInt8](repeating: 0, count: 1)
+            #expect(buffer.copyOut(as: UInt16.self, offset: 0) == nil)
+            #expect(buffer.copyOut(as: UInt16.self, offset: 1) == nil)
+        }
+
+        @Test("Message round-trips with fields at unaligned offsets")
+        func messageRoundTripUnaligned() throws {
+            // "example.com." encodes to [7]example[3]com[0] = 13 bytes. With the
+            // 12-byte header, the question's type/class UInt16 fields start at
+            // offset 25 (odd), so serialize and deserialize both hit the
+            // unaligned path.
+            let original = Message(
+                id: 0xABCD,
+                type: .query,
+                recursionDesired: true,
+                questions: [Question(name: "example.com.", type: .host6)]
+            )
+
+            let data = try original.serialize()
+            let bytes = Array(data)
+
+            // type (AAAA = 28) and class (IN = 1) are big-endian at odd offsets.
+            #expect(bytes[25] == 0x00)
+            #expect(bytes[26] == 28)
+            #expect(bytes[27] == 0x00)
+            #expect(bytes[28] == 1)
+
+            let parsed = try Message(deserialize: data)
+            #expect(parsed.id == 0xABCD)
+            #expect(parsed.questions.count == 1)
+            #expect(parsed.questions[0].type == .host6)
+            #expect(parsed.questions[0].recordClass == .internet)
+        }
+    }
+
     // MARK: - DNSName Tests
 
     @Suite("DNSName")

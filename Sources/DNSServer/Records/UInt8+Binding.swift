@@ -24,29 +24,26 @@ import Foundation
 extension [UInt8] {
     /// Copy a value into the buffer at the given offset.
     /// - Returns: The new offset after writing, or nil if the buffer is too small.
-    package mutating func copyIn<T>(as type: T.Type, value: T, offset: Int = 0) -> Int? {
+    package mutating func copyIn<T: BitwiseCopyable>(as type: T.Type, value: T, offset: Int = 0) -> Int? {
         let size = MemoryLayout<T>.size
         guard self.count >= size + offset else {
             return nil
         }
         return self.withUnsafeMutableBytes {
-            $0.baseAddress?.advanced(by: offset).assumingMemoryBound(to: T.self).pointee = value
+            $0.storeBytes(of: value, toByteOffset: offset, as: T.self)
             return offset + size
         }
     }
 
     /// Copy a value out of the buffer at the given offset.
     /// - Returns: A tuple of (new offset, value), or nil if the buffer is too small.
-    package func copyOut<T>(as type: T.Type, offset: Int = 0) -> (Int, T)? {
+    package func copyOut<T: BitwiseCopyable>(as type: T.Type, offset: Int = 0) -> (Int, T)? {
         let size = MemoryLayout<T>.size
         guard self.count >= size + offset else {
             return nil
         }
         return self.withUnsafeBytes {
-            guard let value = $0.baseAddress?.advanced(by: offset).assumingMemoryBound(to: T.self).pointee else {
-                return nil
-            }
-            return (offset + size, value)
+            (offset + size, $0.loadUnaligned(fromByteOffset: offset, as: T.self))
         }
     }
 
