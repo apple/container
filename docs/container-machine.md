@@ -72,6 +72,20 @@ container machine run -n dev -- nproc
 
 Memory defaults to half of host memory. The home-mount can be `rw` (default), `ro`, or `none`.
 
+### Mount additional host directories
+
+Beyond your home directory, you can share arbitrary host directories into a container machine at create time with `--mount host:guest[:ro|rw]`. The host path must be an existing directory and the guest path must be absolute. The mode defaults to `rw`; pass `:ro` for a read-only mount. The flag can be repeated to add several mounts.
+
+```bash
+# share a project directory read-write and a data set read-only
+container machine create --name dev \
+  --mount /Volumes/Project:/Project \
+  --mount /Users/me/datasets:/data:ro \
+  alpine:3.22
+```
+
+Configured mounts are shown by `container machine inspect`. They are fixed for the lifetime of the machine; to change them, recreate the machine.
+
 ### Nested virtualization and custom kernels
 
 A container machine supports nested virtualization. The requirements for this to work are:

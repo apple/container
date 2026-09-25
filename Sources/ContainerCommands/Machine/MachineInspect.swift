@@ -64,6 +64,7 @@ private struct InspectOutput: Codable {
     let cpus: Int
     let memory: UInt64
     let homeMount: MachineConfig.HomeMountOption
+    let mounts: [MachineConfig.Mount]
     let diskSize: UInt64?
     let ipAddress: String?
 
@@ -79,6 +80,7 @@ private struct InspectOutput: Codable {
         self.cpus = snapshot.bootConfig.cpus
         self.memory = snapshot.bootConfig.memory.toUInt64(unit: .bytes)
         self.homeMount = snapshot.bootConfig.homeMount
+        self.mounts = snapshot.bootConfig.mounts
         self.diskSize = snapshot.diskSize
         self.ipAddress = snapshot.ipAddress
     }
