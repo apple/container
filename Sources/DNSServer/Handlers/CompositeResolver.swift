@@ -31,4 +31,14 @@ public struct CompositeResolver: DNSHandler {
 
         return nil
     }
+
+    public func answer(query: Message, context: DNSRequestContext) async throws -> Message? {
+        for handler in self.handlers {
+            if let response = try await handler.answer(query: query, context: context) {
+                return response
+            }
+        }
+
+        return nil
+    }
 }
