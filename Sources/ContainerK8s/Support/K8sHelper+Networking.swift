@@ -18,6 +18,7 @@ import ContainerAPIClient
 import ContainerPersistence
 import ContainerResource
 import ContainerizationError
+import ContainerizationExtras
 import Darwin
 import Foundation
 import Logging
@@ -67,13 +68,141 @@ extension K8sHelper {
         throw ContainerizationError(.internalError, message: "no available host port found above \(clusterHostPortBase)")
     }
 
-    public static func clusterPort() async throws -> String {
-        let snapshots = try await ContainerClient().list(
-            filters: ContainerListFilters(labels: [ResourceLabelKeys.plugin: pluginName])
-        )
-        let reserved = Set(snapshots.flatMap { $0.configuration.publishedPorts.map(\.hostPort) })
-        let port = try findAvailableHostPort(excluding: reserved)
+    /// Allocate an API server publish spec on a free host port, skipping `claimed`.
+    public static func clusterPort(excluding claimed: Set<HostPort> = []) throws -> String {
+        let taken = Set(claimed.lazy.filter { $0.proto == .tcp }.map(\.port))
+        let port = try findAvailableHostPort(excluding: taken)
         return "\(port):\(clusterContainerPort)"
+    }
+
+    // MARK: - Published host ports
+
+    /// A single host-side listener claimed by a publish spec. Keyed at the same
+    /// granularity `[PublishPort].hasOverlaps()` collides on, so a spec that clears
+    /// `ensureHostPortsAvailable` is one the runtime accepts too.
+    public struct HostPort: Hashable, Sendable, CustomStringConvertible {
+        let port: UInt16
+        let proto: PublishProtocol
+
+        public var description: String { "\(port)/\(proto.rawValue)" }
+    }
+
+    /// The container that published a host port, and what it forwards to.
+    public struct HostPortClaim: Sendable, CustomStringConvertible {
+        let container: String
+        let containerPort: UInt16
+        let status: RuntimeStatus
+        let isCluster: Bool
+
+        /// Whether the container is expected to be holding the host listener. A
+        /// stopped container has published the port on paper only.
+        var isLive: Bool { status != .stopped }
+
+        public var description: String {
+            let state: String
+            switch status {
+            case .running, .stopping: state = "running "
+            case .stopped: state = "stopped "
+            case .unknown: state = ""
+            }
+            let kind = isCluster ? "k8s cluster" : "container"
+            let target =
+                isCluster && containerPort == clusterContainerPort
+                ? " for its Kubernetes API server"
+                : " (-> \(containerPort))"
+            return "\(state)\(kind) '\(container)'\(target)"
+        }
+    }
+
+    /// Composes a node's publish list: the API server spec first, so the kubeconfig
+    /// transform keeps selecting it, then the user's specs in the order given. Returns
+    /// a warning for each requested port that only a stopped container claims.
+    public static func composePublishPorts(userSpecs: [String], allocateAPIServer: Bool) async throws -> (specs: [String], warnings: [String]) {
+        let userHostPorts = hostPorts(of: try Parser.publishPorts(userSpecs))
+        let reserved = try await reservedHostPorts()
+        let warnings = try ensureHostPortsAvailable(userHostPorts, reserved: reserved)
+        guard allocateAPIServer else { return (userSpecs, warnings) }
+        let apiServer = try clusterPort(excluding: userHostPorts.union(reserved.keys))
+        return ([apiServer] + userSpecs, warnings)
+    }
+
+    /// Host ports published by existing containers, clusters and plain containers alike.
+    static func reservedHostPorts() async throws -> [HostPort: HostPortClaim] {
+        claims(of: try await ContainerClient().list())
+    }
+
+    /// Maps every published host port back to the container that holds it. A live
+    /// claim wins over a stopped one on the same port, so the diagnostic names the
+    /// container actually in the way.
+    static func claims(of snapshots: [ContainerSnapshot]) -> [HostPort: HostPortClaim] {
+        var claims: [HostPort: HostPortClaim] = [:]
+        for snapshot in snapshots {
+            let isCluster = snapshot.configuration.labels[ResourceLabelKeys.plugin] == pluginName
+            for spec in snapshot.configuration.publishedPorts {
+                for offset in 0..<spec.count {
+                    let host = HostPort(port: spec.hostPort + offset, proto: spec.proto)
+                    let claim = HostPortClaim(
+                        container: snapshot.configuration.id,
+                        containerPort: spec.containerPort + offset,
+                        status: snapshot.status,
+                        isCluster: isCluster)
+                    if let existing = claims[host], existing.isLive, !claim.isLive { continue }
+                    claims[host] = claim
+                }
+            }
+        }
+        return claims
+    }
+
+    /// Every host listener covered by the given publish specs, with port ranges expanded.
+    static func hostPorts(of publishPorts: [PublishPort]) -> Set<HostPort> {
+        var hosts: Set<HostPort> = []
+        for spec in publishPorts {
+            for offset in 0..<spec.count {
+                hosts.insert(HostPort(port: spec.hostPort + offset, proto: spec.proto))
+            }
+        }
+        return hosts
+    }
+
+    /// Rejects, naming the holder, any requested host port that a running container
+    /// already publishes. Ports claimed only by a stopped container are free to take,
+    /// and come back as warnings: that container cannot start again while this cluster
+    /// holds the port. Both orderings report the lowest colliding port first, so
+    /// messages stay stable across runs.
+    @discardableResult
+    static func ensureHostPortsAvailable(_ requested: Set<HostPort>, reserved: [HostPort: HostPortClaim]) throws -> [String] {
+        let clashes =
+            requested
+            .compactMap { host in reserved[host].map { (host: host, claim: $0) } }
+            .sorted { ($0.host.port, $0.host.proto.rawValue) < ($1.host.port, $1.host.proto.rawValue) }
+
+        if let live = clashes.first(where: { $0.claim.isLive }) {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "host port \(live.host) is already published by \(live.claim); choose a different host port")
+        }
+        return clashes.map {
+            "host port \($0.host) is also published by \($0.claim), which cannot start again while this cluster holds the port"
+        }
+    }
+
+    /// Renders a publish spec for the `PORTS` column as
+    /// `[host-ip:]host-port[-end]->container-port[-end][/protocol]`. Host address and
+    /// protocol are elided when they carry no information, so a plain TCP publish on
+    /// every interface stays as terse as `8080->30080`.
+    static func renderPublishPort(_ spec: PublishPort) -> String {
+        let address: String
+        if spec.hostAddress.isUnspecified {
+            address = ""
+        } else if spec.hostAddress.isV6 {
+            address = "[\(spec.hostAddress)]:"
+        } else {
+            address = "\(spec.hostAddress):"
+        }
+        let range = { (start: UInt16) in spec.count > 1 ? "\(start)-\(start + spec.count - 1)" : "\(start)" }
+        let proto = spec.proto == .tcp ? "" : "/\(spec.proto.rawValue)"
+        return "\(address)\(range(spec.hostPort))->\(range(spec.containerPort))\(proto)"
     }
 
     // MARK: - FQDN detection
