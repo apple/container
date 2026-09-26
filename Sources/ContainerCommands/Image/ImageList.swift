@@ -63,23 +63,21 @@ extension Application {
                 return
             }
 
-            let resources = await Self.buildResources(
+            try await Self.renderImages(
                 images: images,
-                containerSystemConfig: containerSystemConfig,
+                format: format,
+                verbose: verbose,
+                resolve: { image in
+                    try await image.toImageResource(containerSystemConfig: containerSystemConfig)
+                },
                 onError: { image, error in
                     log.warning(
                         "skipping unreadable image",
                         metadata: ["image": "\(image.reference)", "error": "\(error)"]
                     )
-                }
+                },
+                emit: Output.emit
             )
-
-            try Output.render(payload: resources, format: format) {
-                if verbose {
-                    return Output.renderTable(resources.flatMap { VerboseImageRow.rows(for: $0) })
-                }
-                return Output.renderTable(resources)
-            }
         }
 
         private static func validate(quiet: Bool, verbose: Bool) throws {
@@ -88,36 +86,48 @@ extension Application {
             }
         }
 
-        /// Builds the resource for each image, denormalizing the reference so the
-        /// display name omits the default registry.
-        private static func buildResources(
+        /// Renders readable images before reporting any skipped entries as a
+        /// command failure, so callers can use the partial output without
+        /// mistaking it for a complete listing.
+        static func renderImages(
             images: [ClientImage],
-            containerSystemConfig: ContainerSystemConfig,
-            onError: (ClientImage, any Error) -> Void
-        ) async -> [ImageResource] {
-            await collectReadableValues(
-                from: images,
-                resolve: { image in
-                    try await image.toImageResource(containerSystemConfig: containerSystemConfig)
-                },
-                onError: onError
-            )
-        }
-
-        static func collectReadableValues<Input, Value>(
-            from inputs: [Input],
-            resolve: (Input) async throws -> Value,
-            onError: (Input, any Error) -> Void
-        ) async -> [Value] {
-            var values: [Value] = []
-            for input in inputs {
+            format: ListFormat,
+            verbose: Bool,
+            resolve: (ClientImage) async throws -> ImageResource,
+            onError: (ClientImage, any Error) -> Void,
+            emit: (String) -> Void
+        ) async throws {
+            var resources: [ImageResource] = []
+            var skipped = 0
+            for image in images {
                 do {
-                    values.append(try await resolve(input))
+                    resources.append(try await resolve(image))
                 } catch {
-                    onError(input, error)
+                    guard isUnreadableImageError(error) else {
+                        throw error
+                    }
+                    onError(image, error)
+                    skipped += 1
                 }
             }
-            return values
+
+            try Output.render(payload: resources, format: format, emit: emit) {
+                if verbose {
+                    return Output.renderTable(resources.flatMap { VerboseImageRow.rows(for: $0) })
+                }
+                return Output.renderTable(resources)
+            }
+
+            if skipped > 0 {
+                throw ContainerizationError(.invalidState, message: "failed to read \(skipped) image(s)")
+            }
+        }
+
+        private static func isUnreadableImageError(_ error: any Error) -> Bool {
+            if let error = error as? ContainerizationError {
+                return error.isCode(.notFound)
+            }
+            return error is DecodingError
         }
     }
 }
