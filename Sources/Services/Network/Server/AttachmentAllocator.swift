@@ -28,15 +28,29 @@ actor AttachmentAllocator {
         )
     }
 
-    /// Allocate a network address for a host.
-    func allocate(hostname: String) async throws -> UInt32 {
+    /// Allocate a network address for a host and any additional DNS aliases.
+    func allocate(hostname: String, aliases: [String] = []) async throws -> UInt32 {
+        let names = Self.normalizedNames(hostname: hostname, aliases: aliases)
+        guard names.allSatisfy({ !$0.isEmpty }) else {
+            throw ContainerizationError(.invalidArgument, message: "hostname and aliases cannot be empty")
+        }
+        let hostname = names[0]
+
         // Client is responsible for ensuring two containers don't use same hostname, so provide existing IP if hostname exists
         if let index = hostnames[hostname] {
+            try ensureNames(names, canMapTo: index)
+            for name in names {
+                hostnames[name] = index
+            }
             return index
         }
 
+        try ensureNames(names, canMapTo: nil)
+
         let index = try allocator.allocate()
-        hostnames[hostname] = index
+        for name in names {
+            hostnames[name] = index
+        }
 
         return index
     }
@@ -44,8 +58,16 @@ actor AttachmentAllocator {
     /// Free an allocated network address by hostname.
     @discardableResult
     func deallocate(hostname: String) async throws -> UInt32? {
-        guard let index = hostnames.removeValue(forKey: hostname) else {
+        let hostname = Self.normalized(hostname: hostname)
+        guard let index = hostnames[hostname] else {
             return nil
+        }
+
+        let names = hostnames.compactMap { name, mappedIndex in
+            mappedIndex == index ? name : nil
+        }
+        for name in names {
+            hostnames.removeValue(forKey: name)
         }
 
         try allocator.release(index)
@@ -54,6 +76,31 @@ actor AttachmentAllocator {
 
     /// Retrieve the allocator index for a hostname.
     func lookup(hostname: String) async throws -> UInt32? {
-        hostnames[hostname]
+        let hostname = Self.normalized(hostname: hostname)
+        return hostnames[hostname]
+    }
+
+    private static func normalized(hostname: String) -> String {
+        let hostname = hostname.hasSuffix(".") ? String(hostname.dropLast()) : hostname
+        return hostname.lowercased()
+    }
+
+    private static func normalizedNames(hostname: String, aliases: [String]) -> [String] {
+        var seen = Set<String>()
+        return ([hostname] + aliases)
+            .map(Self.normalized(hostname:))
+            .filter { seen.insert($0).inserted }
+    }
+
+    private func ensureNames(_ names: [String], canMapTo expectedIndex: UInt32?) throws {
+        for name in names {
+            guard let index = hostnames[name] else {
+                continue
+            }
+            if let expectedIndex, expectedIndex == index {
+                continue
+            }
+            throw ContainerizationError(.exists, message: "hostname already exists: \(name)")
+        }
     }
 }

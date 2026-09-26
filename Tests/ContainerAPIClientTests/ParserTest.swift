@@ -879,6 +879,15 @@ struct ParserTest {
     func testParseNetworkSimpleName() throws {
         let result = try Parser.network("default")
         #expect(result.name == "default")
+        #expect(result.aliases.isEmpty)
+        #expect(result.macAddress == nil)
+    }
+
+    @Test
+    func testParseNetworkWithAliases() throws {
+        let result = try Parser.network("backend,alias=db,alias=database")
+        #expect(result.name == "backend")
+        #expect(result.aliases == ["db", "database"])
         #expect(result.macAddress == nil)
     }
 
@@ -886,6 +895,7 @@ struct ParserTest {
     func testParseNetworkWithMACAddress() throws {
         let result = try Parser.network("backend,mac=02:42:ac:11:00:02")
         #expect(result.name == "backend")
+        #expect(result.aliases.isEmpty)
         #expect(result.macAddress == "02:42:ac:11:00:02")
     }
 
@@ -929,6 +939,18 @@ struct ParserTest {
                 return false
             }
             return error.description.contains("mac address value cannot be empty")
+        }
+    }
+
+    @Test
+    func testParseNetworkEmptyAlias() throws {
+        #expect {
+            _ = try Parser.network("backend,alias=")
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("alias value cannot be empty")
         }
     }
 
