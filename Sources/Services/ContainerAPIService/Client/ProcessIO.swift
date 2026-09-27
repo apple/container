@@ -50,6 +50,12 @@ public struct ProcessIO: Sendable {
             }
             let current = try Terminal(descriptor: STDIN_FILENO)
             try current.setraw()
+            do {
+                try disableHostOutputProcessing(descriptor: STDIN_FILENO)
+            } catch {
+                try? current.reset()
+                throw error
+            }
             return current
         }()
 
@@ -154,6 +160,19 @@ public struct ProcessIO: Sendable {
             stdio: stdio,
             console: current
         )
+    }
+
+    static func disableHostOutputProcessing(descriptor: Int32) throws {
+        var attributes = termios()
+        guard tcgetattr(descriptor, &attributes) == 0 else {
+            throw POSIXError.fromErrno()
+        }
+        // The guest pty has already processed output. Translating it again on
+        // the host moves the cursor to column zero for each bare newline.
+        attributes.c_oflag &= ~tcflag_t(OPOST)
+        guard tcsetattr(descriptor, TCSANOW, &attributes) == 0 else {
+            throw POSIXError.fromErrno()
+        }
     }
 
     public func handleProcess(process: ClientProcess, log: Logger) async throws -> Int32 {
