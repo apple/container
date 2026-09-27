@@ -802,6 +802,11 @@ public struct Parser {
                             .invalidArgument,
                             message: "host socket \(absoluteHostPath) already exists and may be in use")
                     }
+                    if let fileType = attrs[.type] as? FileAttributeType, fileType == .typeDirectory {
+                        throw ContainerizationError(
+                            .invalidArgument,
+                            message: "host socket path \(absoluteHostPath) is a directory")
+                    }
                     // If it exists but is not a socket, we can remove it and create socket
                     try FileManager.default.removeItem(atPath: absoluteHostPath.string)
                 } catch let error as ContainerizationError {
