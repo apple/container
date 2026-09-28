@@ -113,13 +113,15 @@ public struct Parser {
         var resolvedGID: UInt32?
 
         if let user, !user.isEmpty {
-            let parts = user.split(separator: ":", maxSplits: 1)
+            let parts = user.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
             let primary = String(parts[0])
 
-            if let uidValue = UInt32(primary) {
-                resolvedUID = uidValue
-            } else {
-                username = primary
+            if !primary.isEmpty {
+                if let uidValue = UInt32(primary) {
+                    resolvedUID = uidValue
+                } else {
+                    username = primary
+                }
             }
 
             if parts.count == 2 {
