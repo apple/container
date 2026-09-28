@@ -9,17 +9,17 @@
 #      use SHELL from /etc/default/useradd. Falls back to /bin/bash or /bin/sh.
 #
 #   2. Open a user shell when invoked with the "-s" flag.
-#      Looks up the current user's shell from /etc/passwd and execs into it,
+#      Looks up CONTAINER_USER's shell from /etc/passwd and execs into it,
 #      falling back to the system default shell. If additional arguments follow
 #      "-s", runs them as a command via "<shell> -c <args>" instead of dropping
 #      into an interactive session.
 #
 #   3. Run first-time user setup when invoked with the "-u" flag (only once).
-#      If /etc/.machine.initialized does not exist, runs the create-user script
-#      to create the container user and apply one-time configuration. A custom
-#      script at /etc/machine/create-user.sh takes precedence over the built-in
-#      one at /sbin.machine/create-user.sh. Marks initialization complete by
-#      touching /etc/.machine.initialized.
+#      If CONTAINER_USER does not already resolve to CONTAINER_UID, runs the
+#      create-user script to create the container user and apply one-time
+#      configuration. A custom script at /etc/machine/create-user.sh takes
+#      precedence over the built-in one at /sbin.machine/create-user.sh. Marks
+#      initialization complete by touching /etc/.machine.initialized.
 #
 #   4. Boot the system when invoked with no flags.
 #      Sets the hostname to CONTAINER_MACHINE_ID and execs /sbin/init to hand
@@ -47,7 +47,11 @@ export CONTAINER_SHELL=${SHELL}
 
 if [ "$1" = "-s" ]; then
     shift
-    USER_SHELL=$(grep "^$(id -un):" /etc/passwd 2>/dev/null | cut -d: -f7)
+    # CONTAINER_USER may be a second name for a UID the image already uses, and
+    # `id -un` reports whichever name appears first in /etc/passwd. Prefer the
+    # provisioned name so its shell wins.
+    USER_NAME="${CONTAINER_USER:-$(id -un)}"
+    USER_SHELL=$(awk -F: -v u="${USER_NAME}" '$1 == u { print $7; exit }' /etc/passwd 2>/dev/null)
     if [ $# -gt 0 ]; then
         exec "${USER_SHELL:-${SHELL}}" -c "$*"
     else
@@ -55,7 +59,8 @@ if [ "$1" = "-s" ]; then
     fi
 elif [ "$1" = "-u" ]; then
     # DEPRECATED 0.11.0.0 - use `id` instead of checking `${MACHINE_INITIALIZED}` for backward compatibility, remove in 0.13.0.0
-    if ! id "${CONTAINER_USER}" >/dev/null 2>&1; then
+    existing_uid=$(id -u "${CONTAINER_USER}" 2>/dev/null || true)
+    if [ "${existing_uid}" != "${CONTAINER_UID}" ]; then
         if [ -f ${CUSTOM_SETUP} ]; then
             ${CUSTOM_SETUP}
         else

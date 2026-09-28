@@ -186,8 +186,15 @@ dsym:
 	@echo Packaging the debug symbols...
 	@(cd "$(dir $(DSYM_DIR))" ; zip -r $(notdir $(DSYM_PATH)) $(notdir $(DSYM_DIR)))
 
+.PHONY: test-scripts
+# Shell-level tests for the guest provisioning scripts, which are shipped as
+# resources rather than compiled and so are not covered by `swift test`.
+test-scripts:
+	@echo Running script tests...
+	@Tests/ScriptTests/TestCreateMachineUser.sh
+
 .PHONY: test
-test: build-tests
+test: build-tests test-scripts
 	@$(SWIFT) test --skip-build -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --skip TestCLI --skip IntegrationTests
 
 .PHONY: install-kernel
