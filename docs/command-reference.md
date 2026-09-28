@@ -772,8 +772,13 @@ Shows the current status of the BuildKit builder. Without flags a human-readable
 **Usage**
 
 ```bash
-container builder status [--debug]
+container builder status [--format <format>] [--quiet] [--debug]
 ```
+
+**Options**
+
+*   `--format <format>`: Format of the output (values: json, table, yaml, toml; default: table)
+*   `-q, --quiet`: Only output the container ID
 
 ### `container builder stop`
 
