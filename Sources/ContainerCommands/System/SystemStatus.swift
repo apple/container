@@ -42,7 +42,7 @@ extension Application {
         public init() {}
 
         public func run() async throws {
-            let isRegistered = try ServiceManager.isRegistered(fullServiceLabel: "\(prefix)apiserver")
+            let isRegistered = (try? ServiceManager.isRegistered(serviceLabel: "\(prefix)apiserver")) ?? true
             if !isRegistered {
                 try Output.render(payload: StatusPayload(status: "unregistered"), format: format) {
                     "apiserver is not running and not registered with launchd"
