@@ -373,13 +373,23 @@ extension Application {
                             terminal, buildArg, secretsData, ssh, contextDir, ignoreFileData, label, noCache, target, quiet, cacheIn, cacheOut, pull, exports, imageNames, tempURL,
                             log
                         ] in
+                        
+                        let actualContextDir: String
+                        if contextDir == "-" {
+                            let emptyContextURL = tempURL.appendingPathComponent("empty-context")
+                            try? FileManager.default.createDirectory(at: emptyContextURL, withIntermediateDirectories: true, attributes: nil)
+                            actualContextDir = emptyContextURL.path
+                        } else {
+                            actualContextDir = contextDir
+                        }
+
                         let config = Builder.BuildConfig(
                             buildID: buildID,
                             contentStore: RemoteContentStoreClient(),
                             buildArgs: buildArg,
                             secrets: secretsData,
                             ssh: ssh,
-                            contextDir: contextDir,
+                            contextDir: actualContextDir,
                             dockerfile: buildFileData,
                             dockerignore: ignoreFileData,
                             labels: label,
@@ -474,8 +484,10 @@ extension Application {
 
         public mutating func validate() throws {
             // NOTE: Here we check the Dockerfile exists, and set `dockerfile` to point the valid Dockerfile path or stdin
-            guard FileManager.default.fileExists(atPath: contextDir) else {
-                throw ValidationError("context dir does not exist \(contextDir)")
+            if contextDir != "-" {
+                guard FileManager.default.fileExists(atPath: contextDir) else {
+                    throw ValidationError("context dir does not exist \(contextDir)")
+                }
             }
             for name in targetImageNames {
                 guard let _ = try? Reference.parse(name) else {
@@ -496,15 +508,19 @@ extension Application {
                 dockerfile = fileURL.path
                 break
             case .none:
-                guard let defaultDockerfile = try BuildFile.resolvePath(contextDir: contextDir) else {
-                    throw ValidationError("dockerfile not found in context dir")
-                }
+                if contextDir == "-" {
+                    dockerfile = "-"
+                } else {
+                    guard let defaultDockerfile = try BuildFile.resolvePath(contextDir: contextDir) else {
+                        throw ValidationError("dockerfile not found in context dir")
+                    }
 
-                guard FileManager.default.fileExists(atPath: defaultDockerfile) else {
-                    throw ValidationError("dockerfile does not exist \(defaultDockerfile)")
-                }
+                    guard FileManager.default.fileExists(atPath: defaultDockerfile) else {
+                        throw ValidationError("dockerfile does not exist \(defaultDockerfile)")
+                    }
 
-                dockerfile = defaultDockerfile
+                    dockerfile = defaultDockerfile
+                }
                 break
             }
 
