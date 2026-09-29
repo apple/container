@@ -91,6 +91,8 @@ struct TestCLICommitCommand {
         let image = try decoder.decode(Image.self, from: blobData(manifest.config, in: extractedDirectory))
         #expect(image.rootfs.diffIDs == manifest.layers.map { $0.digest })
         #expect(image.history?.count == manifest.layers.count)
+        #expect(image.config?.entrypoint == ["sleep"])
+        #expect(image.config?.cmd == ["infinity"])
     }
 
     private func blobData(_ descriptor: Descriptor, in directory: FilePath) throws -> Data {

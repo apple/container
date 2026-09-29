@@ -17,7 +17,6 @@
 import ContainerResource
 import ContainerizationArchive
 import ContainerizationOCI
-import CryptoKit
 import Foundation
 
 enum OCIImageArchive {
@@ -35,7 +34,8 @@ enum OCIImageArchive {
         let imageConfig = ImageConfig(
             user: process.user.description,
             env: process.environment,
-            cmd: [process.executable] + process.arguments,
+            entrypoint: [process.executable],
+            cmd: process.arguments,
             workingDir: process.workingDirectory,
             labels: labels,
             stopSignal: container.configuration.stopSignal
@@ -44,8 +44,10 @@ enum OCIImageArchive {
         let layoutDirectory = temporaryDirectory.appendingPathComponent("oci-layout")
         let blobsDirectory = layoutDirectory.appendingPathComponent("blobs/sha256")
         try FileManager.default.createDirectory(at: blobsDirectory, withIntermediateDirectories: true)
+        let contentWriter = try ContentWriter(for: blobsDirectory)
 
-        let layerDescriptor = try writeBlob(fromFile: rootfsArchive, mediaType: MediaTypes.imageLayer, into: blobsDirectory)
+        var result = try contentWriter.create(from: rootfsArchive)
+        let layerDescriptor = Descriptor(mediaType: MediaTypes.imageLayer, digest: result.digest.digestString, size: result.size)
         let created = ISO8601DateFormatter().string(from: Date())
         let config = Image(
             created: created,
@@ -59,10 +61,12 @@ enum OCIImageArchive {
             rootfs: Rootfs(type: "layers", diffIDs: [layerDescriptor.digest]),
             history: [History(created: created, createdBy: "container commit")]
         )
-        let configDescriptor = try writeBlob(fromEncodable: config, mediaType: MediaTypes.imageConfig, into: blobsDirectory)
+        result = try contentWriter.create(from: config)
+        let configDescriptor = Descriptor(mediaType: MediaTypes.imageConfig, digest: result.digest.digestString, size: result.size)
 
         let manifest = Manifest(config: configDescriptor, layers: [layerDescriptor])
-        var manifestDescriptor = try writeBlob(fromEncodable: manifest, mediaType: MediaTypes.imageManifest, into: blobsDirectory)
+        result = try contentWriter.create(from: manifest)
+        var manifestDescriptor = Descriptor(mediaType: MediaTypes.imageManifest, digest: result.digest.digestString, size: result.size)
         manifestDescriptor.annotations = [
             "org.opencontainers.image.ref.name": reference,
             "io.containerd.image.name": reference,
@@ -78,26 +82,9 @@ enum OCIImageArchive {
             .write(to: layoutDirectory.appendingPathComponent("index.json"), options: .atomic)
 
         let imageArchive = temporaryDirectory.appendingPathComponent("image.tar")
-        let writer = try ArchiveWriter(format: .pax, filter: .none, file: imageArchive)
-        try writer.archiveDirectory(layoutDirectory)
-        try writer.finishEncoding()
+        let archiveWriter = try ArchiveWriter(format: .pax, filter: .none, file: imageArchive)
+        try archiveWriter.archiveDirectory(layoutDirectory)
+        try archiveWriter.finishEncoding()
         return imageArchive
-    }
-
-    private static func writeBlob(fromFile source: URL, mediaType: String, into blobsDirectory: URL) throws -> Descriptor {
-        let data = try Data(contentsOf: source)
-        return try writeBlob(data: data, mediaType: mediaType, into: blobsDirectory)
-    }
-
-    private static func writeBlob(fromEncodable value: some Encodable, mediaType: String, into blobsDirectory: URL) throws -> Descriptor {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.withoutEscapingSlashes]
-        return try writeBlob(data: encoder.encode(value), mediaType: mediaType, into: blobsDirectory)
-    }
-
-    private static func writeBlob(data: Data, mediaType: String, into blobsDirectory: URL) throws -> Descriptor {
-        let digest = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
-        try data.write(to: blobsDirectory.appendingPathComponent(digest), options: .atomic)
-        return Descriptor(mediaType: mediaType, digest: "sha256:\(digest)", size: Int64(data.count))
     }
 }
