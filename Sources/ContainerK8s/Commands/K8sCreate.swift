@@ -54,6 +54,12 @@ public struct K8sCreate: AsyncParsableCommand {
     @Option(name: .long, help: "Optional path to a CNI manifest to apply.")
     var cni: String?
 
+    @Option(name: [.customLong("volume"), .short], help: "Bind mount a volume into the cluster node (format: [source:]destination[:options])")
+    var volumes: [String] = []
+
+    @Option(name: .customLong("mount"), help: "Add a mount to the cluster node (format: type=<>,source=<>,target=<>,readonly)")
+    var mounts: [String] = []
+
     public func run() async throws {
         LoggingSystem.bootstrap { _ in StderrLogHandler() }
         let log = Logger(label: K8sHelper.pluginName)
@@ -98,7 +104,9 @@ public struct K8sCreate: AsyncParsableCommand {
             registryScheme: registryFlags.scheme,
             maxConcurrentDownloads: imageFetchFlags.maxConcurrentDownloads,
             remove: remove,
-            fqdn: fqdn
+            fqdn: fqdn,
+            volumes: volumes,
+            mounts: mounts
         )
 
         progress.set(description: "Starting cluster")
