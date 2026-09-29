@@ -15,7 +15,6 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import Testing
 
 // MARK: - Machine output types
 

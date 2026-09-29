@@ -256,6 +256,34 @@ import Testing
         #expect(leaked.isEmpty, "walk() returned non-symlink URLs that physically resolve outside the context: \(leaked)")
     }
 
+    // MARK: - walk(): plain subdirectory contents under a symlinked ancestor
+    //
+    // Globber.children(of:) used to list directories via
+    // contentsOfDirectory(at:), which silently resolves /tmp to /private/tmp
+    // even for a non-symlink child. That made walk()'s parentOf() check
+    // reject every entry found by descending into a plain subdirectory, so
+    // "COPY foodir /dest" tarred an empty directory while
+    // "COPY foodir/payload /dest/payload" worked fine.
+
+    @Test func testWalkUnderSymlinkedAncestor() async throws {
+        // Root the context directly under /tmp (a symlink to /private/tmp on
+        // macOS) to reproduce the bug precisely.
+        let tmpBase = URL(fileURLWithPath: "/tmp").appendingPathComponent(UUID().uuidString)
+        let ctx = tmpBase.appendingPathComponent("context")
+        try fm.createDirectory(at: ctx, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: tmpBase) }
+
+        let subdir = ctx.appendingPathComponent("foodir")
+        try fm.createDirectory(at: subdir, withIntermediateDirectories: true)
+        try write("payload", to: subdir.appendingPathComponent("payload.txt"))
+
+        let fssync = try BuildFSSync(ctx)
+        let infos = try await walkJSON(fssync, followPaths: ["foodir"])
+
+        let payload = infos.first { $0.name == "foodir/payload.txt" }
+        #expect(payload != nil, "expected foodir/payload.txt to be included when COPYing a directory glob, got: \(infos.map { $0.name })")
+    }
+
     // MARK: - walk(): JSON/FileInfo metadata paths
     //
     // walk() has two response formats: a tar stream (the primary data path,

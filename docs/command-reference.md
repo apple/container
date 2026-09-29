@@ -56,6 +56,7 @@ container run [<options>] <image> [<arguments> ...]
 *   `--init`: Run an init process inside the container that forwards signals and reaps processes
 *   `--init-image <image>`: Use a custom init image instead of the default. This allows customizing boot-time behavior before the OCI container starts, such as running VM-level daemons, configuring eBPF filters, or debugging the init process.
 *   `-k, --kernel <path>`: Set a custom kernel path
+*   `--kernel-arg <arg>`: Append a raw boot argument to the kernel command line (repeatable).
 *   `-l, --label <label>`: Add a key=value label to the container
 *   `--masked-path <path>`: **Experimental.** Hide a path inside the container, in addition to the runtime defaults (or `NONE` to clear prior values and the defaults)
 *   `--mount <mount>`: Add a mount to the container (format: type=<>,source=<>,target=<>,readonly)
@@ -79,19 +80,7 @@ container run [<options>] <image> [<arguments> ...]
 
 **Registry Options**
 
-*   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https, auto) (default: auto)
-
-    * **Behavior of `auto`**
-
-        When `auto` is selected, the target registry is considered **internal/local** if the registry host matches any of these criteria:
-        - The host is a loopback address (e.g., `localhost`, `127.*`)
-        - The host is within the `RFC1918` private IP ranges:
-            - `10.*.*.*`
-            - `192.168.*.*`
-            - `172.16.*.*` through `172.31.*.*`
-        - The host ends with the machine's default container DNS domain (as defined in `DNSConfig.defaultDomain`, located [here](../Sources/ContainerPersistence/ContainerSystemConfig.swift))
-
-        For internal/local registries, the client uses **HTTP**. Otherwise, it uses **HTTPS**.
+*   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https) (default: https)
 
 **Progress Options**
 
@@ -232,6 +221,7 @@ container create [<options>] <image> [<arguments> ...]
 *   `--init`: Run an init process inside the container that forwards signals and reaps processes
 *   `--init-image <image>`: Use a custom init image instead of the default. This allows customizing boot-time behavior before the OCI container starts, such as running VM-level daemons, configuring eBPF filters, or debugging the init process.
 *   `-k, --kernel <path>`: Set a custom kernel path
+*   `--kernel-arg <arg>`: Append a raw boot argument to the kernel command line (repeatable).
 *   `-l, --label <label>`: Add a key=value label to the container
 *   `--masked-path <path>`: **Experimental.** Hide a path inside the container, in addition to the runtime defaults (or `NONE` to clear prior values and the defaults)
 *   `--mount <mount>`: Add a mount to the container (format: type=<>,source=<>,target=<>,readonly)
@@ -255,7 +245,7 @@ container create [<options>] <image> [<arguments> ...]
 
 **Registry Options**
 
-*   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https, auto) (default: auto)
+*   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https) (default: https)
 
 **Image Fetch Options**
 
@@ -627,7 +617,7 @@ container image pull [--scheme <scheme>] [--progress <type>] [--max-concurrent-d
 
 **Options**
 
-*   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https, auto) (default: auto)
+*   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https) (default: https)
 *   `--progress <type>`: Progress type (format: auto|none|ansi|plain|color) (default: auto)
 *   `--max-concurrent-downloads <max-concurrent-downloads>`: Maximum number of concurrent downloads (default: 3)
 *   `-a, --arch <arch>`: Limit the pull to the specified architecture
@@ -650,7 +640,7 @@ container image push [--scheme <scheme>] [--progress <type>] [--arch <arch>] [--
 
 **Options**
 
-*   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https, auto) (default: auto)
+*   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https) (default: https)
 *   `--progress <type>`: Progress type (format: auto|none|ansi|plain|color) (default: auto)
 *   `-a, --arch <arch>`: Limit the push to the specified architecture
 *   `--os <os>`: Limit the push to the specified OS
@@ -1074,7 +1064,7 @@ container registry login [--scheme <scheme>] [--password-stdin] [--username <use
 
 **Options**
 
-*   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https, auto) (default: auto)
+*   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https) (default: https)
 *   `--password-stdin`: Take the password from stdin
 *   `-u, --username <username>`: Registry user name
 
@@ -1148,7 +1138,7 @@ container machine create [<options>] <image>
 
 **Registry Options**
 
-*   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https, auto) (default: auto)
+*   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https) (default: https)
 
 **Progress Options**
 
@@ -1663,7 +1653,7 @@ container k8s create [--name <name>] [--node-image <image>] [--cni <path>] [--rm
 
 **Registry Options**
 
-*   `--scheme <scheme>`: Scheme for the container registry (values: http, https, auto; default: auto)
+*   `--scheme <scheme>`: Scheme for the container registry (values: http, https; default: https)
 
 **Image Fetch Options**
 
@@ -1683,30 +1673,6 @@ container k8s create --name temp-cluster --rm
 
 # create a cluster using a custom CNI manifest instead of the bundled kindnet
 container k8s create --cni ./my-cni.yaml
-```
-
-### `container k8s start`
-
-Starts a stopped Kubernetes cluster and refreshes its entry in `~/.kube/config` (the container IP can change between starts).
-
-**Usage**
-
-```bash
-container k8s start [--name <name>] [--debug]
-```
-
-**Options**
-
-*   `--name <name>`: Cluster name (default: `k8s-dev`)
-
-**Examples**
-
-```bash
-# start the default cluster
-container k8s start
-
-# start a named cluster
-container k8s start --name my-cluster
 ```
 
 ### `container k8s delete (rm)`
@@ -1785,7 +1751,7 @@ container k8s load-image --platform linux/amd64 my-app:latest
 
 ### `container k8s write-config`
 
-Fetches the current kubeconfig from a running cluster and merges its context into a kubeconfig file. Use this to refresh credentials after a cluster restart or to write to an alternate config file.
+Fetches the current kubeconfig from a running cluster and merges its context into a kubeconfig file. Use this to write to an alternate config file.
 
 **Usage**
 

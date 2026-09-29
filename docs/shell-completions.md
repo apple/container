@@ -7,7 +7,7 @@ Generate and install completion scripts for `zsh`, `bash`, and `fish`.
 The `container --generate-completion-script [zsh|bash|fish]` command generates completion scripts for the provided shell. Below is a detailed guide on how to install the completion scripts.
 
 > [!NOTE]
-> See the [swift-argument-parser documentation](https://apple.github.io/swift-argument-parser/documentation/argumentparser/installingcompletionscripts/#Installing-Zsh-Completions) for more information about generating and installing shell completion scripts.
+> See the [swift-argument-parser documentation](https://github.com/apple/swift-argument-parser/blob/main/Sources/ArgumentParser/Documentation.docc/Articles/InstallingCompletionScripts.md#installing-zsh-completions) for more information about generating and installing shell completion scripts.
 
 ## Installing `zsh` completions
 
