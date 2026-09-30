@@ -593,6 +593,12 @@ let package = Package(
                 "ContainerVersion",
             ]
         ),
+        .testTarget(
+            name: "ContainerXPCTests",
+            dependencies: [
+                "ContainerXPC"
+            ]
+        ),
         .target(
             name: "CVersion",
             dependencies: [],
