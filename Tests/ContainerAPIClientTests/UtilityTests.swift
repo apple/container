@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerPersistence
 import ContainerResource
 import ContainerizationError
 import Foundation
@@ -111,6 +112,52 @@ struct UtilityTests {
     @Test("Trim digest shorter than 12 chars returns value unchanged")
     func testTrimDigestShort() {
         #expect(Utility.trimDigest(digest: "sha256:abc") == "abc")
+    }
+
+    @Test("Infrastructure image matching normalizes configured references")
+    func infrastructureImageMatchingNormalizesConfiguredReferences() throws {
+        let config = ContainerSystemConfig(
+            build: BuildConfig(image: "custom-builder"),
+            registry: RegistryConfig(domain: "registry.example.com"),
+            vminit: VminitConfig(image: "custom-init")
+        )
+
+        #expect(
+            try Utility.isInfraImage(
+                name: "custom-builder",
+                containerSystemConfig: config
+            )
+        )
+        #expect(
+            try Utility.isInfraImage(
+                name: "custom-builder:latest",
+                containerSystemConfig: config
+            )
+        )
+        #expect(
+            try Utility.isInfraImage(
+                name: "registry.example.com/custom-builder:latest",
+                containerSystemConfig: config
+            )
+        )
+        #expect(
+            try Utility.isInfraImage(
+                name: "custom-init",
+                containerSystemConfig: config
+            )
+        )
+        #expect(
+            try Utility.isInfraImage(
+                name: "custom-init:latest",
+                containerSystemConfig: config
+            )
+        )
+        #expect(
+            try !Utility.isInfraImage(
+                name: "registry.example.com/application:latest",
+                containerSystemConfig: config
+            )
+        )
     }
 
     @Test

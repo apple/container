@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerAPIClient
 import ContainerTestSupport
 import Testing
 
@@ -50,6 +51,33 @@ struct TestCLIImagePruneSerial {
             try? f.doRemoveImages()
             let result = try f.run(["image", "prune"]).check()
             #expect(result.error.contains("Zero KB"), "should show no space reclaimed")
+        }
+    }
+
+    @Test func testImagePrunePreservesBuilderImage() async throws {
+        try await ContainerFixture.with { f in
+            _ = try? f.builderDelete(force: true)
+            try? f.doRemoveImages()
+            f.addCleanup {
+                try? f.builderDelete(force: true)
+                try? f.doRemoveImages()
+            }
+
+            try f.builderStart()
+            try await f.waitForBuilderRunning()
+            let builder = try f.inspectContainer("buildkit")
+            let builderDigest = builder.configuration.image.digest
+            var storedImages = try await ClientImage.list()
+            #expect(storedImages.contains { $0.digest == builderDigest }, "expected builder image in the image store")
+
+            try f.doPull(alpine)
+            let result = try f.run(["image", "prune", "-a"]).check()
+
+            #expect(result.output.contains(alpine), "should prune unused alpine image")
+            #expect(try !f.isImagePresent(alpine), "expected unused alpine image to be removed")
+            storedImages = try await ClientImage.list()
+            #expect(storedImages.contains { $0.digest == builderDigest }, "expected builder image to remain in the image store")
+            #expect(try f.getContainerStatus("buildkit") == "running", "builder should remain usable after image prune")
         }
     }
 
