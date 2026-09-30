@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-// Copyright © 2025-2026 Apple Inc. and the container project authors.
+// Copyright © 2026 Apple Inc. and the container project authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,25 +14,9 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ArgumentParser
-import ContainerAPIClient
-
-extension Application {
-    public struct BuilderCommand: AsyncLoggableCommand {
-        public init() {}
-
-        public static let builderResourceDir = "builder"
-        public static let configuration = CommandConfiguration(
-            commandName: "builder",
-            abstract: "Manage an image builder instance",
-            subcommands: [
-                BuilderStart.self,
-                BuilderStatus.self,
-                BuilderStop.self,
-                BuilderDelete.self,
-            ])
-
-        @OptionGroup
-        public var logOptions: Flags.Logging
-    }
+public enum ListFormat: String, CaseIterable, Sendable {
+    case json
+    case table
+    case yaml
+    case toml
 }
