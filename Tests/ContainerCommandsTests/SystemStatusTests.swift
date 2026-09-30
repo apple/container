@@ -20,6 +20,10 @@ import Testing
 @testable import ContainerCommands
 
 struct SystemStatusTests {
+    private enum ProbeError: Error {
+        case unavailable
+    }
+
     private func makeRunningPayload(
         paths: Application.PathInfo? = nil,
         resources: Application.ResourceCounts? = nil
@@ -32,6 +36,52 @@ struct SystemStatusTests {
             paths: paths,
             resources: resources
         )
+    }
+
+    @Test
+    func responsiveApiserverDoesNotRequireLaunchdRegistrationCheck() async {
+        let result = await Application.SystemStatus.probeApiserver(
+            fullServiceLabel: "com.apple.container.apiserver",
+            healthCheck: { "healthy" },
+            registrationCheck: { _ in
+                Issue.record("launchd registration should not be checked after a successful health ping")
+                return false
+            }
+        )
+
+        if case .responding(let response) = result {
+            #expect(response == "healthy")
+        } else {
+            Issue.record("expected the successful health response")
+        }
+    }
+
+    @Test
+    func registeredButUnresponsiveApiserverIsReportedAsNotRunning() async {
+        let result = await Application.SystemStatus.probeApiserver(
+            fullServiceLabel: "com.apple.container.apiserver",
+            healthCheck: { () async throws -> String in throw ProbeError.unavailable },
+            registrationCheck: { _ in true }
+        )
+
+        if case .registeredButUnresponsive = result {
+            return
+        }
+        Issue.record("expected a registered but unresponsive apiserver")
+    }
+
+    @Test
+    func unregisteredApiserverIsReportedAsUnregistered() async {
+        let result = await Application.SystemStatus.probeApiserver(
+            fullServiceLabel: "com.apple.container.apiserver",
+            healthCheck: { () async throws -> String in throw ProbeError.unavailable },
+            registrationCheck: { _ in false }
+        )
+
+        if case .unregistered = result {
+            return
+        }
+        Issue.record("expected an unregistered apiserver")
     }
 
     @Test
