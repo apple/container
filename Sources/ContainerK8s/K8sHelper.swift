@@ -86,9 +86,13 @@ public struct K8sHelper {
         var controlPlanes: [ContainerSnapshot] = []
         var workers: [ContainerSnapshot] = []
         for snapshot in snapshots {
-            switch snapshot.configuration.labels[ResourceLabelKeys.role] {
-            case controlPlaneRoleName: controlPlanes.append(snapshot)
-            default: workers.append(snapshot)
+            let roles = snapshot.configuration.labels[ResourceLabelKeys.role, default: ""]
+                .split(separator: ",")
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            if roles.contains(controlPlaneRoleName) {
+                controlPlanes.append(snapshot)
+            } else {
+                workers.append(snapshot)
             }
         }
 
