@@ -287,7 +287,8 @@ public struct Parser {
             if let entrypoint = managementFlags.entrypoint, !entrypoint.isEmpty {
                 result = [entrypoint]
                 hasEntrypointOverride = true
-            } else if let entrypoint = config?.entrypoint, !entrypoint.isEmpty {
+            } else if let entrypoint = config?.entrypoint, !entrypoint.isEmpty, entrypoint != [""] {
+                // A single empty string clears the image entrypoint.
                 result = entrypoint
             }
             if !arguments.isEmpty {

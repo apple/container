@@ -153,6 +153,21 @@ struct BuildK8sRowsTests {
         #expect(rows[2].snapshot.id == "dev-worker-2")
     }
 
+    @Test func mixedControlPlaneRoleIsGroupedAsControlPlane() throws {
+        let cp = try makeSnapshot(
+            id: "k8s-dev",
+            role: "\(K8sHelper.controlPlaneRoleName),worker")
+        let worker = try makeWorker("k8s-dev-worker-1")
+
+        let rows = K8sHelper.buildK8sRows(from: [worker, cp])
+
+        #expect(rows.count == 2)
+        #expect(rows[0].snapshot.id == "k8s-dev")
+        #expect(rows[0].clusterName == "k8s-dev")
+        #expect(rows[1].snapshot.id == "k8s-dev-worker-1")
+        #expect(rows[1].clusterName == "k8s-dev")
+    }
+
     @Test func workersGroupedUnderCorrectControlPlane() throws {
         let cp1 = try makeControlPlane("alpha")
         let cp2 = try makeControlPlane("beta")

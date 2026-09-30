@@ -76,14 +76,22 @@ extension PluginLoader {
         }
 
         var lines = original.split(separator: "\n").map { String($0) }
+        let pluginLines = plugins.map { $0.helpText(padding: 24) }
 
-        let sectionHeader = "PLUGINS:"
-        lines.append(sectionHeader)
-
-        for plugin in plugins {
-            let helpText = plugin.helpText(padding: 24)
-            lines.append(helpText)
+        // List plugin CLI surfaces alongside the built-in "other" commands
+        // rather than under their own section, since from the user's
+        // perspective they're just more subcommands.
+        guard let otherHeaderIndex = lines.firstIndex(of: "OTHER SUBCOMMANDS:") else {
+            lines.append("OTHER SUBCOMMANDS:")
+            lines.append(contentsOf: pluginLines)
+            return lines.joined(separator: "\n")
         }
+
+        var insertionIndex = otherHeaderIndex + 1
+        while insertionIndex < lines.count, lines[insertionIndex].hasPrefix("  ") {
+            insertionIndex += 1
+        }
+        lines.insert(contentsOf: pluginLines, at: insertionIndex)
 
         return lines.joined(separator: "\n")
     }
