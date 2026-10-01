@@ -113,7 +113,21 @@ struct TestCLINetwork {
         try await ContainerFixture.with { f in
             let image = WarmupImage.alpine320.rawValue
             let c = "\(f.testID)-c"
-            try await f.doLongRun(name: c, image: image, args: ["--network", "default,mtu=1500"], autoRemove: false, waitUntilRunning: true)
+            try await f.doLongRun(name: c, image: image, args: ["--network", "default,mtu=1400"], autoRemove: false, waitUntilRunning: true)
+            f.addCleanup {
+                try? f.doStop(c)
+                try? f.doRemove(c)
+            }
+            let output = try f.doExec(c, cmd: ["ip", "link", "show", "eth0"])
+            #expect(output.contains("mtu 1400"), "expected mtu 1400 in ip link output: \(output)")
+        }
+    }
+
+    @Test func testNetworkDefaultMTU() async throws {
+        try await ContainerFixture.with { f in
+            let image = WarmupImage.alpine320.rawValue
+            let c = "\(f.testID)-c"
+            try await f.doLongRun(name: c, image: image, autoRemove: false, waitUntilRunning: true)
             f.addCleanup {
                 try? f.doStop(c)
                 try? f.doRemove(c)
