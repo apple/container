@@ -19,13 +19,13 @@ public struct StandardQueryValidator: DNSHandler {
     private let handler: DNSHandler
 
     /// Create the handler.
-    /// - Parameter delegate: the handler that receives valid queries
+    /// - Parameter handler: the handler that receives valid queries
     public init(handler: DNSHandler) {
         self.handler = handler
     }
 
     /// Ensures the query is valid before forwarding it to the delegate.
-    /// - Parameter msg: the query message
+    /// - Parameter query: the query message
     /// - Returns: the delegate response if the query is valid, and an
     ///   error response otherwise
     public func answer(query: Message) async throws -> Message? {
