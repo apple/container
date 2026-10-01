@@ -654,9 +654,15 @@ public struct Parser {
             if fs.destination.isEmpty {
                 throw ContainerizationError(.invalidArgument, message: "mount destination cannot be empty")
             }
+            guard FilePath(fs.destination).isAbsolute else {
+                throw ContainerizationError(.invalidArgument, message: "\(fs.destination) is not an absolute path")
+            }
         case .volume(let vol):
             if vol.destination.isEmpty {
                 throw ContainerizationError(.invalidArgument, message: "volume destination cannot be empty")
+            }
+            guard FilePath(vol.destination).isAbsolute else {
+                throw ContainerizationError(.invalidArgument, message: "\(vol.destination) is not an absolute path")
             }
         // Volume name validation already done during parsing
         }
