@@ -56,7 +56,7 @@ struct PluginTest {
                 loadAtBoot: false,
                 runAtLoad: false,
                 services: [
-                    .init(type: .runtime, description: "runtime service")
+                    .init(type: .runtime, description: "runtime service", interfaces: nil)
                 ],
                 defaultArguments: ["foo-bar"]
             )
@@ -96,8 +96,8 @@ struct PluginTest {
                 loadAtBoot: true,
                 runAtLoad: true,
                 services: [
-                    .init(type: .runtime, description: "runtime service"),
-                    .init(type: .network, description: "network service"),
+                    .init(type: .runtime, description: "runtime service", interfaces: nil),
+                    .init(type: .network, description: "network service", interfaces: nil),
                 ],
                 defaultArguments: ["start", "with", "params"]
             )
