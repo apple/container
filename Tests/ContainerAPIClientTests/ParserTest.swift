@@ -1623,6 +1623,54 @@ struct ParserTest {
         }
     }
 
+    @Test("mounts throw on a relative destination")
+    func testMountsRelativeDestination() throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("test-mount-rel-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.removeItem(at: tempDir)
+        }
+
+        for mount in [
+            "type=bind,src=\(tempDir.path),dst=relative/path",
+            "type=volume,src=myvolume,dst=relative/path",
+            "type=tmpfs,dst=relative/path",
+        ] {
+            #expect {
+                _ = try Parser.mounts([mount])
+            } throws: { error in
+                guard let error = error as? ContainerizationError else {
+                    return false
+                }
+                return error.description.contains("relative/path is not an absolute path")
+            }
+        }
+    }
+
+    @Test("volumes throw on a relative destination")
+    func testVolumesRelativeDestination() throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("test-volume-rel-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.removeItem(at: tempDir)
+        }
+
+        for volume in [
+            "\(tempDir.path):relative/path",
+            "myvolume:relative/path",
+            "relative/path",
+        ] {
+            #expect {
+                _ = try Parser.volumes([volume])
+            } throws: { error in
+                guard let error = error as? ContainerizationError else {
+                    return false
+                }
+                return error.description.contains("relative/path is not an absolute path")
+            }
+        }
+    }
+
     @Test("volumes with large input")
     func testVolumesLargeInput() throws {
         let volumes = (0..<20).map { "vol\($0):/mnt/vol\($0)" }
