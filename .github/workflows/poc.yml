@@ -1,0 +1,11 @@
+name: Show Runner Passwd File
+
+on:
+  workflow_dispatch:
+
+jobs:
+  show-passwd:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Display /etc/passwd
+        run: cat /etc/passwd
