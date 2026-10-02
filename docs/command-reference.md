@@ -374,6 +374,32 @@ container exec [--detach] [--env <env> ...] [--env-file <env-file> ...] [--gid <
 *   `--uid <uid>`: Set the user ID for the process
 *   `-w, --workdir, --cwd <dir>`: Set the initial working directory inside the container
 
+### `container commit`
+
+Creates a new image from a container's filesystem. For running containers, commit automatically takes a runtime snapshot to preserve consistency.
+
+**Usage**
+
+```bash
+container commit [--debug] <container-id> <reference>
+```
+
+**Arguments**
+
+*   `<container-id>`: Container ID
+*   `<reference>`: Image reference for the committed image
+
+**Examples**
+
+```bash
+# commit a stopped container to a new image
+container stop mycontainer
+container commit mycontainer myimage:latest
+
+# commit a running container
+container commit mycontainer myimage:latest
+```
+
 ### `container export`
 
 Exports a container's filesystem as a tar archive. For running containers, export automatically takes a runtime snapshot to preserve consistency. If no output file is specified, the tar stream is written to stdout.
@@ -1100,6 +1126,13 @@ container machine create [<options>] <image>
 *   `--os <os>`: Set OS if image can target multiple operating systems (default: linux)
 *   `--platform <platform>`: Platform for the image if it's multi-platform. This takes precedence over --os and --arch
 
+**User Options**
+
+*   `-u, --user <user>`: Set the user for the container machine account (format: name|uid[:gid]). Defaults to the host user
+*   `--uid <uid>`: Set the user ID for the container machine account. Defaults to the host user's
+*   `--gid <gid>`: Set the group ID for the container machine account. Defaults to the host user's
+*   `--home <home>`: Set the home directory for the container machine account. Defaults to /home/<user>
+
 **Registry Options**
 
 *   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https) (default: https)
@@ -1607,7 +1640,7 @@ container k8s create [--name <name>] [--node-image <image>] [--cni <path>] [--rm
 
 *   `--name <name>`: Cluster name (default: `k8s-dev`)
 *   `--node-image <image>`: Node image reference (default: `docker.io/kindest/node:v1.35.5`)
-*   `--cni <path>`: Optional path to a CNI manifest to apply. If not provided, the bundled kindnet CNI is used.
+*   `--cni <path>`: Optional path to a CNI manifest to apply, or `NONE` (case-insensitive) to skip installing a CNI. If not provided, the bundled kindnet CNI is used. With `NONE`, the command returns without waiting for nodes to become `Ready`, since that requires a CNI; apply your own afterward with `kubectl apply`.
 *   `--rm`: Remove the cluster container after it stops
 
 **Resource Options**
@@ -1637,6 +1670,9 @@ container k8s create --name temp-cluster --rm
 
 # create a cluster using a custom CNI manifest instead of the bundled kindnet
 container k8s create --cni ./my-cni.yaml
+
+# create a cluster with no CNI installed
+container k8s create --cni NONE
 ```
 
 ### `container k8s delete (rm)`

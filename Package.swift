@@ -116,6 +116,7 @@ let package = Package(
                 .product(name: "SwiftProtobuf", package: "swift-protobuf"),
                 .product(name: "TOML", package: "swift-toml"),
                 .product(name: "Containerization", package: "containerization"),
+                .product(name: "ContainerizationArchive", package: "containerization"),
                 .product(name: "ContainerizationOCI", package: "containerization"),
                 .product(name: "ContainerizationOS", package: "containerization"),
                 "ContainerBuild",
@@ -168,6 +169,7 @@ let package = Package(
         .testTarget(
             name: "K8sPluginTests",
             dependencies: [
+                "ContainerAPIClient",
                 "ContainerK8s",
                 "ContainerResource",
                 "Yams",

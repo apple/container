@@ -94,6 +94,50 @@ public struct Parser {
         return (user, supplementalGroups)
     }
 
+    /// Resolve a username/uid/gid triple for an account that's about to be created (as opposed
+    /// to `user(user:uid:gid:defaultUser:)`, which selects an *existing* identity to run a
+    /// process as). `user` uses the same `<name|uid>[:<gid>]` format, but unlike
+    /// `user(user:uid:gid:defaultUser:)` the group component must be numeric — there's no existing
+    /// `/etc/group` on the not-yet-created account to resolve a group name against.
+    ///
+    /// Each of the three pieces is resolved independently, falling back in order from `user`, to
+    /// the matching `uid`/`gid` argument, to the default. `user` only wins outright over `uid`/`gid`
+    /// when it actually specifies that piece (e.g. `--user 1500 --uid 9999` keeps 1500) — a bare
+    /// name in `user` doesn't specify a uid/gid, so `uid`/`gid` still apply in that case.
+    public static func userAccount(
+        user: String?, uid: UInt32?, gid: UInt32?,
+        defaultUsername: String, defaultUID: UInt32, defaultGID: UInt32
+    ) throws -> (username: String, uid: UInt32, gid: UInt32) {
+        var username = defaultUsername
+        var resolvedUID: UInt32?
+        var resolvedGID: UInt32?
+
+        if let user, !user.isEmpty {
+            let parts = user.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
+            let primary = String(parts[0])
+
+            if !primary.isEmpty {
+                if let uidValue = UInt32(primary) {
+                    resolvedUID = uidValue
+                } else {
+                    username = primary
+                }
+            }
+
+            if parts.count == 2 {
+                guard let gidValue = UInt32(parts[1]) else {
+                    throw ContainerizationError(
+                        .invalidArgument,
+                        message: "invalid group '\(parts[1])' in --user '\(user)': group must be numeric"
+                    )
+                }
+                resolvedGID = gidValue
+            }
+        }
+
+        return (username, resolvedUID ?? uid ?? defaultUID, resolvedGID ?? gid ?? defaultGID)
+    }
+
     public static func platform(os: String, arch: String) -> ContainerizationOCI.Platform {
         .init(arch: arch, os: os)
     }

@@ -44,6 +44,8 @@ public struct K8sHelper {
     public static let ignorePreflightErrors =
         "Swap,SystemVerification,FileContent--proc-sys-net-bridge-bridge-nf-call-iptables"
     static let podSubnet = "10.244.0.0/16"
+    /// Sentinel value for `--cni` (compared case-insensitively) that skips installing a CNI entirely.
+    static let noCNIName = "NONE"
     // kubeadm default service subnet; must stay in sync if ClusterConfiguration.serviceSubnet is ever set.
     static let serviceSubnet = "10.96.0.0/12"
 
@@ -86,9 +88,13 @@ public struct K8sHelper {
         var controlPlanes: [ContainerSnapshot] = []
         var workers: [ContainerSnapshot] = []
         for snapshot in snapshots {
-            switch snapshot.configuration.labels[ResourceLabelKeys.role] {
-            case controlPlaneRoleName: controlPlanes.append(snapshot)
-            default: workers.append(snapshot)
+            let roles = snapshot.configuration.labels[ResourceLabelKeys.role, default: ""]
+                .split(separator: ",")
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            if roles.contains(controlPlaneRoleName) {
+                controlPlanes.append(snapshot)
+            } else {
+                workers.append(snapshot)
             }
         }
 

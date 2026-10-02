@@ -31,11 +31,12 @@ public struct MachineClient: Sendable {
         id: String,
         image: String,
         management: Flags.MachineManagement,
+        user: Flags.MachineUser,
         registry: Flags.Registry,
         imageFetch: Flags.ImageFetch,
         containerSystemConfig: ContainerSystemConfig,
         progressUpdate: @escaping ProgressUpdateHandler
-    ) async throws -> (MachineConfiguration, MachineResources?) {
+    ) async throws -> MachineConfiguration {
         var requestedPlatform = Parser.platform(os: management.os, arch: management.arch)
         // Prefer --platform
         if let platform = management.platform {
@@ -68,10 +69,14 @@ public struct MachineClient: Sendable {
             platform: requestedPlatform,
             progressUpdate: ProgressTaskCoordinator.handler(for: unpackTask, from: progressUpdate))
 
+        let (username, uid, gid) = try Parser.userAccount(
+            user: user.user, uid: user.uid, gid: user.gid,
+            defaultUsername: NSUserName(), defaultUID: getuid(), defaultGID: getgid())
         let userSetup = UserSetup(
-            username: NSUserName(),
-            uid: getuid(),
-            gid: getgid())
+            username: username,
+            uid: uid,
+            gid: gid,
+            home: user.home)
 
         let config = try MachineConfiguration(
             id: id,
@@ -79,10 +84,7 @@ public struct MachineClient: Sendable {
             platform: requestedPlatform,
             userSetup: userSetup)
 
-        let resources = try? await Self.fetchMachineArtifact(
-            reference: img.reference, platform: requestedPlatform, scheme: scheme)
-
-        return (config, resources)
+        return config
     }
 
     private let xpcClient: XPCClient
@@ -125,7 +127,6 @@ public struct MachineClient: Sendable {
     /// Create a new container machine with the given configuration
     public func create(
         configuration: MachineConfiguration,
-        resources: MachineResources?,
         bootConfig: MachineConfig,
     ) async throws {
         do {
@@ -133,11 +134,6 @@ public struct MachineClient: Sendable {
 
             let config = try JSONEncoder().encode(configuration)
             request.set(key: MachineKeys.machineConfig.rawValue, value: config)
-
-            if let resources {
-                let data = try JSONEncoder().encode(resources)
-                request.set(key: MachineKeys.machineResources.rawValue, value: data)
-            }
 
             let bootData = try JSONEncoder().encode(bootConfig)
             request.set(key: MachineKeys.bootConfig.rawValue, value: bootData)
@@ -311,89 +307,5 @@ public struct MachineClient: Sendable {
                 cause: error
             )
         }
-    }
-}
-
-// MARK: Container machine artifact fetching
-
-extension MachineClient {
-    /// Fetch machine metadata from an OCI artifact attached to an image via the referrers API.
-    ///
-    /// Returns `nil` if no artifact is found or the registry doesn't support referrers.
-    static func fetchMachineArtifact(
-        reference: String,
-        platform: Platform,
-        scheme: RequestScheme
-    ) async throws -> MachineResources? {
-        let ref = try Reference.parse(reference)
-        guard let domain = ref.resolvedDomain else {
-            return nil
-        }
-
-        let insecure = try scheme.schemeFor(host: ref.resolvedDomain ?? "", internalDnsDomain: nil) == .http
-
-        // Look up credentials from keychain
-        let keychain = KeychainHelper(securityDomain: Constants.keychainID)
-        let auth = try? keychain.lookup(hostname: domain)
-
-        let client = try RegistryClient(reference: reference, insecure: insecure, auth: auth)
-        let name = ref.path
-
-        // Resolve the image reference to get the manifest digest.
-        // We need the platform-specific manifest digest, not the index digest.
-        let tag = ref.digest ?? ref.tag ?? "latest"
-        let topDescriptor = try await client.resolve(name: name, tag: tag)
-
-        // If the top-level is an index, find the platform-specific manifest
-        let manifestDigest: String
-        switch topDescriptor.mediaType {
-        case MediaTypes.index, MediaTypes.dockerManifest:
-            let index: Index = try await client.fetch(name: name, descriptor: topDescriptor)
-            guard let platformDesc = index.manifests.first(where: { $0.platform == platform }) else {
-                return nil
-            }
-            manifestDigest = platformDesc.digest
-        case MediaTypes.imageManifest:
-            manifestDigest = topDescriptor.digest
-        default:
-            return nil
-        }
-
-        // Query referrers API for container machine config artifacts
-        let referrersIndex = try await client.referrers(
-            name: name,
-            digest: manifestDigest,
-            artifactType: MachineResources.configMediaType
-        )
-
-        guard let artifactDesc = referrersIndex.manifests.first else {
-            return nil
-        }
-
-        // Fetch the artifact manifest
-        let artifactManifest: Manifest = try await client.fetch(name: name, descriptor: artifactDesc)
-
-        // Extract metadata JSON and setup script from artifact layers
-        var resources: MachineResources?
-        var setupScript: String?
-
-        for layer in artifactManifest.layers {
-            if layer.mediaType == MachineResources.configMediaType {
-                let data = try await client.fetchData(name: name, descriptor: layer)
-                resources = try JSONDecoder().decode(MachineResources.self, from: data)
-            } else if layer.mediaType == MachineResources.setupScriptMediaType {
-                let data = try await client.fetchData(name: name, descriptor: layer)
-                let script = String(decoding: data, as: UTF8.self)
-                if !script.isEmpty {
-                    setupScript = script
-                }
-            }
-        }
-
-        if var resources, let setupScript {
-            resources.setupScript = setupScript
-        }
-
-        return resources
     }
 }

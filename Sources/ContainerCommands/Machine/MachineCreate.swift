@@ -35,6 +35,9 @@ extension Application {
         @OptionGroup(title: "Management options")
         var managementFlags: Flags.MachineManagement
 
+        @OptionGroup(title: "User options")
+        var userFlags: Flags.MachineUser
+
         @OptionGroup(title: "Registry options")
         var registryFlags: Flags.Registry
 
@@ -121,10 +124,11 @@ extension Application {
             }
 
             let client = MachineClient()
-            let (config, resources) = try await MachineClient.machineConfigFromFlags(
+            let config = try await MachineClient.machineConfigFromFlags(
                 id: id,
                 image: image,
                 management: managementFlags,
+                user: userFlags,
                 registry: registryFlags,
                 imageFetch: imageFetchFlags,
                 containerSystemConfig: containerSystemConfig,
@@ -132,7 +136,7 @@ extension Application {
             )
 
             do {
-                try await client.create(configuration: config, resources: resources, bootConfig: bootConfig)
+                try await client.create(configuration: config, bootConfig: bootConfig)
                 progress.finish()  // Finish before subsequent output to avoid mangling
             } catch let error as ContainerizationError {
                 if let cause = error.cause as? ContainerizationError, cause.isCode(.exists) {
@@ -147,7 +151,7 @@ extension Application {
             }
 
             if !noBoot {
-                try await bootMachine(id: id, client: client, log: log, interactive: false)
+                try await bootMachine(id: id, client: client, log: log)
             }
 
             print(id)

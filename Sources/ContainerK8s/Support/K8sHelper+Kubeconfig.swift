@@ -53,8 +53,23 @@ extension K8sHelper {
         }
     }
 
+    /// Rewrites the kubeconfig fetched from a cluster container into a host-safe entry.
+    ///
+    /// The source document comes from `/etc/kubernetes/admin.conf` inside a container,
+    /// which is untrusted. We rebuild the entry from explicitly allowed fields.
+    ///
+    /// Fields that provide code-execution primitives fail the whole operation, since a
+    /// node image or compromised workload that supplies one needs the user's attention.
+    /// Fields that are just not needed are dropped quietly.
     static func transformConfig(_ config: KubeConfig, containerId: String, fqdn: String?, client: ContainerClient) async throws -> KubeConfig {
-        var config = config
+        guard config.clusters.count == 1, config.users.count == 1, config.contexts.count == 1 else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message:
+                    "admin.conf for cluster \(containerId) does not match the expected kubeadm shape (expected exactly one cluster, user, and context); refusing to merge into kubeconfig"
+            )
+        }
+
         let serverAddress: String
         if let fqdn {
             serverAddress = "https://\(fqdn):6443"
@@ -68,31 +83,45 @@ extension K8sHelper {
             }
             serverAddress = "https://127.0.0.1:\(hostPort)"
         }
-        for i in config.clusters.indices {
-            config.clusters[i].cluster.server = serverAddress
+
+        let rawCluster = config.clusters[0].cluster
+        let sanitizedCluster = Cluster(
+            server: serverAddress,
+            certificateAuthorityData: rawCluster.certificateAuthorityData
+        )
+
+        let rawUser = config.users[0].authInfo
+        guard rawUser.exec == nil else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "admin.conf for cluster \(containerId) contains an unsupported exec credential entry; refusing to merge into kubeconfig")
         }
+        guard rawUser.authProvider == nil else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "admin.conf for cluster \(containerId) contains an unsupported auth-provider credential entry; refusing to merge into kubeconfig")
+        }
+        let sanitizedUser = AuthInfo(
+            clientCertificateData: rawUser.clientCertificateData,
+            clientKeyData: rawUser.clientKeyData,
+            token: rawUser.token
+        )
+
+        let sanitizedContext = Context(
+            cluster: containerId,
+            user: containerId,
+            namespace: config.contexts[0].context.namespace
+        )
+
         // Rename all entries to containerId. kubeadm uses fixed names ("kubernetes",
         // "kubernetes-admin@kubernetes", etc.) rather than "default", so we rename
-        // unconditionally and fix up the cross-references in the context.
-        config.clusters = config.clusters.map {
-            var c = $0
-            c.name = containerId
-            return c
-        }
-        config.users = config.users.map {
-            var u = $0
-            u.name = containerId
-            return u
-        }
-        config.contexts = config.contexts.map {
-            var nc = $0
-            nc.name = containerId
-            nc.context.cluster = containerId
-            nc.context.user = containerId
-            return nc
-        }
-        config.currentContext = containerId
-        return config
+        // unconditionally.
+        var result = KubeConfig()
+        result.clusters = [NamedCluster(name: containerId, cluster: sanitizedCluster)]
+        result.users = [NamedAuthInfo(name: containerId, authInfo: sanitizedUser)]
+        result.contexts = [NamedContext(name: containerId, context: sanitizedContext)]
+        result.currentContext = containerId
+        return result
     }
 
     static func resolveKubeconfigMergePath() -> FilePath {

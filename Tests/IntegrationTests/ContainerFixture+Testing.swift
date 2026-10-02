@@ -14,19 +14,23 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-public enum MachineKeys: String {
-    /// Container machine ID.
-    case id
-    /// Container machine configuration.
-    case machineConfig
-    /// List of container machine snapshots.
-    case machines
-    /// Single container machine snapshot.
-    case snapshot
-    /// Boot-time configuration.
-    case bootConfig
-    /// File handles to logs
-    case logs
-    /// Special-case environment variables recomputed on container machine start
-    case dynamicEnv
+import ContainerTestSupport
+import Testing
+
+extension ContainerFixture {
+    /// Opens a fixture scope using Swift Testing's current test identity.
+    ///
+    /// `ContainerTestSupport` cannot import Testing, so this test-target wrapper
+    /// reads `Test.current` / `Test.Case.current` and forwards them.
+    @discardableResult
+    static func with<T>(_ body: (ContainerFixture) async throws -> T) async throws -> T {
+        try await with(
+            identity: TestIdentity(
+                name: Test.current?.name,
+                identifier: Test.current.map { "\($0.id)" },
+                isParameterized: Test.Case.current?.isParameterized ?? false
+            ),
+            body
+        )
+    }
 }
