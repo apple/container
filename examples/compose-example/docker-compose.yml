@@ -1,0 +1,52 @@
+version: "3.9"
+
+services:
+  web:
+    image: nginx:latest
+    ports:
+      - "8080:80"
+    environment:
+      - NGINX_HOST=localhost
+    volumes:
+      - ./html:/usr/share/nginx/html:ro
+    depends_on:
+      - redis
+    networks:
+      - frontend
+      - backend
+
+  redis:
+    image: redis:alpine
+    volumes:
+      - redis-data:/data
+    networks:
+      - backend
+    mem_limit: 256m
+    cpus: 0.5
+
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    image: myapp/api:latest
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      - redis
+    networks:
+      - backend
+      - frontend
+    cap_add:
+      - NET_BIND_SERVICE
+
+volumes:
+  redis-data:
+
+networks:
+  frontend:
+    driver: bridge
+  backend:
+    driver: bridge
