@@ -18,9 +18,6 @@ import ArgumentParser
 import ContainerAPIClient
 import ContainerResource
 import ContainerizationError
-import ContainerizationExtras
-import ContainerizationOS
-import Foundation
 
 extension Application {
     public struct ContainerStats: AsyncLoggableCommand {
@@ -44,37 +41,29 @@ extension Application {
 
         public func run() async throws {
             if format != .table || noStream {
-                // Static mode - get stats once and exit
+                // Static mode - get stats once and exit.
                 try await runStatic()
             } else {
-                // Streaming mode - continuously update like top
-                // Enter alternate screen buffer and hide cursor
-                print("\u{001B}[?1049h\u{001B}[?25l", terminator: "")
-                fflush(stdout)
+                // Streaming mode - continuously update like top.
+                let client = ContainerClient()
+                let containerIds = containers
 
-                defer {
-                    // Exit alternate screen buffer and show cursor again
-                    print("\u{001B}[?25h\u{001B}[?1049l", terminator: "")
-                    fflush(stdout)
+                // Validate specified containers exist before entering the
+                // alternate screen buffer, so the error is visible.
+                if !containerIds.isEmpty {
+                    let specified = try await client.list(filters: ContainerListFilters(ids: containerIds))
+                    try Self.validate(requested: containerIds, found: specified)
                 }
 
-                let containerIds = containers
-                try await withThrowingTaskGroup(of: Void.self) { group in
-                    defer { group.cancelAll() }
-                    group.addTask {
-                        let handler = AsyncSignalHandler.create(notify: [SIGINT, SIGTERM])
-                        for await _ in handler.signals {
-                            throw CancellationError()
-                        }
+                try await StatsRendering.stream(idHeader: "Container ID") { [client, containerIds] in
+                    let containersToShow: [ContainerSnapshot]
+                    if containerIds.isEmpty {
+                        containersToShow = try await client.list(filters: ContainerListFilters(status: .running))
+                    } else {
+                        containersToShow = try await client.list(filters: ContainerListFilters(ids: containerIds))
                     }
-                    group.addTask { [containerIds] in
-                        try await Self.runStreaming(containerIds: containerIds)
-                    }
-                    do {
-                        try await group.next()
-                    } catch is CancellationError {
-                        // Normal exit on signal, defer will restore the terminal
-                    }
+                    let runningIds = containersToShow.filter { $0.status == .running }.map { $0.id }
+                    return try await StatsRendering.collect(client: client, ids: runningIds)
                 }
             }
         }
@@ -84,201 +73,29 @@ extension Application {
 
             let containersToShow: [ContainerSnapshot]
             if containers.isEmpty {
-                // No containers specified - show all running containers
+                // No containers specified - show all running containers.
                 containersToShow = try await client.list(filters: ContainerListFilters(status: .running))
             } else {
-                // Fetch specified containers by ID
+                // Fetch specified containers by ID and validate they were all found.
                 containersToShow = try await client.list(filters: ContainerListFilters(ids: containers))
-                // Validate all specified containers were found
-                for containerId in containers {
-                    guard containersToShow.contains(where: { $0.id == containerId }) else {
-                        throw ContainerizationError(
-                            .notFound,
-                            message: "no such container: \(containerId)"
-                        )
-                    }
-                }
+                try Self.validate(requested: containers, found: containersToShow)
             }
 
-            let statsData = try await Self.collectStats(client: client, for: containersToShow)
-
-            try Output.render(payload: statsData.map { $0.stats2 }, format: format) {
-                Self.statsTable(statsData)
-            }
+            let runningIds = containersToShow.filter { $0.status == .running }.map { $0.id }
+            let rows = try await StatsRendering.collect(client: client, ids: runningIds)
+            try StatsRendering.renderStatic(rows: rows, format: format, idHeader: "Container ID")
         }
 
-        private static func runStreaming(containerIds: [String]) async throws {
-            let client = ContainerClient()
-
-            // If containers were specified, validate they all exist upfront
-            if !containerIds.isEmpty {
-                let specifiedContainers = try await client.list(filters: ContainerListFilters(ids: containerIds))
-                for containerId in containerIds {
-                    guard specifiedContainers.contains(where: { $0.id == containerId }) else {
-                        throw ContainerizationError(
-                            .notFound,
-                            message: "no such container: \(containerId)"
-                        )
-                    }
-                }
-            }
-
-            clearScreen()
-            // Show header right away.
-            print(statsTable([]))
-
-            while true {
-                do {
-                    let containersToShow: [ContainerSnapshot]
-                    if containerIds.isEmpty {
-                        containersToShow = try await client.list(filters: ContainerListFilters(status: .running))
-                    } else {
-                        containersToShow = try await client.list(filters: ContainerListFilters(ids: containerIds))
-                    }
-
-                    let statsData = try await collectStats(client: client, for: containersToShow)
-
-                    // Clear screen and reprint
-                    clearScreen()
-                    print(statsTable(statsData))
-
-                    if statsData.isEmpty {
-                        try await Task.sleep(for: .seconds(2))
-                    }
-                } catch {
-                    clearScreen()
-                    print("error collecting stats: \(error)")
-                    try await Task.sleep(for: .seconds(2))
-                }
-            }
-        }
-
-        private struct StatsSnapshot {
-            let container: ContainerSnapshot
-            let stats1: ContainerResource.ContainerStats
-            let stats2: ContainerResource.ContainerStats
-        }
-
-        private static func collectStats(client: ContainerClient, for containers: [ContainerSnapshot]) async throws -> [StatsSnapshot] {
-            var snapshots: [StatsSnapshot] = []
-
-            // First sample
-            for container in containers {
-                guard container.status == .running else { continue }
-                do {
-                    let stats1 = try await client.stats(id: container.id)
-                    snapshots.append(StatsSnapshot(container: container, stats1: stats1, stats2: stats1))
-                } catch {
-                    // Skip containers that error out
-                    continue
-                }
-            }
-
-            // Wait 2 seconds for CPU delta calculation
-            if !snapshots.isEmpty {
-                try await Task.sleep(for: .seconds(2))
-
-                // Second sample
-                for i in 0..<snapshots.count {
-                    do {
-                        let stats2 = try await client.stats(id: snapshots[i].container.id)
-                        snapshots[i] = StatsSnapshot(
-                            container: snapshots[i].container,
-                            stats1: snapshots[i].stats1,
-                            stats2: stats2
-                        )
-                    } catch {
-                        // Keep the original stats if second sample fails
-                        continue
-                    }
-                }
-            }
-
-            return snapshots
-        }
-
-        /// Calculate CPU percentage from two stat snapshots
-        /// - Parameters:
-        ///   - cpuUsageUsec1: CPU usage in microseconds from first sample
-        ///   - cpuUsageUsec2: CPU usage in microseconds from second sample
-        ///   - timeDeltaUsec: Time delta between samples in microseconds
-        /// - Returns: CPU percentage where 100% = one fully utilized core
-        static func calculateCPUPercent(
-            cpuUsage1: Duration,
-            cpuUsage2: Duration,
-            timeInterval: Duration
-        ) -> Double {
-            let cpuDelta =
-                cpuUsage2 > cpuUsage1
-                ? cpuUsage2 - cpuUsage1
-                : .seconds(0)
-            return (cpuDelta / timeInterval) * 100.0
-        }
-
-        static func formatBytes(_ bytes: UInt64) -> String {
-            let kib = 1024.0
-            let mib = kib * 1024.0
-            let gib = mib * 1024.0
-
-            let value = Double(bytes)
-
-            if value >= gib {
-                return String(format: "%.2f GiB", value / gib)
-            } else if value >= mib {
-                return String(format: "%.2f MiB", value / mib)
-            } else {
-                return String(format: "%.2f KiB", value / kib)
-            }
-        }
-
-        private static func statsTable(_ statsData: [StatsSnapshot]) -> String {
-            let headerRow = ["Container ID", "Cpu %", "Memory Usage", "Net Rx/Tx", "Block I/O", "Pids"]
-            let notAvailable = "--"
-            var rows = [headerRow]
-
-            for snapshot in statsData {
-                var row = [snapshot.container.id]
-                let stats1 = snapshot.stats1
-                let stats2 = snapshot.stats2
-
-                if let cpuUsageUsec1 = stats1.cpuUsageUsec, let cpuUsageUsec2 = stats2.cpuUsageUsec {
-                    let cpuPercent = Self.calculateCPUPercent(
-                        cpuUsage1: .microseconds(cpuUsageUsec1),
-                        cpuUsage2: .microseconds(cpuUsageUsec2),
-                        timeInterval: .seconds(2)
+        /// Throws `.notFound` if any requested container id is missing from `found`.
+        private static func validate(requested: [String], found: [ContainerSnapshot]) throws {
+            for containerId in requested {
+                guard found.contains(where: { $0.id == containerId }) else {
+                    throw ContainerizationError(
+                        .notFound,
+                        message: "no such container: \(containerId)"
                     )
-                    let cpuStr = String(format: "%.2f%%", cpuPercent)
-                    row.append(cpuStr)
-                } else {
-                    row.append(notAvailable)
                 }
-
-                let memUsageStr = stats2.memoryUsageBytes.map { Self.formatBytes($0) } ?? notAvailable
-                let memLimitStr = stats2.memoryLimitBytes.map { Self.formatBytes($0) } ?? notAvailable
-                row.append("\(memUsageStr) / \(memLimitStr)")
-
-                let netRxStr = stats2.networkRxBytes.map { Self.formatBytes($0) } ?? notAvailable
-                let netTxStr = stats2.networkTxBytes.map { Self.formatBytes($0) } ?? notAvailable
-                row.append("\(netRxStr) / \(netTxStr)")
-
-                let blkReadStr = stats2.blockReadBytes.map { Self.formatBytes($0) } ?? notAvailable
-                let blkWriteStr = stats2.blockWriteBytes.map { Self.formatBytes($0) } ?? notAvailable
-                row.append("\(blkReadStr) / \(blkWriteStr)")
-
-                let pidsStr = stats2.numProcesses.map { "\($0)" } ?? notAvailable
-                row.append(pidsStr)
-
-                rows.append(row)
             }
-
-            // Always print header, even if no containers
-            return TableOutput(rows: rows).format()
-        }
-
-        private static func clearScreen() {
-            // Move cursor to home position and clear from cursor to end of screen
-            print("\u{001B}[H\u{001B}[J", terminator: "")
-            fflush(stdout)
         }
     }
 }
