@@ -83,6 +83,71 @@ struct PluginConfigTest {
     }
 
     @Test
+    func testRuntimeConfigDefaultsWhenOmitted() async throws {
+        let tempURL = try FileManager.default.url(
+            for: .itemReplacementDirectory,
+            in: .userDomainMask,
+            appropriateFor: .temporaryDirectory,
+            create: true
+        )
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+        let configURL = tempURL.appending(path: "config.toml")
+        let configToml = """
+            abstract = "Linux container runtime plugin"
+
+            [servicesConfig]
+            loadAtBoot = false
+            runAtLoad = false
+            defaultArguments = []
+
+            [[servicesConfig.services]]
+            type = "runtime"
+            """
+        try configToml.write(to: configURL, atomically: true, encoding: .utf8)
+        let config = try #require(try PluginConfig(configURL: configURL))
+
+        #expect(config.runtimeConfig == nil)
+        #expect(config.runtimeRequirements == .default)
+        #expect(config.runtimeRequirements.requiresKernel)
+        #expect(config.runtimeRequirements.requiresInitImage)
+        #expect(config.runtimeRequirements.requiresImageSnapshot)
+    }
+
+    @Test
+    func testRuntimeConfigLoad() async throws {
+        let tempURL = try FileManager.default.url(
+            for: .itemReplacementDirectory,
+            in: .userDomainMask,
+            appropriateFor: .temporaryDirectory,
+            create: true
+        )
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+        let configURL = tempURL.appending(path: "config.toml")
+        let configToml = """
+            abstract = "Example runtime plugin"
+
+            [servicesConfig]
+            loadAtBoot = false
+            runAtLoad = false
+            defaultArguments = []
+
+            [[servicesConfig.services]]
+            type = "runtime"
+
+            [runtimeConfig]
+            requiresKernel = false
+            requiresInitImage = false
+            """
+        try configToml.write(to: configURL, atomically: true, encoding: .utf8)
+        let config = try #require(try PluginConfig(configURL: configURL))
+
+        let runtimeConfig = try #require(config.runtimeConfig)
+        #expect(!runtimeConfig.requiresKernel)
+        #expect(!runtimeConfig.requiresInitImage)
+        #expect(runtimeConfig.requiresImageSnapshot)
+    }
+
+    @Test
     func testMalformedTomlThrows() async throws {
         let tempURL = try FileManager.default.url(
             for: .itemReplacementDirectory,

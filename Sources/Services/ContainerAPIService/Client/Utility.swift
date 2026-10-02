@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerPersistence
+import ContainerPlugin
 import ContainerResource
 import Containerization
 import ContainerizationError
@@ -78,7 +79,7 @@ public struct Utility {
         containerSystemConfig: ContainerSystemConfig,
         progressUpdate: @escaping ProgressUpdateHandler,
         log: Logger
-    ) async throws -> (ContainerConfiguration, Kernel, String?) {
+    ) async throws -> (ContainerConfiguration, Kernel?, String?) {
         let scheme = try RequestScheme(registry.scheme)
         let candidates = try await ClientImage.platforms(reference: image, scheme: scheme, containerSystemConfig: containerSystemConfig)
         let platform = try management.platform.map(Parser.platform(from:))
@@ -91,6 +92,8 @@ public struct Utility {
             reference: image,
             log: log
         )
+        let runtimeHandler = management.runtime ?? "\(runtimePrefix)\(requestedPlatform.os)"
+        let requirements = try await self.runtimeRequirements(runtime: runtimeHandler, log: log)
 
         await progressUpdate([
             .setDescription("Fetching image"),
@@ -108,43 +111,50 @@ public struct Utility {
         )
 
         // Unpack a fetched image before use
-        await progressUpdate([
-            .setDescription("Unpacking image"),
-            .setItemsName("entries"),
-        ])
-        let unpackTask = await taskManager.startTask()
-        try await img.getCreateSnapshot(
-            platform: requestedPlatform,
-            progressUpdate: ProgressTaskCoordinator.handler(for: unpackTask, from: progressUpdate))
+        if requirements.requiresImageSnapshot {
+            await progressUpdate([
+                .setDescription("Unpacking image"),
+                .setItemsName("entries"),
+            ])
+            let unpackTask = await taskManager.startTask()
+            try await img.getCreateSnapshot(
+                platform: requestedPlatform,
+                progressUpdate: ProgressTaskCoordinator.handler(for: unpackTask, from: progressUpdate))
+        }
 
-        await progressUpdate([
-            .setDescription("Fetching kernel"),
-            .setItemsName("binary"),
-        ])
+        var kernel: Kernel?
+        if requirements.requiresKernel {
+            await progressUpdate([
+                .setDescription("Fetching kernel"),
+                .setItemsName("binary"),
+            ])
 
-        let kernel = try await self.getKernel(management: management)
+            kernel = try await self.getKernel(management: management)
+        }
 
         // Pull and unpack the initial filesystem
-        await progressUpdate([
-            .setDescription("Fetching init image"),
-            .setItemsName("blobs"),
-        ])
-        let fetchInitTask = await taskManager.startTask()
-        let initImageRef = management.initImage ?? containerSystemConfig.vminit.image
-        let initImage = try await ClientImage.fetch(
-            reference: initImageRef, platform: .current, scheme: scheme,
-            containerSystemConfig: containerSystemConfig,
-            progressUpdate: ProgressTaskCoordinator.handler(for: fetchInitTask, from: progressUpdate),
-            maxConcurrentDownloads: imageFetch.maxConcurrentDownloads)
+        if requirements.requiresInitImage {
+            await progressUpdate([
+                .setDescription("Fetching init image"),
+                .setItemsName("blobs"),
+            ])
+            let fetchInitTask = await taskManager.startTask()
+            let initImageRef = management.initImage ?? containerSystemConfig.vminit.image
+            let initImage = try await ClientImage.fetch(
+                reference: initImageRef, platform: .current, scheme: scheme,
+                containerSystemConfig: containerSystemConfig,
+                progressUpdate: ProgressTaskCoordinator.handler(for: fetchInitTask, from: progressUpdate),
+                maxConcurrentDownloads: imageFetch.maxConcurrentDownloads)
 
-        await progressUpdate([
-            .setDescription("Unpacking init image"),
-            .setItemsName("entries"),
-        ])
-        let unpackInitTask = await taskManager.startTask()
-        _ = try await initImage.getCreateSnapshot(
-            platform: .current,
-            progressUpdate: ProgressTaskCoordinator.handler(for: unpackInitTask, from: progressUpdate))
+            await progressUpdate([
+                .setDescription("Unpacking init image"),
+                .setItemsName("entries"),
+            ])
+            let unpackInitTask = await taskManager.startTask()
+            _ = try await initImage.getCreateSnapshot(
+                platform: .current,
+                progressUpdate: ProgressTaskCoordinator.handler(for: unpackInitTask, from: progressUpdate))
+        }
 
         await taskManager.finish()
 
@@ -266,7 +276,7 @@ public struct Utility {
         config.readonlyPaths = try Parser.readonlyPaths(management.readonlyPaths)
         config.stopSignal = imageConfig?.stopSignal
 
-        config.runtimeHandler = management.runtime ?? "\(runtimePrefix)\(requestedPlatform.os)"
+        config.runtimeHandler = runtimeHandler
 
         return (config, kernel, management.initImage)
     }
@@ -365,6 +375,16 @@ public struct Utility {
                 )
             }
         }
+    }
+
+    /// Returns the requirements a runtime plugin declares in its configuration.
+    /// The default runtime and runtimes without a loadable configuration use `RuntimeConfig.default`.
+    private static func runtimeRequirements(runtime: String?, log: Logger) async throws -> PluginConfig.RuntimeConfig {
+        guard let runtime else {
+            return .default
+        }
+        let pluginLoader = try await self.createPluginLoader(log: log)
+        return pluginLoader.findPlugin(name: runtime, log: log)?.config.runtimeRequirements ?? .default
     }
 
     private static func getKernel(management: Flags.Management) async throws -> Kernel {

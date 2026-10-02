@@ -77,10 +77,10 @@ struct RuntimeConfigurationTests {
             readRuntimeConfig.path == bundlePath,
             "Path should match")
         #expect(
-            readRuntimeConfig.kernel.path == kernel.path,
+            readRuntimeConfig.kernel?.path == kernel.path,
             "Kernel path should match")
         #expect(
-            readRuntimeConfig.initialFilesystem.source == initFs.source,
+            readRuntimeConfig.initialFilesystem?.source == initFs.source,
             "Initial filesystem source should match")
         #expect(
             readRuntimeConfig.containerConfiguration == nil,
@@ -131,5 +131,29 @@ struct RuntimeConfigurationTests {
 
         let decodedData = try JSONDecoder().decode(LinuxRuntimeData.self, from: readRuntimeConfig.runtimeData!)
         #expect(decodedData.variant == "test-variant", "Variant should round-trip through RuntimeConfiguration")
+    }
+
+    /// Test that a runtime configuration without kernel and initial filesystem round-trips
+    @Test
+    func testRuntimeConfigurationWithoutKernelAndInitfs() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+        let bundlePath = tempDir.appendingPathComponent("test-bundle-\(UUID())")
+
+        defer {
+            try? FileManager.default.removeItem(at: bundlePath)
+        }
+
+        let runtimeConfig = RuntimeConfiguration(
+            path: bundlePath,
+            initialFilesystem: nil,
+            kernel: nil
+        )
+
+        try runtimeConfig.writeRuntimeConfiguration()
+
+        let readRuntimeConfig = try RuntimeConfiguration.readRuntimeConfiguration(from: bundlePath)
+
+        #expect(readRuntimeConfig.kernel == nil, "Kernel should be nil")
+        #expect(readRuntimeConfig.initialFilesystem == nil, "Initial filesystem should be nil")
     }
 }

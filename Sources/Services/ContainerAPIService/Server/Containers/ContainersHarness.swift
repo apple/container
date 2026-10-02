@@ -184,12 +184,6 @@ public struct ContainersHarness: Sendable {
             )
         }
         let kdata = message.dataNoCopy(key: .kernel)
-        guard let kdata else {
-            throw ContainerizationError(
-                .invalidArgument,
-                message: "kernel cannot be empty"
-            )
-        }
         let odata = message.dataNoCopy(key: .containerOptions)
         var options: ContainerCreateOptions = .default
         if let odata {
@@ -199,7 +193,7 @@ public struct ContainersHarness: Sendable {
         guard ManagedContainer.nameValid(config.id) else {
             throw ContainerizationError(.invalidArgument, message: "container ID \(config.id) is not a valid container ID")
         }
-        let kernel = try JSONDecoder().decode(Kernel.self, from: kdata)
+        let kernel = try kdata.map { try JSONDecoder().decode(Kernel.self, from: $0) }
 
         let initImage = message.string(key: .initImage)
         let runtimeData = message.dataNoCopy(key: .runtimeData)

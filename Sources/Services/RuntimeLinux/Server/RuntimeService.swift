@@ -1710,10 +1710,16 @@ extension RuntimeService {
     private func createBundle() throws {
         do {
             let runtimeConfig = try RuntimeConfiguration.readRuntimeConfiguration(from: self.root)
+            guard let kernel = runtimeConfig.kernel else {
+                throw ContainerizationError(.invalidArgument, message: "runtime configuration is missing a kernel")
+            }
+            guard let initialFilesystem = runtimeConfig.initialFilesystem else {
+                throw ContainerizationError(.invalidArgument, message: "runtime configuration is missing an initial filesystem")
+            }
             _ = try ContainerResource.Bundle.create(
                 path: runtimeConfig.path,
-                initialFilesystem: runtimeConfig.initialFilesystem,
-                kernel: runtimeConfig.kernel,
+                initialFilesystem: initialFilesystem,
+                kernel: kernel,
                 containerConfiguration: runtimeConfig.containerConfiguration,
                 containerRootFilesystem: runtimeConfig.containerRootFilesystem,
                 options: runtimeConfig.options

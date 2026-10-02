@@ -48,7 +48,7 @@ public struct ContainerClient: Sendable {
     public func create(
         configuration: ContainerConfiguration,
         options: ContainerCreateOptions = .default,
-        kernel: Kernel,
+        kernel: Kernel?,
         initImage: String? = nil,
         runtimeData: Data? = nil
     ) async throws {
@@ -56,11 +56,14 @@ public struct ContainerClient: Sendable {
             let request = XPCMessage(route: .containerCreate)
 
             let data = try JSONEncoder().encode(configuration)
-            let kdata = try JSONEncoder().encode(kernel)
             let odata = try JSONEncoder().encode(options)
             request.set(key: .containerConfig, value: data)
-            request.set(key: .kernel, value: kdata)
             request.set(key: .containerOptions, value: odata)
+
+            if let kernel {
+                let kdata = try JSONEncoder().encode(kernel)
+                request.set(key: .kernel, value: kdata)
+            }
 
             if let initImage {
                 request.set(key: .initImage, value: initImage)

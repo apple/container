@@ -264,7 +264,7 @@ public actor ContainersService {
     }
 
     /// Create a new container from the provided id and configuration.
-    public func create(configuration: ContainerConfiguration, kernel: Kernel, options: ContainerCreateOptions, initImage: String? = nil, runtimeData: Data? = nil) async throws {
+    public func create(configuration: ContainerConfiguration, kernel: Kernel?, options: ContainerCreateOptions, initImage: String? = nil, runtimeData: Data? = nil) async throws {
         log.debug(
             "ContainersService: enter",
             metadata: [
@@ -296,10 +296,17 @@ public actor ContainersService {
             }
             try AttachmentNameValidator.validate(networks: configuration.networks, existing: existingNetworks)
 
-            guard self.runtimePlugins.first(where: { $0.name == configuration.runtimeHandler }) != nil else {
+            guard let runtimePlugin = self.runtimePlugins.first(where: { $0.name == configuration.runtimeHandler }) else {
                 throw ContainerizationError(
                     .notFound,
                     message: "unable to locate runtime plugin \(configuration.runtimeHandler); pass --runtime to select one"
+                )
+            }
+            let requirements = runtimePlugin.config.runtimeRequirements
+            if requirements.requiresKernel && kernel == nil {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "runtime plugin \(configuration.runtimeHandler) requires a kernel"
                 )
             }
 
@@ -319,16 +326,19 @@ public actor ContainersService {
             }
 
             let path = self.containerRoot.appendingPathComponent(configuration.id)
-            let systemPlatform = kernel.platform
+            let systemPlatform = kernel?.platform ?? .current
 
             // Fetch init image (custom or default)
-            self.log.debug(
-                "ContainersService: get init block",
-                metadata: [
-                    "id": "\(configuration.id)"
-                ]
-            )
-            let initFilesystem = try await self.getInitBlock(for: systemPlatform.ociPlatform(), imageRef: initImage)
+            var initFilesystem: Filesystem?
+            if requirements.requiresInitImage {
+                self.log.debug(
+                    "ContainersService: get init block",
+                    metadata: [
+                        "id": "\(configuration.id)"
+                    ]
+                )
+                initFilesystem = try await self.getInitBlock(for: systemPlatform.ociPlatform(), imageRef: initImage)
+            }
 
             do {
                 self.log.debug(
@@ -338,13 +348,14 @@ public actor ContainersService {
                         "ref": "\(configuration.image.reference)",
                     ])
                 let containerImage = ClientImage(description: configuration.image)
-                let imageFs = try await options.rootFsOverride == nil ? containerImage.getCreateSnapshot(platform: configuration.platform) : nil
+                let needsSnapshot = requirements.requiresImageSnapshot && options.rootFsOverride == nil
+                let imageFs = try await needsSnapshot ? containerImage.getCreateSnapshot(platform: configuration.platform) : nil
 
                 self.log.debug(
                     "configure runtime",
                     metadata: [
                         "id": "\(configuration.id)",
-                        "kernel": "\(kernel.path)",
+                        "kernel": "\(kernel?.path.path ?? "none")",
                         "initfs": "\(initImage ?? self.containerSystemConfig.vminit.image)",
                     ])
                 let runtimeConfig = RuntimeConfiguration(

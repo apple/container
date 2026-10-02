@@ -25,8 +25,10 @@ public struct RuntimeConfiguration: Codable, Sendable {
     public let path: URL
     // TODO: Remove runtime-specific fields (initialFilesystem, kernel, containerRootFilesystem).
     // These should be encoded into the opaque `runtimeData` field by the CLI.
-    public let initialFilesystem: Filesystem
-    public let kernel: Kernel
+    /// The vminit filesystem; nil when the runtime plugin does not require an init image.
+    public let initialFilesystem: Filesystem?
+    /// The kernel to boot; nil when the runtime plugin does not require a kernel.
+    public let kernel: Kernel?
     public let containerConfiguration: ContainerConfiguration?
     public let containerRootFilesystem: Filesystem?
     public let options: ContainerCreateOptions?
@@ -34,8 +36,8 @@ public struct RuntimeConfiguration: Codable, Sendable {
 
     public init(
         path: URL,
-        initialFilesystem: Filesystem,
-        kernel: Kernel,
+        initialFilesystem: Filesystem?,
+        kernel: Kernel?,
         containerConfiguration: ContainerConfiguration? = nil,
         containerRootFilesystem: Filesystem? = nil,
         options: ContainerCreateOptions? = nil,

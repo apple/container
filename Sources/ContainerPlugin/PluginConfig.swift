@@ -83,6 +83,38 @@ public struct PluginConfig: Sendable, Codable {
         public let defaultArguments: [String]
     }
 
+    /// The artifacts a runtime plugin needs the API server to prepare before
+    /// it bootstraps a container. Each field defaults to `true` when omitted.
+    public struct RuntimeConfig: Sendable, Codable, Equatable {
+        /// The runtime boots the Linux kernel configured for the system.
+        public let requiresKernel: Bool
+        /// The runtime boots the vminit image as its initial filesystem.
+        public let requiresInitImage: Bool
+        /// The runtime uses the image snapshot as the container root filesystem.
+        public let requiresImageSnapshot: Bool
+
+        public static let `default` = RuntimeConfig()
+
+        public init(requiresKernel: Bool = true, requiresInitImage: Bool = true, requiresImageSnapshot: Bool = true) {
+            self.requiresKernel = requiresKernel
+            self.requiresInitImage = requiresInitImage
+            self.requiresImageSnapshot = requiresImageSnapshot
+        }
+
+        enum CodingKeys: String, CodingKey {
+            case requiresKernel
+            case requiresInitImage
+            case requiresImageSnapshot
+        }
+
+        public init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            self.requiresKernel = try container.decodeIfPresent(Bool.self, forKey: .requiresKernel) ?? true
+            self.requiresInitImage = try container.decodeIfPresent(Bool.self, forKey: .requiresInitImage) ?? true
+            self.requiresImageSnapshot = try container.decodeIfPresent(Bool.self, forKey: .requiresImageSnapshot) ?? true
+        }
+    }
+
     /// Short description of the plugin surface. This will be displayed as the
     /// help-text for CLI plugins, and will be returned in API calls to view loaded
     /// plugins from the daemon.
@@ -95,15 +127,23 @@ public struct PluginConfig: Sendable, Codable {
     /// that does not publish any XPC services.
     public let servicesConfig: ServicesConfig?
 
-    public init(abstract: String, author: String?, servicesConfig: ServicesConfig?) {
+    /// Runtime configuration. Only meaningful for plugins that publish a runtime service;
+    /// nil selects `RuntimeConfig.default`.
+    public let runtimeConfig: RuntimeConfig?
+
+    public init(abstract: String, author: String?, servicesConfig: ServicesConfig?, runtimeConfig: RuntimeConfig? = nil) {
         self.abstract = abstract
         self.author = author
         self.servicesConfig = servicesConfig
+        self.runtimeConfig = runtimeConfig
     }
 }
 
 extension PluginConfig {
     public var isCLI: Bool { self.servicesConfig == nil }
+
+    /// The runtime requirements of the plugin, with defaults applied.
+    public var runtimeRequirements: RuntimeConfig { self.runtimeConfig ?? .default }
 }
 
 extension PluginConfig {
