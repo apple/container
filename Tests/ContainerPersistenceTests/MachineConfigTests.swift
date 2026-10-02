@@ -92,4 +92,106 @@ struct MachineConfigTests {
         #expect(keys.contains("virtualization"))
         #expect(keys.contains("kernel"))
     }
+
+    // MARK: - Mounts
+
+    /// Creates a temporary directory and removes it once `body` completes.
+    private func withTemporaryDirectory(_ body: (String) throws -> Void) throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: url) }
+        try body(url.path)
+    }
+
+    @Test func mountsDefaultToEmpty() {
+        #expect(MachineConfig.default.mounts.isEmpty)
+    }
+
+    @Test func withParsesReadWriteMount() throws {
+        try withTemporaryDirectory { source in
+            let updated = try MachineConfig.default.with([:], mounts: ["\(source):/data"])
+            #expect(updated.mounts.count == 1)
+            #expect(updated.mounts[0].destination == "/data")
+            #expect(updated.mounts[0].readOnly == false)
+        }
+    }
+
+    @Test func withParsesReadOnlyMount() throws {
+        try withTemporaryDirectory { source in
+            let updated = try MachineConfig.default.with([:], mounts: ["\(source):/data:ro"])
+            #expect(updated.mounts[0].readOnly == true)
+        }
+    }
+
+    @Test func withParsesMultipleMounts() throws {
+        try withTemporaryDirectory { source in
+            let updated = try MachineConfig.default.with([:], mounts: ["\(source):/a", "\(source):/b:ro"])
+            #expect(updated.mounts.map(\.destination) == ["/a", "/b"])
+        }
+    }
+
+    @Test func nilMountsPreservesExisting() throws {
+        try withTemporaryDirectory { source in
+            let withMount = try MachineConfig.default.with([:], mounts: ["\(source):/data"])
+            let unchanged = try withMount.with(["cpus": "4"])
+            #expect(unchanged.mounts.count == 1)
+            #expect(unchanged.cpus == 4)
+        }
+    }
+
+    @Test func withRejectsInvalidMountMode() throws {
+        try withTemporaryDirectory { source in
+            #expect(throws: ContainerizationError.self) {
+                try MachineConfig.default.with([:], mounts: ["\(source):/data:rx"])
+            }
+        }
+    }
+
+    @Test func withRejectsMissingSource() {
+        #expect(throws: ContainerizationError.self) {
+            try MachineConfig.default.with([:], mounts: ["/does/not/exist:/data"])
+        }
+    }
+
+    @Test func withRejectsRelativeDestination() throws {
+        try withTemporaryDirectory { source in
+            #expect(throws: ContainerizationError.self) {
+                try MachineConfig.default.with([:], mounts: ["\(source):data"])
+            }
+        }
+    }
+
+    @Test func withRejectsMalformedMount() throws {
+        try withTemporaryDirectory { source in
+            #expect(throws: ContainerizationError.self) {
+                try MachineConfig.default.with([:], mounts: [source])
+            }
+        }
+    }
+
+    @Test func withRejectsDuplicateDestinations() throws {
+        try withTemporaryDirectory { source in
+            #expect(throws: ContainerizationError.self) {
+                try MachineConfig.default.with([:], mounts: ["\(source):/data", "\(source):/data:ro"])
+            }
+        }
+    }
+
+    @Test func mountsRoundTripJSON() throws {
+        try withTemporaryDirectory { source in
+            let config = try MachineConfig.default.with([:], mounts: ["\(source):/data:ro"])
+            let data = try JSONEncoder().encode(config)
+            let decoded = try JSONDecoder().decode(MachineConfig.self, from: data)
+            #expect(decoded.mounts.count == 1)
+            #expect(decoded.mounts[0].destination == "/data")
+            #expect(decoded.mounts[0].readOnly == true)
+        }
+    }
+
+    @Test func decodingMissingMountsUsesEmpty() throws {
+        // Boot configs written before user mounts existed have no `mounts` key.
+        let legacy = #"{"cpus":4,"memory":"1gb","homeMount":"rw"}"#
+        let decoded = try JSONDecoder().decode(MachineConfig.self, from: Data(legacy.utf8))
+        #expect(decoded.mounts.isEmpty)
+    }
 }

@@ -363,6 +363,7 @@ public actor MachinesService {
                 initializedFile: path.appending(MachineBundle.initializedFile),
                 homeMountOption: bootConfig.homeMount,
                 virtualization: bootConfig.virtualization,
+                mounts: bootConfig.mounts,
             )
 
             config.resources.cpus = bootConfig.cpus
@@ -638,6 +639,7 @@ extension MachineConfiguration {
         initializedFile: FilePath,
         homeMountOption: MachineConfig.HomeMountOption,
         virtualization: Bool,
+        mounts: [MachineConfig.Mount],
     ) async throws -> ContainerConfiguration {
         var config = ContainerConfiguration(
             id: cid,
@@ -669,6 +671,15 @@ extension MachineConfiguration {
                     source: home,
                     destination: home,
                     options: [homeMountOption.rawValue]
+                )
+            )
+        }
+        for mount in mounts {
+            config.mounts.append(
+                .virtiofs(
+                    source: mount.source,
+                    destination: mount.destination,
+                    options: [mount.readOnly ? "ro" : "rw"]
                 )
             )
         }
