@@ -123,6 +123,9 @@ public struct Utility {
         }
 
         var kernel: Kernel?
+        if !requirements.requiresKernel && (management.kernel != nil || !management.kernelArgs.isEmpty) {
+            log.warning("runtime \(management.runtime ?? "") boots no kernel, ignoring --kernel and --kernel-arg")
+        }
         if requirements.requiresKernel {
             await progressUpdate([
                 .setDescription("Fetching kernel"),
