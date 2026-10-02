@@ -20,5 +20,5 @@
 - [Logs](./logs.md) — container output, VM boot logs, and the `container` system's own logs.
 - [`config.toml` reference](./container-system-config.md) — every configuration key, its default, and how to view your merged configuration.
 - [Container machines](./container-machine.md) — persistent Linux environments built from OCI images, with your home directory mounted in and the filesystem surviving stop/start.
-- [Kubernetes clusters](./kubernetes.md) — run local single-node Kubernetes clusters for development and testing, load your own images, and test deployments before production.
+- [Kubernetes clusters](./kubernetes.md) — run local Kubernetes clusters, single-node or multi-node, for development and testing, load your own images, and test deployments before production.
 - [Shell completions](./shell-completions.md) — generate and install completion scripts for `zsh`, `bash`, and `fish`.
