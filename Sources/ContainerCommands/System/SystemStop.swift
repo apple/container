@@ -96,9 +96,12 @@ extension Application {
             // Note: The assumption here is that we would have registered the launchd services
             // in the same domain as `launchdDomainString`. This is a fairly sane assumption since
             // if somehow the launchd domain changed, XPC interactions would not be possible.
+            // Compare bare labels from `launchctl list` against the apiserver label, then
+            // re-qualify with the domain used at register time before bootout.
+            let apiserverLabel = "\(prefix)apiserver"
             try ServiceManager.enumerate()
                 .filter { $0.hasPrefix(prefix) }
-                .filter { $0 != fullLabel }
+                .filter { $0 != apiserverLabel }
                 .map { "\(launchdDomainString)/\($0)" }
                 .forEach {
                     log.info("stopping service", metadata: ["label": "\($0)"])
