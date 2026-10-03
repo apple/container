@@ -29,7 +29,7 @@ extension ManagedContainer: ListDisplayable {
             configuration.platform.os,
             configuration.platform.architecture,
             status.state.rawValue,
-            status.networks.map { $0.ipv4Address.description }.joined(separator: ","),
+            status.networks.map { $0.ipv4Address?.description ?? "<none>" }.joined(separator: ","),
             "\(configuration.resources.cpus)",
             "\(configuration.resources.memoryInBytes / (1024 * 1024)) MB",
             status.startedDate?.ISO8601Format() ?? "",
