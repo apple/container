@@ -143,6 +143,8 @@ public enum XPCKeys: String {
     case destinationPath
     case fileMode
     case createParents
+    /// FD carrying a tar stream for `cp -`. Replaces the host side of the copy.
+    case archiveFd
 }
 
 public enum XPCRoute: String {
