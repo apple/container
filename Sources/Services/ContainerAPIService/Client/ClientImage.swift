@@ -271,6 +271,10 @@ extension ClientImage {
         request.set(key: .insecureFlag, value: insecure)
         request.set(key: .maxConcurrentDownloads, value: Int64(maxConcurrentDownloads))
 
+        if let authorization = try await Self.registryAuthorization(for: reference) {
+            request.set(key: .registryAuthorization, value: authorization)
+        }
+
         var progressUpdateClient: ProgressUpdateClient?
         if let progressUpdate {
             progressUpdateClient = await ProgressUpdateClient(for: progressUpdate, request: request)
@@ -282,6 +286,35 @@ extension ClientImage {
 
         await progressUpdateClient?.finish()
         return image
+    }
+
+    /// Resolve registry credentials from the keychain and return the
+    /// `Authorization` header value to forward to the images helper.
+    ///
+    /// The lookup runs in this client process, which for `container image
+    /// pull`/`push` and `container build` is always the `container` CLI binary
+    /// (`com.apple.container.cli`). That is the same code identity that
+    /// `container registry login` uses when it writes the keychain item, so the
+    /// item's access control accepts this read. The images helper runs under a
+    /// different identity (`com.apple.container.container-core-images`) and is
+    /// rejected by that access control, so it must not read the keychain itself.
+    ///
+    /// Returns `nil` when no stored credentials exist for the reference's host.
+    private static func registryAuthorization(for reference: String) async throws -> String? {
+        guard let host = try Reference.parse(reference).resolvedDomain else {
+            return nil
+        }
+        let keychain = KeychainHelper(securityDomain: Constants.keychainID)
+        let auth: Authentication
+        do {
+            auth = try keychain.lookup(hostname: host)
+        } catch let err as KeychainHelper.Error {
+            guard case .keyNotFound = err else {
+                throw ContainerizationError(.internalError, message: "error querying keychain for \(host)", cause: err)
+            }
+            return nil
+        }
+        return try await auth.token()
     }
 
     public static func delete(reference: String, garbageCollect: Bool = false) async throws {
@@ -394,6 +427,10 @@ extension ClientImage {
         request.set(key: .insecureFlag, value: insecure)
 
         try request.set(platform: platform)
+
+        if let authorization = try await Self.registryAuthorization(for: reference) {
+            request.set(key: .registryAuthorization, value: authorization)
+        }
 
         var progressUpdateClient: ProgressUpdateClient?
         if let progressUpdate {
