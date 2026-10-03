@@ -21,7 +21,19 @@ import Foundation
 import TerminalProgress
 
 public struct FileDownloader {
+    /// How long a download may go without receiving any bytes before it fails.
+    static let defaultIdleTimeout: Duration = .seconds(30)
+
     public static func downloadFile(url: URL, to destination: URL, progressUpdate: ProgressUpdateHandler? = nil) async throws {
+        try await downloadFile(url: url, to: destination, progressUpdate: progressUpdate, idleTimeout: defaultIdleTimeout)
+    }
+
+    static func downloadFile(
+        url: URL,
+        to destination: URL,
+        progressUpdate: ProgressUpdateHandler?,
+        idleTimeout: Duration
+    ) async throws {
         let request = try HTTPClient.Request(url: url)
 
         let delegate = try FileDownloadDelegate(
@@ -49,23 +61,31 @@ public struct FileDownloader {
                 }
             })
 
-        let client = FileDownloader.createClient(url: url)
+        let client = FileDownloader.createClient(url: url, idleTimeout: idleTimeout)
         do {
             _ = try await client.execute(request: request, delegate: delegate).get()
         } catch {
             try? await client.shutdown()
+            if let clientError = error as? HTTPClientError, clientError == .readTimeout {
+                throw ContainerizationError(
+                    .timeout,
+                    message: "download of \(url) stalled: no data received for \(idleTimeout)"
+                )
+            }
             throw error
         }
         try await client.shutdown()
     }
 
-    private static func createClient(url: URL) -> HTTPClient {
+    private static func createClient(url: URL, idleTimeout: Duration) -> HTTPClient {
         var httpConfiguration = HTTPClient.Configuration()
         // for large file downloads we keep a generous connect timeout, and
-        // no read timeout since download durations can vary
+        // only an idle read timeout: it starts over whenever bytes arrive, so
+        // a slow download still finishes but a stalled one fails
+        let (seconds, attoseconds) = idleTimeout.components
         httpConfiguration.timeout = HTTPClient.Configuration.Timeout(
             connect: .seconds(30),
-            read: .none
+            read: .milliseconds(seconds * 1_000 + attoseconds / 1_000_000_000_000_000)
         )
         if let host = url.host {
             let proxyURL = ProxyUtils.proxyFromEnvironment(scheme: url.scheme, host: host)
