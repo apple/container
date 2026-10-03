@@ -157,6 +157,8 @@ extension Application {
             let container: ContainerSnapshot
             let stats1: ContainerResource.ContainerStats
             let stats2: ContainerResource.ContainerStats
+            let start = ContinuousClock.now
+            var elapsed = Duration.seconds(2)
         }
 
         private static func collectStats(client: ContainerClient, for containers: [ContainerSnapshot]) async throws -> [StatsSnapshot] {
@@ -185,7 +187,8 @@ extension Application {
                         snapshots[i] = StatsSnapshot(
                             container: snapshots[i].container,
                             stats1: snapshots[i].stats1,
-                            stats2: stats2
+                            stats2: stats2,
+                            elapsed: .now - snapshots[i].start
                         )
                     } catch {
                         // Keep the original stats if second sample fails
@@ -245,7 +248,7 @@ extension Application {
                     let cpuPercent = Self.calculateCPUPercent(
                         cpuUsage1: .microseconds(cpuUsageUsec1),
                         cpuUsage2: .microseconds(cpuUsageUsec2),
-                        timeInterval: .seconds(2)
+                        timeInterval: snapshot.elapsed
                     )
                     let cpuStr = String(format: "%.2f%%", cpuPercent)
                     row.append(cpuStr)
