@@ -81,6 +81,9 @@ extension Application {
 
         var dockerfile: String = "-"
 
+        @Option(name: .long, help: ArgumentHelp("Write the image ID to the file", valueName: "path"))
+        var iidfile: String = ""
+
         @Option(name: .shortAndLong, help: ArgumentHelp("Set a label", valueName: "key=val"))
         var label: [String] = []
 
@@ -371,7 +374,7 @@ extension Application {
                     group.addTask {
                         [
                             terminal, buildArg, secretsData, ssh, contextDir, ignoreFileData, label, noCache, target, quiet, cacheIn, cacheOut, pull, exports, imageNames, tempURL,
-                            log
+                            log, iidfile,
                         ] in
                         let config = Builder.BuildConfig(
                             buildID: buildID,
@@ -412,6 +415,7 @@ extension Application {
                         unpackProgress.start()
 
                         var finalMessage = imageNames.joined(separator: "\n")
+                        var builtImageDigest: String?
                         let taskManager = ProgressTaskCoordinator()
                         // Currently, only a single export can be specified.
                         for exp in exports {
@@ -431,6 +435,7 @@ extension Application {
                                 for image in result.images {
                                     try Task.checkCancellation()
                                     try await image.unpack(platform: nil, progressUpdate: ProgressTaskCoordinator.handler(for: unpackTask, from: unpackProgress.handler))
+                                    builtImageDigest = image.digest
 
                                     // Tag the unpacked image with all requested tags
                                     for tagName in imageNames {
@@ -462,6 +467,19 @@ extension Application {
                         }
                         await taskManager.finish()
                         unpackProgress.finish()
+
+                        if !iidfile.isEmpty {
+                            guard let builtImageDigest else {
+                                throw ContainerizationError(.internalError, message: "no image digest available to write to iidfile")
+                            }
+                            let data = builtImageDigest.data(using: .utf8)
+                            var attributes = [FileAttributeKey: Any]()
+                            attributes[.posixPermissions] = 0o644
+                            guard FileManager.default.createFile(atPath: iidfile, contents: data, attributes: attributes) else {
+                                throw ContainerizationError(.internalError, message: "failed to create iidfile at \(iidfile)")
+                            }
+                        }
+
                         print(finalMessage)
                     }
 
@@ -480,6 +498,20 @@ extension Application {
             for name in targetImageNames {
                 guard let _ = try? Reference.parse(name) else {
                     throw ValidationError("invalid reference \(name)")
+                }
+            }
+
+            if !iidfile.isEmpty {
+                for exportSpec in output {
+                    let export: Builder.BuildExport
+                    do {
+                        export = try Builder.BuildExport(from: exportSpec)
+                    } catch {
+                        throw ValidationError("invalid output \(exportSpec): \(error)")
+                    }
+                    guard export.type == "oci" else {
+                        throw ValidationError("--iidfile requires the default OCI output (type=oci)")
+                    }
                 }
             }
 
