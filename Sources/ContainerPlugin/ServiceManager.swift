@@ -126,10 +126,14 @@ public struct ServiceManager {
         switch currentSessionType {
         case LaunchPlist.Domain.System.rawValue:
             return LaunchPlist.Domain.System.rawValue.lowercased()
-        case LaunchPlist.Domain.Background.rawValue:
+        case LaunchPlist.Domain.Background.rawValue, LaunchPlist.Domain.Aqua.rawValue:
+            // Always resolve to the per-UID `user` domain rather than switching between
+            // `user/<uid>` and `gui/<uid>` based on the calling shell's launchd session type
+            // (`launchctl managername` reports `Background` for e.g. tmux/ssh and `Aqua` for a
+            // GUI Terminal session). The `user` domain is the parent of any `Aqua` session domain
+            // for the same UID, so services registered here stay visible to lookups from both GUI
+            // and headless shells, keeping `start`/`stop` consistent no matter which shell invokes them.
             return "user/\(getuid())"
-        case LaunchPlist.Domain.Aqua.rawValue:
-            return "gui/\(getuid())"
         default:
             throw ContainerizationError(.internalError, message: "unsupported session type \(currentSessionType)")
         }
