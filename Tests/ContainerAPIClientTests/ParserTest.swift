@@ -680,6 +680,19 @@ struct ParserTest {
         #expect(Set(result) == Set(["FOO=fromimage"]))
     }
 
+    @Test
+    func testAllEnvKeepsOrderAndReplacesInPlace() throws {
+        let tmpFile = try tmpFileWithContent("BAR=fromfile\nFILE=fromfile\n")
+        defer { try? FileManager.default.removeItem(at: tmpFile) }
+
+        let result = try Parser.allEnv(
+            imageEnvs: ["PATH=/bin", "FOO=fromimage", "BAR=fromimage", "HOME=/root"],
+            envFiles: [tmpFile.path],
+            envs: ["BAZ=new", "FOO=fromuser", "FILE=fromuser"]
+        )
+        #expect(result == ["PATH=/bin", "FOO=fromuser", "BAR=fromfile", "HOME=/root", "FILE=fromuser", "BAZ=new"])
+    }
+
     private func tmpFileWithContent(_ content: String) throws -> URL {
         let tempDir = FileManager.default.temporaryDirectory
         let tempFile = tempDir.appendingPathComponent("envfile-test-\(UUID().uuidString)")
