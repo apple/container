@@ -192,6 +192,7 @@ public actor RuntimeService {
                     sessions.append(session)
                     var (attachment, additionalData) = try await client.allocate(
                         hostname: attachmentConfig.options.hostname,
+                        aliases: attachmentConfig.options.aliases,
                         macAddress: attachmentConfig.options.macAddress,
                         on: session
                     )
@@ -199,6 +200,7 @@ public actor RuntimeService {
                         attachment = Attachment(
                             network: attachment.network,
                             hostname: attachment.hostname,
+                            aliases: attachment.aliases,
                             ipv4Address: attachment.ipv4Address,
                             ipv4Gateway: attachment.ipv4Gateway,
                             ipv6Address: attachment.ipv6Address,

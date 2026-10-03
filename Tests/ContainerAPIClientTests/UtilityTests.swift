@@ -113,6 +113,28 @@ struct UtilityTests {
         #expect(Utility.trimDigest(digest: "sha256:abc") == "abc")
     }
 
+    @Test("Attachment configurations preserve network aliases")
+    func testAttachmentConfigurationsPreserveAliases() throws {
+        let attachments = try Utility.getAttachmentConfigurations(
+            containerId: "web",
+            builtinNetworkId: "default",
+            networks: [
+                Parser.ParsedNetwork(
+                    name: "default",
+                    aliases: ["db", "database"],
+                    mtu: 1500
+                )
+            ],
+            dnsDomain: "test"
+        )
+
+        #expect(attachments.count == 1)
+        #expect(attachments[0].network == "default")
+        #expect(attachments[0].options.hostname == "web.test.")
+        #expect(attachments[0].options.aliases == ["db", "database"])
+        #expect(attachments[0].options.mtu == 1500)
+    }
+
     @Test
     func testPublishPortParser() throws {
         let ports = try Parser.publishPorts([
