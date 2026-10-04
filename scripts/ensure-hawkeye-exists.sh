@@ -49,7 +49,9 @@ fi
 
 echo "Checking existence of hawkeye..."
 
-if command -v .local/bin/hawkeye >/dev/null 2>&1; then
+# Ensure robust path resolution and executable validation
+target_bin=".local/bin/hawkeye"
+if [[ -x "$target_bin" ]]; then
     echo "hawkeye found!"
     exit 0
 fi
@@ -59,7 +61,6 @@ cat <<EOF
 hawkeye is not installed.
 
 scripts/install-hawkeye.sh will install hawkeye by downloading the official release tarball
-
 and installing the binary under `.local/bin`.
 
 (See scripts/install-hawkeye.sh for the pinned version.)
@@ -76,6 +77,7 @@ elif [[ ! -t 0 ]]; then
 else
     echo
     read -r -p "Proceed with install? [y/N] " response
+    response=${response:-N}
     case "$response" in
         [yY][eE][sS]|[yY])
             ;;
