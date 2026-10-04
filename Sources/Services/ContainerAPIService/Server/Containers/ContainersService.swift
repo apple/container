@@ -369,7 +369,8 @@ public actor ContainersService {
                     containerConfiguration: configuration,
                     containerRootFilesystem: imageFs,
                     options: options,
-                    runtimeData: runtimeData
+                    runtimeData: runtimeData,
+                    initImage: initImage
                 )
 
                 try runtimeConfig.writeRuntimeConfiguration()
@@ -427,6 +428,8 @@ public actor ContainersService {
                 }
                 networkBootstrapInfos.append(NetworkBootstrapInfo(plugin: plugin))
             }
+
+            await self.refreshInitBlock(id: id, path: path)
 
             do {
                 try Self.registerService(
@@ -1104,6 +1107,30 @@ public actor ContainersService {
         var fs = try await initImage.getCreateSnapshot(platform: platform)
         fs.options = ["ro"]
         return fs
+    }
+
+    /// Move a container onto the current default init image before it boots.
+    ///
+    /// A container keeps the init filesystem it was created with, so after an upgrade
+    /// it would boot a guest agent older than the runtime that talks to it.
+    private func refreshInitBlock(id: String, path: URL) async {
+        do {
+            var runtimeConfig = try RuntimeConfiguration.readRuntimeConfiguration(from: path)
+            // A custom init image is the user's choice, leave it as created.
+            guard runtimeConfig.initImage == nil else {
+                return
+            }
+            let initFilesystem = try await self.getInitBlock(for: runtimeConfig.kernel.platform.ociPlatform())
+            guard initFilesystem.source != runtimeConfig.initialFilesystem.source else {
+                return
+            }
+            try ContainerResource.Bundle(path: path).replaceInitialFilesystem(cloning: initFilesystem)
+            runtimeConfig.initialFilesystem = initFilesystem
+            try runtimeConfig.writeRuntimeConfiguration()
+            self.log.info("refreshed init filesystem", metadata: ["id": "\(id)"])
+        } catch {
+            self.log.warning("failed to refresh init filesystem", metadata: ["id": "\(id)", "error": "\(error)"])
+        }
     }
 
     private static func registerService(
