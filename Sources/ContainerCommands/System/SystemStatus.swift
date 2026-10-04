@@ -42,26 +42,51 @@ extension Application {
         public init() {}
 
         public func run() async throws {
-            let isRegistered = try ServiceManager.isRegistered(fullServiceLabel: "\(prefix)apiserver")
-            if !isRegistered {
+            let probe = await Self.probeApiserver(
+                fullServiceLabel: "\(prefix)apiserver",
+                healthCheck: { try await ClientHealthCheck.ping(timeout: .seconds(10)) },
+                registrationCheck: { try ServiceManager.isRegistered(fullServiceLabel: $0) }
+            )
+
+            switch probe {
+            case .unregistered:
                 try Output.render(payload: StatusPayload(status: "unregistered"), format: format) {
                     "apiserver is not running and not registered with launchd"
                 }
                 Application.exit(withError: ExitCode(1))
-            }
-
-            // Now ping our friendly daemon. Fail after 10 seconds with no response.
-            do {
-                let health = try await ClientHealthCheck.ping(timeout: .seconds(10))
-                let status = await Self.gather(health: health)
-                try Output.render(payload: status, format: format) {
-                    Self.statusTable(status)
-                }
-            } catch {
+            case .registeredButUnresponsive:
                 try Output.render(payload: StatusPayload(status: "not running"), format: format) {
                     "apiserver is not running"
                 }
                 Application.exit(withError: ExitCode(1))
+            case .responding(let health):
+                let status = await Self.gather(health: health)
+                try Output.render(payload: status, format: format) {
+                    Self.statusTable(status)
+                }
+            }
+        }
+
+        enum ApiserverProbe<Value> {
+            case responding(Value)
+            case registeredButUnresponsive
+            case unregistered
+        }
+
+        /// Prefer the health check, which remains available in Seatbelt profiles
+        /// that deny launchd's legacy `list` query. Consult launchd only when the
+        /// apiserver does not respond, to preserve the existing stopped/unregistered distinction.
+        static func probeApiserver<Value>(
+            fullServiceLabel: String,
+            healthCheck: () async throws -> Value,
+            registrationCheck: (String) throws -> Bool
+        ) async -> ApiserverProbe<Value> {
+            do {
+                return .responding(try await healthCheck())
+            } catch {
+                return (try? registrationCheck(fullServiceLabel)) == true
+                    ? .registeredButUnresponsive
+                    : .unregistered
             }
         }
 
