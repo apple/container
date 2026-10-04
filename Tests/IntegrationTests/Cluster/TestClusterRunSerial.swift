@@ -64,6 +64,9 @@ struct TestClusterRunSerial {
             print("[cluster-run] container status=\(containerStatus)")
             #expect(containerStatus == "running")
 
+            let checkResult = try f.run(["exec", name, "test", "-f", "/kind/kubeadm.conf"])
+            #expect(checkResult.status == 0)
+
             let kubeconfig = try loadKubeconfig()
 
             let clusters = (kubeconfig["clusters"] as? [[String: Any]]) ?? []
