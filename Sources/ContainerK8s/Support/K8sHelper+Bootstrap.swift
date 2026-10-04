@@ -46,6 +46,14 @@ extension K8sHelper {
             throw ContainerizationError(.internalError, message: "write kubeadm config failed on \(nodeID): \(r.output)")
         }
 
+        r = try await execCapture(
+            containerId: nodeID, executable: "/bin/sh",
+            arguments: ["-c", "mkdir -p /kind && ln -sf /etc/kubernetes/kubeadm-config.yaml /kind/kubeadm.conf"],
+            client: client)
+        guard r.code == 0 else {
+            throw ContainerizationError(.internalError, message: "failed to link kind kubeadm config on \(nodeID): \(r.output)")
+        }
+
         log.info("Running kubeadm init", metadata: ["node": "\(nodeID)"])
         r = try await execCapture(
             containerId: nodeID, executable: kubeadmPath,
