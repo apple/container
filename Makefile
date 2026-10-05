@@ -209,7 +209,8 @@ install-kernel:
 COV_DATA_DIR = $(shell $(SWIFT) test --show-coverage-path | xargs dirname)
 COV_REPORT_FILE = $(ROOT_DIR)/code-coverage-report
 COVERAGE_OUTPUT_DIR := $(ROOT_DIR)/coverage-reports
-TEST_BINARY = $(BUILD_BIN_DIR)/containerPackageTests.xctest/Contents/MacOS/containerPackageTests
+# One bundle per test target, e.g. ContainerOSTests.xctest/Contents/MacOS/ContainerOSTests.
+TEST_BINARY = $(foreach b,$(wildcard $(BUILD_BIN_DIR)/*.xctest),-object $(b)/Contents/MacOS/$(basename $(notdir $(b))))
 # All product binaries that may be instrumented for coverage.
 # Used as additional -object args to llvm-cov for integration/combined reports.
 COV_BINARIES := \
