@@ -45,4 +45,18 @@ public struct ApplicationRoot {
 
     /// The pathname to the root directory
     public static let pathname = path.string
+
+    /// Ensures that the application root directory exists on disk, creating it and any intermediate directories if necessary.
+    @discardableResult
+    public static func createDirectoryIfNeeded() throws -> URL {
+        let url = URL(fileURLWithPath: pathname)
+        if !FileManager.default.fileExists(atPath: url.path) {
+            try FileManager.default.createDirectory(
+                at: url,
+                withIntermediateDirectories: true,
+                attributes: nil
+            )
+        }
+        return url
+    }
 }
