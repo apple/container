@@ -215,7 +215,7 @@ COVERAGE_OUTPUT_DIR := $(ROOT_DIR)/coverage-reports
 # One bundle per test target, e.g. ContainerOSTests.xctest/Contents/MacOS/ContainerOSTests.
 TEST_BINARY = $(foreach b,$(wildcard $(BUILD_BIN_DIR)/*.xctest),-object $(b)/Contents/MacOS/$(basename $(notdir $(b))))
 # All product binaries that may be instrumented for coverage.
-# Used as additional -object args to llvm-cov for integration/combined reports.
+# Used as additional -object args to llvm-cov for all reports.
 COV_BINARIES := \
 	$(BUILD_BIN_DIR)/container \
 	$(BUILD_BIN_DIR)/container-apiserver \
@@ -377,7 +377,7 @@ coverage-unit: build-tests
 	@$(SWIFT) test --skip-build --enable-code-coverage -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --skip TestCLI --skip IntegrationTests
 	@echo Merging unit coverage profdata...
 	@xcrun llvm-profdata merge -sparse $(COV_DATA_DIR)/*.profraw -o $(COVERAGE_OUTPUT_DIR)/unit/default.profdata
-	$(call GENERATE_COV_REPORTS,$(COVERAGE_OUTPUT_DIR)/unit/default.profdata,unit)
+	$(call GENERATE_COV_REPORTS,$(COVERAGE_OUTPUT_DIR)/unit/default.profdata,unit,$(COV_OBJECT_FLAGS))
 
 .PHONY: fmt
 fmt: swift-fmt update-licenses
