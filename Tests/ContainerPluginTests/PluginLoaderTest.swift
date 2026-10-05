@@ -451,7 +451,7 @@ struct PluginLoaderTest {
         let serviceServicesConfig = PluginConfig.ServicesConfig(
             loadAtBoot: false,
             runAtLoad: false,
-            services: [PluginConfig.Service(type: .runtime, description: nil)],
+            services: [PluginConfig.Service(type: .runtime, description: nil, interfaces: nil)],
             defaultArguments: []
         )
         let serviceConfig = PluginConfig(abstract: "service", author: "SERVICE", servicesConfig: serviceServicesConfig)
@@ -485,7 +485,7 @@ struct PluginLoaderTest {
         let serviceServicesConfig = PluginConfig.ServicesConfig(
             loadAtBoot: false,
             runAtLoad: false,
-            services: [PluginConfig.Service(type: .runtime, description: nil)],
+            services: [PluginConfig.Service(type: .runtime, description: nil, interfaces: nil)],
             defaultArguments: []
         )
         let serviceConfig = PluginConfig(abstract: "service", author: "SERVICE", servicesConfig: serviceServicesConfig)
