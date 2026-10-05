@@ -25,13 +25,11 @@ public struct ApplicationRoot {
 
     /// The default root directory used when ``environmentName`` is not set:
     /// `~/Library/Application Support/com.apple.container`.
-    public static let defaultPath = FilePath(
-        FileManager.default.urls(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask
-        ).first!.path(percentEncoded: false)
-    )
-    .appending(FilePath.Component("com.apple.container"))
+    public static let defaultPath: FilePath = {
+        let urls = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
+        let base = urls.first?.path(percentEncoded: false) ?? NSHomeDirectory() + "/Library/Application Support"
+        return FilePath(base).appending(FilePath.Component("com.apple.container"))
+    }()
 
     /// The resolved root directory path, always lexically normalized.
     ///
