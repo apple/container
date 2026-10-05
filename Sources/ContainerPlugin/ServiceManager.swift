@@ -97,11 +97,9 @@ public struct ServiceManager {
     }
 
     /// Check if a service has been registered or not.
-    public static func isRegistered(serviceLabel label: String) throws -> Bool {
-        let domain = try Self.getDomainString()
-        let target = "\(domain)/\(label)"
-        let result = try runLaunchctlPrint(target: target)
-        return try Self.interpretPrintStatus(result.status, target: target, standardError: result.standardError)
+    public static func isRegistered(fullServiceLabel label: String) throws -> Bool {
+        let result = try runLaunchctlPrint(target: label)
+        return try Self.interpretPrintStatus(result.status, target: label, standardError: result.standardError)
     }
 
     private static func runLaunchctlPrint(target: String) throws -> (status: Int32, standardError: String) {

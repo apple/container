@@ -48,7 +48,8 @@ struct ServiceManagerTests {
 
     @Test
     func testIsRegisteredUnknownLabel() throws {
-        let label = "com.apple.container.bogus-\(UUID().uuidString)"
-        #expect(try !ServiceManager.isRegistered(serviceLabel: label))
+        let domain = try ServiceManager.getDomainString()
+        let label = "\(domain)/com.apple.container.bogus-\(UUID().uuidString)"
+        #expect(try !ServiceManager.isRegistered(fullServiceLabel: label))
     }
 }
