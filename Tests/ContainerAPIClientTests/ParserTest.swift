@@ -331,6 +331,83 @@ struct ParserTest {
     }
 
     @Test
+    func testPublishSocketBasic() throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("test-publish-socket-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+        let hostPath = tempDir.appendingPathComponent("app.sock").path
+
+        let result = try Parser.publishSocket("\(hostPath):/var/run/app.sock")
+        #expect(result.hostPath.string == hostPath)
+        #expect(result.containerPath.string == "/var/run/app.sock")
+    }
+
+    @Test
+    func testPublishSocketHostPathWithColon() throws {
+        // Regression: a host path containing ':' (e.g. a timestamped filename)
+        // was rejected because the argument was split on every ':' instead of
+        // only the last one, mirroring the fix for `container cp` path refs.
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("test-publish-socket-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+        let hostPath = tempDir.appendingPathComponent("backup-2026-08-18T10:30:00.sock").path
+
+        let result = try Parser.publishSocket("\(hostPath):/var/run/app.sock")
+        #expect(result.hostPath.string == hostPath)
+        #expect(result.containerPath.string == "/var/run/app.sock")
+    }
+
+    @Test
+    func testPublishSocketEmptyHostPath() throws {
+        #expect {
+            _ = try Parser.publishSocket(":/var/run/app.sock")
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("host socket path cannot be empty")
+        }
+    }
+
+    @Test
+    func testPublishSocketEmptyContainerPath() throws {
+        #expect {
+            _ = try Parser.publishSocket("/tmp/app.sock:")
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("container socket path cannot be empty")
+        }
+    }
+
+    @Test
+    func testPublishSocketNoColon() throws {
+        #expect {
+            _ = try Parser.publishSocket("/tmp/app.sock")
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("invalid publish-socket format")
+        }
+    }
+
+    @Test
+    func testPublishSocketNonAbsoluteContainerPath() throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("test-publish-socket-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+        let hostPath = tempDir.appendingPathComponent("app.sock").path
+
+        #expect {
+            _ = try Parser.publishSocket("\(hostPath):relative/app.sock")
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("containerPath must be absolute")
+        }
+    }
+
+    @Test
     func testRelativePaths() throws {
         // Test bind mount with relative path "."
         do {
