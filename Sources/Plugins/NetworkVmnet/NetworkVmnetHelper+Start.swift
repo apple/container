@@ -24,6 +24,7 @@ import ContainerResource
 import ContainerXPC
 import ContainerizationError
 import ContainerizationExtras
+import ContainerizationOS
 import Foundation
 import Logging
 import SystemPackage
@@ -111,7 +112,21 @@ extension NetworkVmnetHelper {
                 )
 
                 log.info("starting XPC server")
-                try await xpc.listen()
+                // launchd SIGTERMs us on `container system stop`; without catching it the process
+                // dies before `stop()` can hand the network's subnet back.
+                try await withThrowingTaskGroup(of: Void.self) { group in
+                    group.addTask { try await xpc.listen() }
+                    group.addTask {
+                        let handler = AsyncSignalHandler.create(notify: [SIGTERM, SIGINT])
+                        for await sig in handler.signals {
+                            log.info("exiting on signal", metadata: ["signal": "\(sig)"])
+                            return
+                        }
+                    }
+                    try await group.next()
+                    group.cancelAll()
+                }
+                await network.stop()
             } catch {
                 log.error(
                     "helper failed",
