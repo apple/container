@@ -227,7 +227,9 @@ COV_BINARIES := \
 	$(BUILD_BIN_DIR)/container-runtime-linux \
 	$(BUILD_BIN_DIR)/container-network-vmnet \
 	$(BUILD_BIN_DIR)/container-core-images \
-	$(BUILD_BIN_DIR)/machine-apiserver
+	$(BUILD_BIN_DIR)/machine-apiserver \
+	$(BUILD_BIN_DIR)/container-build \
+	$(BUILD_BIN_DIR)/container-builder
 COV_OBJECT_FLAGS := $(patsubst %,-object %,$(COV_BINARIES))
 # Set of files we do not want to get caught in the coverage generation
 LLVM_COV_IGNORE := \
