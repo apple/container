@@ -32,6 +32,13 @@ import TerminalProgress
 @main
 struct Application: AsyncParsableCommand {
     public init() {}
+
+    static func main() async {
+        // The root CLI's handlers are discarded when it execs into this plugin.
+        ProgressBar.restoreCursorAtExit()
+        await main(nil)
+    }
+
     public static var configuration: CommandConfiguration {
         var config = CommandConfiguration()
         config.commandName = "build"

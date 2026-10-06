@@ -99,7 +99,7 @@ public struct Application: AsyncLoggableCommand {
     )
 
     public static func main() async throws {
-        restoreCursorAtExit()
+        ProgressBar.restoreCursorAtExit()
 
         #if DEBUG
         let warning = "Running debug build. Performance may be degraded."
@@ -173,23 +173,6 @@ public struct Application: AsyncLoggableCommand {
         ]
     }
 
-    private static func restoreCursorAtExit() {
-        let signalHandler: @convention(c) (Int32) -> Void = { signal in
-            let exitCode = ExitCode(signal + 128)
-            Application.exit(withError: exitCode)
-        }
-        // Termination by Ctrl+C.
-        signal(SIGINT, signalHandler)
-        // Termination using `kill`.
-        signal(SIGTERM, signalHandler)
-        // Normal and explicit exit.
-        atexit {
-            if let progressConfig = try? ProgressConfig() {
-                let progressBar = ProgressBar(config: progressConfig)
-                progressBar.resetCursor()
-            }
-        }
-    }
 }
 
 extension Application {
