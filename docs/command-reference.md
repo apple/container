@@ -1672,13 +1672,11 @@ container k8s create --name temp-cluster --rm
 # create a cluster using a custom CNI manifest instead of the bundled kindnet
 container k8s create --cni ./my-cni.yaml
 
-<<<<<<< HEAD
 # create a cluster with no CNI installed
 container k8s create --cni NONE
-=======
+
 # create a cluster with a control plane and 3 worker nodes
 container k8s create --name my-cluster --workers 3
->>>>>>> 5a62027a (Add support for multi node k8s clusters)
 ```
 
 ### `container k8s delete (rm)`
