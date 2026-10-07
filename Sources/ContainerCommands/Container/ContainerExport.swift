@@ -68,7 +68,11 @@ extension Application {
                 try fileHandle.close()
             } else {
                 let outputURL = URL(fileURLWithPath: output!)
-                if FileManager.default.fileExists(atPath: outputURL.path(percentEncoded: false)) {
+                var isDirectory: ObjCBool = false
+                if FileManager.default.fileExists(atPath: outputURL.path(percentEncoded: false), isDirectory: &isDirectory) {
+                    if isDirectory.boolValue {
+                        throw ContainerizationError(.invalidArgument, message: "refusing to overwrite directory at \(outputURL.path); specify a file path")
+                    }
                     try FileManager.default.removeItem(at: outputURL)
                 }
                 try FileManager.default.moveItem(at: archive, to: outputURL)
