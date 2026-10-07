@@ -65,21 +65,27 @@ public actor KernelService {
 
         let kFile = url.resolvingSymlinksInPath()
         let destPath = self.kernelDirectory.appendingPathComponent(kFile.lastPathComponent)
-        if force {
+        let destExists = FileManager.default.fileExists(atPath: destPath.path)
+        if force && destExists {
+            let tempPath = destPath.appendingPathExtension("tmp.\(UUID().uuidString)")
+            try FileManager.default.copyItem(at: kFile, to: tempPath)
             do {
-                try FileManager.default.removeItem(at: destPath)
-            } catch let error as NSError {
-                guard error.code == NSFileNoSuchFileError else {
-                    throw error
-                }
+                _ = try FileManager.default.replaceItemAt(
+                    destPath, withItemAt: tempPath, backupItemName: nil, options: [])
+            } catch {
+                try? FileManager.default.removeItem(at: tempPath)
+                throw error
             }
+        } else {
+            try FileManager.default.copyItem(at: kFile, to: destPath)
         }
-        try FileManager.default.copyItem(at: kFile, to: destPath)
         try Task.checkCancellation()
         do {
             try self.setDefaultKernel(name: kFile.lastPathComponent, platform: platform)
         } catch {
-            try? FileManager.default.removeItem(at: destPath)
+            if !force || !destExists {
+                try? FileManager.default.removeItem(at: destPath)
+            }
             throw error
         }
     }
