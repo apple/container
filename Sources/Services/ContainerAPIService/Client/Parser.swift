@@ -178,12 +178,14 @@ public struct Parser {
         }
         combined.append(contentsOf: Parser.env(envList: envs))
 
+        var keys: [String] = []
         let deduped = combined.reduce(into: [String: String](minimumCapacity: combined.count)) { map, entry in
             let key = String(entry.split(separator: "=", maxSplits: 1).first ?? Substring(entry))
+            if map[key] == nil { keys.append(key) }
             map[key] = entry
         }
 
-        return deduped.map { $0.value }
+        return keys.compactMap { deduped[$0] }
     }
 
     public static func envFile(path: String) throws -> [String] {
