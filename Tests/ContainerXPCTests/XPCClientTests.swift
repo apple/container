@@ -38,7 +38,10 @@ struct XPCClientTests {
                 guard xpc_get_type(request) == XPC_TYPE_DICTIONARY else { return }
                 let route = XPCMessage(object: request).string(key: XPCMessage.routeKey)
                 guard let reply = xpc_dictionary_create_reply(request) else { return }
-                if route == "reply" {
+                if route == "reply" || route == "delayed-reply" {
+                    if route == "delayed-reply" {
+                        Thread.sleep(forTimeInterval: 0.1)
+                    }
                     xpc_connection_send_message(peer, reply)
                 } else {
                     heldReplies.hold(reply)
@@ -90,5 +93,19 @@ struct XPCClientTests {
         }
 
         _ = try await client.send(XPCMessage(route: "reply"), responseTimeout: .seconds(2))
+    }
+
+    @Test func temporaryClientReceivesDelayedReply() async throws {
+        let (client, listener) = makeClient()
+        defer {
+            client.close()
+            xpc_connection_cancel(listener)
+        }
+
+        let endpoint = xpc_endpoint_create(listener)
+        _ = try await XPCClient(
+            connection: xpc_connection_create_from_endpoint(endpoint),
+            label: "temporary-test"
+        ).send(XPCMessage(route: "delayed-reply"))
     }
 }

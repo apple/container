@@ -142,6 +142,9 @@ extension XPCClient {
     /// Send the provided message to the service.
     @discardableResult
     public func send(_ message: XPCMessage, responseTimeout: Duration? = nil) async throws -> XPCMessage {
+        // The reply handler only holds the pending request weakly. Keep this
+        // client and its connection alive until the request has completed.
+        defer { withExtendedLifetime(self) {} }
         let pending = PendingReply()
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
