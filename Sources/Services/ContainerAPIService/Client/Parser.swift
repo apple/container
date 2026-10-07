@@ -491,10 +491,8 @@ public struct Parser {
                 if type != "tmpfs" {
                     throw ContainerizationError(.invalidArgument, message: "unsupported option size for \(type) mount")
                 }
-                var overflow: Bool
-                var memory = try Parser.memoryStringAsMiB(val)
-                (memory, overflow) = memory.multipliedReportingOverflow(by: 1024 * 1024)
-                if overflow {
+                let bytes = try Measurement.parse(parsing: val).converted(to: .bytes).value
+                guard let memory = Int64(exactly: bytes.rounded(.down)) else {
                     throw ContainerizationError(.invalidArgument, message: "overflow encountered when parsing memory string: \(val)")
                 }
                 let s = "size=\(memory)"
