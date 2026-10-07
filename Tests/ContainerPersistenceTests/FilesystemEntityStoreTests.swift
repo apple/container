@@ -85,6 +85,21 @@ struct FilesystemEntityStoreTests {
         }
     }
 
+    @Test func testUpdateReplacesMetadataFileAtomically() async throws {
+        try await TemporaryStorage.withTempDir { path in
+            let store = try Self.makeStore(at: path)
+            try await store.create(Item(id: "x", value: "v1"))
+            let metadataPath = try store.entityPath("x").appending("entity.json").string
+            let before = try FileManager.default.attributesOfItem(atPath: metadataPath)[.systemFileNumber] as? UInt64
+            try await store.update(Item(id: "x", value: "v2"))
+            let after = try FileManager.default.attributesOfItem(atPath: metadataPath)[.systemFileNumber] as? UInt64
+            // An atomic write renames a new file into place, so the inode changes.
+            // An in-place write truncates and reuses the existing inode.
+            #expect(before != nil)
+            #expect(before != after)
+        }
+    }
+
     @Test func testUpdateNonexistentThrows() async throws {
         try await TemporaryStorage.withTempDir { path in
             let store = try Self.makeStore(at: path)
