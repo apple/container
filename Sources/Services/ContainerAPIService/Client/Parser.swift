@@ -492,10 +492,13 @@ public struct Parser {
                     throw ContainerizationError(.invalidArgument, message: "unsupported option size for \(type) mount")
                 }
                 var overflow: Bool
-                var memory = try Parser.memoryStringAsMiB(val)
-                (memory, overflow) = memory.multipliedReportingOverflow(by: 1024 * 1024)
+                var memory = try Parser.memoryStringAsBytes(val)
+                (memory, overflow) = memory.multipliedReportingOverflow(by: 1)
                 if overflow {
                     throw ContainerizationError(.invalidArgument, message: "overflow encountered when parsing memory string: \(val)")
+                }
+                if memory < 1 {
+                    throw ContainerizationError(.invalidArgument, message: "tmpfs size must be at least 1 byte")
                 }
                 let s = "size=\(memory)"
                 fs.options.append(s)
