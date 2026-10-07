@@ -56,6 +56,50 @@ public final class XPCClient: Sendable {
     }
 }
 
+/// A reply, timeout, and task cancellation can arrive on different threads.
+/// Keep the continuation until exactly one of them completes the request.
+private final class PendingReply: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<XPCMessage, any Error>?
+    private var result: Result<XPCMessage, any Error>?
+    private var timeoutTask: Task<Void, Never>?
+
+    func install(_ continuation: CheckedContinuation<XPCMessage, any Error>) -> Bool {
+        let result = lock.withLock { () -> Result<XPCMessage, any Error>? in
+            if let result { return result }
+            self.continuation = continuation
+            return nil
+        }
+        if let result {
+            continuation.resume(with: result)
+            return false
+        }
+        return true
+    }
+
+    func setTimeoutTask(_ task: Task<Void, Never>) {
+        let completed = lock.withLock { () -> Bool in
+            if result != nil { return true }
+            timeoutTask = task
+            return false
+        }
+        if completed { task.cancel() }
+    }
+
+    func complete(_ result: Result<XPCMessage, any Error>) {
+        let pending = lock.withLock { () -> (CheckedContinuation<XPCMessage, any Error>?, Task<Void, Never>?) in
+            guard self.result == nil else { return (nil, nil) }
+            self.result = result
+            let pending = (continuation, timeoutTask)
+            continuation = nil
+            timeoutTask = nil
+            return pending
+        }
+        pending.1?.cancel()
+        pending.0?.resume(with: result)
+    }
+}
+
 extension XPCClient {
     /// Close the underlying XPC connection.
     public func close() {
@@ -98,46 +142,39 @@ extension XPCClient {
     /// Send the provided message to the service.
     @discardableResult
     public func send(_ message: XPCMessage, responseTimeout: Duration? = nil) async throws -> XPCMessage {
-        try await withThrowingTaskGroup(of: XPCMessage.self, returning: XPCMessage.self) { group in
-            if let responseTimeout {
-                group.addTask {
-                    try await Task.sleep(for: responseTimeout)
-                    let route = message.string(key: XPCMessage.routeKey) ?? "nil"
-                    throw ContainerizationError(
-                        .internalError,
-                        message: "XPC timeout for request to \(self.service)/\(route)"
-                    )
-                }
-            }
+        let pending = PendingReply()
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                guard pending.install(continuation) else { return }
 
-            group.addTask {
-                try await withCheckedThrowingContinuation { cont in
-                    xpc_connection_send_message_with_reply(self.connection, message.underlying, nil) { reply in
+                xpc_connection_send_message_with_reply(self.connection, message.underlying, nil) { [weak pending] reply in
+                    pending?.complete(Result { try Self.parseReply(reply) })
+                }
+
+                if let responseTimeout {
+                    let task = Task {
                         do {
-                            let message = try self.parseReply(reply)
-                            cont.resume(returning: message)
+                            try await Task.sleep(for: responseTimeout)
                         } catch {
-                            cont.resume(throwing: error)
+                            return
                         }
+                        let route = message.string(key: XPCMessage.routeKey) ?? "nil"
+                        pending.complete(
+                            .failure(
+                                ContainerizationError(
+                                    .internalError,
+                                    message: "XPC timeout for request to \(self.service)/\(route)"
+                                )))
                     }
+                    pending.setTimeoutTask(task)
                 }
             }
-
-            let response = try await group.next()
-            // once one task has finished, cancel the rest.
-            group.cancelAll()
-            // we don't really care about the second error here
-            // as it's most likely a `CancellationError`.
-            try? await group.waitForAll()
-
-            guard let response else {
-                throw ContainerizationError(.invalidState, message: "failed to receive XPC response")
-            }
-            return response
+        } onCancel: {
+            pending.complete(.failure(CancellationError()))
         }
     }
 
-    private func parseReply(_ reply: xpc_object_t) throws -> XPCMessage {
+    private static func parseReply(_ reply: xpc_object_t) throws -> XPCMessage {
         switch xpc_get_type(reply) {
         case XPC_TYPE_ERROR:
             var code = ContainerizationError.Code.invalidState
