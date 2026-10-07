@@ -91,6 +91,19 @@ Defaults applied when `container run` / `container create` is invoked without `-
 | `cpus`   | `Int`      | `4`     | Default CPU count per container.                                           |
 | `memory` | [MemorySize](#memorysize-format) | `"1g"`  | Default RAM per container. |
 
+### `[container.dns]`
+
+Default DNS settings applied when `container run` / `container build` / `container builder start` is invoked without `--dns`, `--dns-search`, `--dns-option`, or `--dns-domain`. CLI flags override these values.
+
+| Key            | Type        | Default | Description                                                          |
+|----------------|-------------|---------|----------------------------------------------------------------------|
+| `domain`       | `String?`   | unset   | DNS domain appended to container hostnames.                          |
+| `nameservers`  | `[String]?` | unset   | DNS nameservers configured in the container's resolver.              |
+| `searchDomains`| `[String]?` | unset   | DNS search domains configured in the container's resolver.           |
+| `options`      | `[String]?` | unset   | DNS options (e.g. `"ndots:2"`) configured in the container's resolver. |
+
+See [Networking: Set default DNS settings for containers](./networking.md#set-default-dns-settings-for-containers) for the walkthrough.
+
 ## `[dns]`
 
 | Key      | Type      | Default | Description                                                                |
