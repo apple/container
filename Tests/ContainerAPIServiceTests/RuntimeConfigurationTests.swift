@@ -132,4 +132,60 @@ struct RuntimeConfigurationTests {
         let decodedData = try JSONDecoder().decode(LinuxRuntimeData.self, from: readRuntimeConfig.runtimeData!)
         #expect(decodedData.variant == "test-variant", "Variant should round-trip through RuntimeConfiguration")
     }
+
+    /// Test that the init image is recorded, and that a configuration
+    /// written without one reads back as using the default
+    @Test
+    func testRuntimeConfigurationInitImage() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+        let bundlePath = tempDir.appendingPathComponent("test-bundle-\(UUID())")
+
+        defer {
+            try? FileManager.default.removeItem(at: bundlePath)
+        }
+
+        let initFs = Filesystem.virtiofs(
+            source: "/path/to/initfs",
+            destination: "/",
+            options: ["ro"]
+        )
+
+        let kernel = Kernel(
+            path: URL(fileURLWithPath: "/path/to/kernel"),
+            platform: .linuxArm
+        )
+
+        try RuntimeConfiguration(path: bundlePath, initialFilesystem: initFs, kernel: kernel).writeRuntimeConfiguration()
+        #expect(try RuntimeConfiguration.readRuntimeConfiguration(from: bundlePath).initImage == nil)
+
+        try RuntimeConfiguration(path: bundlePath, initialFilesystem: initFs, kernel: kernel, initImage: "custom-init:latest").writeRuntimeConfiguration()
+        #expect(try RuntimeConfiguration.readRuntimeConfiguration(from: bundlePath).initImage == "custom-init:latest")
+    }
+
+    /// Test that an existing bundle takes a new initial filesystem, and
+    /// that a bundle without one is left alone
+    @Test
+    func testReplaceInitialFilesystem() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+        let bundlePath = tempDir.appendingPathComponent("test-bundle-\(UUID())")
+        try FileManager.default.createDirectory(at: bundlePath, withIntermediateDirectories: true)
+
+        defer {
+            try? FileManager.default.removeItem(at: bundlePath)
+        }
+
+        let newBlock = bundlePath.appendingPathComponent("new-initfs")
+        try Data("new".utf8).write(to: newBlock)
+        let newFs = Filesystem.block(format: "ext4", source: newBlock.path, destination: "/", options: ["ro"])
+
+        let bundle = ContainerResource.Bundle(path: bundlePath)
+        let initfs = URL(fileURLWithPath: bundle.initialFilesystem.source)
+
+        try bundle.replaceInitialFilesystem(cloning: newFs)
+        #expect(!FileManager.default.fileExists(atPath: initfs.path), "Bundle without an initial filesystem should be left alone")
+
+        try Data("old".utf8).write(to: initfs)
+        try bundle.replaceInitialFilesystem(cloning: newFs)
+        #expect(try Data(contentsOf: initfs) == Data("new".utf8), "Initial filesystem should be replaced")
+    }
 }
