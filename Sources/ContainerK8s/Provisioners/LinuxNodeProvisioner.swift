@@ -159,7 +159,7 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
     public func address(name: String, log: Logger) async throws -> String {
         let client = ContainerClient()
         let snapshot = try await client.get(id: name)
-        guard let ip = snapshot.networks.first?.ipv4Address.address.description else {
+        guard let ip = snapshot.networks.first?.ipv4Address?.address.description else {
             throw ContainerizationError(.internalError, message: "no VM IP for node \(name)")
         }
         return ip
