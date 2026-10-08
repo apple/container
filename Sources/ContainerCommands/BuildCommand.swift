@@ -472,6 +472,13 @@ extension Application {
             }
         }
 
+        /// `FileManager.fileExists` is false both for a path that is not there and for one the
+        /// process is not allowed to look at. This tells the second case apart.
+        private static func isPermissionDenied(_ path: String) -> Bool {
+            var info = stat()
+            return stat(path, &info) != 0 && (errno == EACCES || errno == EPERM)
+        }
+
         public mutating func validate() throws {
             // NOTE: Here we check the Dockerfile exists, and set `dockerfile` to point the valid Dockerfile path or stdin
             guard FileManager.default.fileExists(atPath: contextDir) else {
@@ -490,6 +497,9 @@ extension Application {
             case .some(let filepath):
                 let fileURL = URL(fileURLWithPath: filepath, relativeTo: .currentDirectory())
                 guard FileManager.default.fileExists(atPath: fileURL.path) else {
+                    if Self.isPermissionDenied(fileURL.path) {
+                        throw ValidationError("cannot read dockerfile \(filepath): permission denied")
+                    }
                     throw ValidationError("dockerfile does not exist \(filepath)")
                 }
 
@@ -497,6 +507,10 @@ extension Application {
                 break
             case .none:
                 guard let defaultDockerfile = try BuildFile.resolvePath(contextDir: contextDir) else {
+                    let candidate = URL(fileURLWithPath: contextDir).appendingPathComponent("Dockerfile").path
+                    if Self.isPermissionDenied(candidate) {
+                        throw ValidationError("cannot read context dir \(contextDir): permission denied")
+                    }
                     throw ValidationError("dockerfile not found in context dir")
                 }
 
