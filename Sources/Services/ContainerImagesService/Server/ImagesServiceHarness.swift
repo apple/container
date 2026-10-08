@@ -182,6 +182,37 @@ public struct ImagesServiceHarness: Sendable {
     }
 
     @Sendable
+    public func importImage(_ message: XPCMessage) async throws -> XPCMessage {
+        let input = message.string(key: .filePath)
+        guard let input else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "missing input file path"
+            )
+        }
+        let reference = message.string(key: .imageReference)
+        guard let reference else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "missing image reference"
+            )
+        }
+        guard let platformData = message.dataNoCopy(key: .ociPlatform) else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "missing OCI platform"
+            )
+        }
+        let platform = try JSONDecoder().decode(ContainerizationOCI.Platform.self, from: platformData)
+
+        let description = try await service.`import`(from: URL(filePath: input), reference: reference, platform: platform)
+        let reply = message.reply()
+        let descData = try JSONEncoder().encode(description)
+        reply.set(key: .imageDescription, value: descData)
+        return reply
+    }
+
+    @Sendable
     public func cleanUpOrphanedBlobs(_ message: XPCMessage) async throws -> XPCMessage {
         let (deleted, size) = try await service.cleanUpOrphanedBlobs()
         let reply = message.reply()
