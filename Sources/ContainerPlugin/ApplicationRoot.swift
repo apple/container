@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
+import Logging
 import SystemPackage
 
 /// Provides the application data root path.

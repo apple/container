@@ -57,12 +57,22 @@ public actor SnapshotStore {
     let log: Logger?
 
     public init(path: URL, unpackStrategy: @escaping UnpackStrategy, log: Logger?) throws {
-        let root = path.appendingPathComponent("snapshots")
+        var root = path.appendingPathComponent("snapshots")
         self.path = root
         self.ingestDir = self.path.appendingPathComponent(Self.ingestDirName)
         self.unpackStrategy = unpackStrategy
         self.log = log
         try self.fm.createDirectory(at: root, withIntermediateDirectories: true)
+        do {
+            var resourceValues = URLResourceValues()
+            resourceValues.isExcludedFromBackup = true
+            try root.setResourceValues(resourceValues)
+        } catch {
+            self.log?.warning(
+                "failed to exclude snapshots from backups",
+                metadata: ["error": "\(error)"]
+            )
+        }
         try self.fm.createDirectory(at: self.ingestDir, withIntermediateDirectories: true)
     }
 
