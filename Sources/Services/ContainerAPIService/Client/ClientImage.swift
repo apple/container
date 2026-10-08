@@ -235,6 +235,13 @@ extension ClientImage {
         if let locallyBuiltImage {
             return locallyBuiltImage
         }
+        // A digest-bearing reference (`name:tag@sha256:...` or `name@sha256:...`)
+        // identifies an image by its index descriptor digest. Resolve it against a
+        // locally stored image with that digest, including one stored under a tag,
+        // so an exact local reference is not normalized to Docker Hub and pulled.
+        if let matchByDigest = try Self.matchByDigest(reference: reference, in: all) {
+            return matchByDigest
+        }
         // If we don't find a match, try matching `ImageDescription.name` against the given
         // input string, while also checking against its normalized form.
         // Return the first match.
@@ -242,6 +249,16 @@ extension ClientImage {
         return all.first(where: { image in
             image.reference == reference || image.reference == normalizedReference
         })
+    }
+
+    // Returns the locally stored image whose index descriptor digest matches the
+    // digest component of `reference`, or nil when the reference carries no digest
+    // or no local image matches.
+    static func matchByDigest(reference: String, in all: [ClientImage]) throws -> ClientImage? {
+        guard let digest = try Reference.parse(reference).digest else {
+            return nil
+        }
+        return all.first { $0.digest == digest }
     }
 
     public static func pull(
