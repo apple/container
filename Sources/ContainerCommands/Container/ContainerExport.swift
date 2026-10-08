@@ -67,7 +67,11 @@ extension Application {
                 }
                 try fileHandle.close()
             } else {
-                try FileManager.default.moveItem(at: archive, to: URL(fileURLWithPath: output!))
+                let outputURL = URL(fileURLWithPath: output!)
+                if FileManager.default.fileExists(atPath: outputURL.path(percentEncoded: false)) {
+                    try FileManager.default.removeItem(at: outputURL)
+                }
+                try FileManager.default.moveItem(at: archive, to: outputURL)
             }
         }
     }

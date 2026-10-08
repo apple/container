@@ -17,6 +17,7 @@
 import Configuration
 import ConfigurationTOML
 import ContainerizationError
+import Darwin
 import Foundation
 import SystemPackage
 
@@ -34,7 +35,6 @@ public enum ConfigurationLoader {
     private static let configFilename = "config.toml"
     private static let configDirectory = "config"
     private static let READ_ONLY: Int = 0o444
-    private static let READ_AND_WRITE: Int = 0o644
 
     /// Returns the configuration file path for a given base kind, resolving the base
     /// directory via `BaseConfigPath.basePath()` (env-driven, with fallbacks).
@@ -182,8 +182,8 @@ public enum ConfigurationLoader {
 
     /// Copies the user's runtime configuration into the app-root as a read-only snapshot.
     ///
-    /// If `source` does not exist, this is a no-op. Otherwise, any existing destination
-    /// is deleted and replaced with a fresh copy, which is then marked read-only.
+    /// If `source` does not exist, this is a no-op. Otherwise, the source is written to a
+    /// temporary file alongside the destination and then moved into place with `rename(2)`.
     ///
     /// - Parameters:
     ///   - source: File to copy from. Defaults to `<home>/container/config.toml`.
@@ -198,21 +198,28 @@ public enum ConfigurationLoader {
         let destPath = configurationFile(in: destBase)
 
         let fm = FileManager.default
-
-        if fm.fileExists(atPath: destPath.string) {
-            try fm.setAttributes([.posixPermissions: READ_AND_WRITE], ofItemAtPath: destPath.string)
-            try fm.removeItem(at: URL(filePath: destPath.string))
-        }
-
         guard fm.fileExists(atPath: sourcePath.string) else { return }
 
         let destDir = destPath.removingLastComponent()
         try fm.createDirectory(atPath: destDir.string, withIntermediateDirectories: true)
 
+        let tempPath = destDir.appending(".\(configFilename).\(ProcessInfo.processInfo.globallyUniqueString)")
+        defer { try? fm.removeItem(atPath: tempPath.string) }
+
         try fm.copyItem(
             at: URL(filePath: sourcePath.string),
-            to: URL(filePath: destPath.string)
+            to: URL(filePath: tempPath.string)
         )
-        try fm.setAttributes([.posixPermissions: READ_ONLY], ofItemAtPath: destPath.string)
+        try fm.setAttributes([.posixPermissions: READ_ONLY], ofItemAtPath: tempPath.string)
+
+        // `rename` replaces the file at `destination` without following symlinks and
+        // regardless of `destination`'s file permissions.
+        guard rename(tempPath.string, destPath.string) == 0 else {
+            let err = errno
+            throw ContainerizationError(
+                .internalError,
+                message: "failed to move '\(tempPath)' to '\(destPath)': \(String(cString: strerror(err)))"
+            )
+        }
     }
 }

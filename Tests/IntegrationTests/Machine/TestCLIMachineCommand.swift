@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerTestSupport
 import Containerization
 import Foundation
 import MachineAPIClient
@@ -42,7 +43,11 @@ struct TestCLIMachineCommand {
 
     @Test func testCreateNameLongestValid() async throws {
         try await ContainerFixture.with { f in
-            let maxNameLength = LinuxContainer.maxIDLength - MachineConfiguration.containerUUIDLength - 1
+            // Start with container ID or DNS label length, whichever is shorter.
+            // Reduce by length of UUID suffix.
+            // Reduce by 1 for dash separator between ID and suffix.
+            let maxHostnameLength = min(LinuxContainer.maxIDLength, 63)
+            let maxNameLength = maxHostnameLength - MachineConfiguration.containerUUIDLength - 2
             let name = String(repeating: "a", count: maxNameLength)
             f.addCleanup { f.cleanupMachine(name) }
             try f.doMachineCreate(name: name, image: machineImage)
@@ -56,6 +61,15 @@ struct TestCLIMachineCommand {
             let name = String(repeating: "a", count: maxNameLength + 1)
             let result = try f.runMachine(["create", "--no-boot", "--name", name, machineImage])
             #expect(result.status != 0, "create should reject names longer than max")
+        }
+    }
+
+    @Test func testCreateRejectsNonNumericUserGroup() async throws {
+        try await ContainerFixture.with { f in
+            let name = "\(f.testID)-machine"
+            let result = try f.runMachine(["create", "--no-boot", "--name", name, "--user", "devuser:notanumber", machineImage])
+            #expect(result.status != 0, "create should reject a non-numeric group in --user")
+            #expect(result.error.contains("must be numeric"), "error should explain the constraint")
         }
     }
 }

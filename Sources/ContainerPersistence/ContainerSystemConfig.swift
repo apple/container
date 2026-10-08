@@ -165,24 +165,25 @@ final public class VminitConfig: Codable, Sendable {
 }
 
 final public class KernelConfig: Codable, Sendable {
-    public static let defaultBinaryPath = "opt/kata/share/kata-containers/vmlinux-6.18.15-186"
+    public static let defaultBinaryPath = "opt/kata/share/kata-containers/vmlinux-6.18.35-197-debug"
     public static let defaultURL: URL =
-        URL(string: "https://github.com/kata-containers/kata-containers/releases/download/3.28.0/kata-static-3.28.0-arm64.tar.zst")!
+        URL(string: "https://github.com/kata-containers/kata-containers/releases/download/3.32.0/kata-static-3.32.0-arm64.tar.zst")!
+    public static let defaultDigest = "sha256:8736c054d9223974735394f822000823baef509e1c33405ec798240fa9b6e4b5"
 
     private enum CodingKeys: String, CodingKey {
         case binaryPath
         case url
+        case digest
     }
 
     public let binaryPath: String
     public let url: URL
+    public let digest: String
 
-    public init(
-        binaryPath: String = defaultBinaryPath,
-        url: URL = defaultURL
-    ) {
+    public init(binaryPath: String = defaultBinaryPath, url: URL = defaultURL, digest: String = defaultDigest) {
         self.binaryPath = binaryPath
         self.url = url
+        self.digest = digest
     }
 
     public init(from decoder: any Decoder) throws {
@@ -190,12 +191,26 @@ final public class KernelConfig: Codable, Sendable {
         self.binaryPath =
             try container.decodeIfPresent(String.self, forKey: .binaryPath)
             ?? Self.defaultBinaryPath
-        if let urlString = try container.decodeIfPresent(String.self, forKey: .url),
-            let parsed = URL(string: urlString)
-        {
+        if let urlString = try container.decodeIfPresent(String.self, forKey: .url) {
+            guard let parsed = URL(string: urlString) else {
+                throw DecodingError.dataCorruptedError(
+                    forKey: .url,
+                    in: container,
+                    debugDescription: "invalid kernel URL '\(urlString)'")
+            }
             self.url = parsed
         } else {
             self.url = Self.defaultURL
+        }
+        if let digest = try container.decodeIfPresent(String.self, forKey: .digest) {
+            self.digest = digest
+        } else if self.url.absoluteString == Self.defaultURL.absoluteString {
+            self.digest = Self.defaultDigest
+        } else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .digest,
+                in: container,
+                debugDescription: "kernel.digest is required when kernel.url is not the default URL")
         }
     }
 
@@ -209,6 +224,7 @@ final public class KernelConfig: Codable, Sendable {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(binaryPath, forKey: .binaryPath)
         try container.encode(url.absoluteString, forKey: .url)
+        try container.encode(digest, forKey: .digest)
     }
 }
 

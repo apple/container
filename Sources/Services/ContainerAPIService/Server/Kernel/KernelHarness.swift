@@ -35,6 +35,7 @@ public struct KernelHarness: Sendable {
         let kernelFilePath = try message.kernelFilePath()
         let platform = try message.platform()
         let force = try message.kernelForce()
+        let expectedDigest = message.kernelDigest()
 
         guard let kernelTarUrl = try message.kernelTarURL() else {
             // We have been given a path to a kernel binary on disk
@@ -47,7 +48,12 @@ public struct KernelHarness: Sendable {
 
         let progressUpdateService = ProgressUpdateService(message: message)
         try await self.service.installKernelFrom(
-            tar: kernelTarUrl, kernelFilePath: kernelFilePath, platform: platform, progressUpdate: progressUpdateService?.handler, force: force)
+            tar: kernelTarUrl,
+            kernelFilePath: kernelFilePath,
+            platform: platform,
+            progressUpdate: progressUpdateService?.handler,
+            expectedDigest: expectedDigest,
+            force: force)
         return message.reply()
     }
 
@@ -85,13 +91,17 @@ extension XPCMessage {
         guard let kernelTarURLString = self.string(key: .kernelTarURL) else {
             return nil
         }
-        guard let k = URL(string: kernelTarURLString) else {
-            throw ContainerizationError(.invalidArgument, message: "cannot parse URL from \(kernelTarURLString)")
+        if let k = URL(string: kernelTarURLString), k.scheme != nil {
+            return k
         }
-        return k
+        return URL(fileURLWithPath: kernelTarURLString)
     }
 
     fileprivate func kernelForce() throws -> Bool {
         self.bool(key: .kernelForce)
+    }
+
+    fileprivate func kernelDigest() -> String? {
+        self.string(key: .kernelDigest)
     }
 }

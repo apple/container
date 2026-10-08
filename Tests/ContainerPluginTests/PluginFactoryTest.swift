@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerizationError
 import Foundation
 import Logging
 import Testing
@@ -327,5 +328,79 @@ struct PluginFactoryTest {
 
         #expect(plugin.name == name)
         #expect(plugin.config.abstract == "TOML service")
+    }
+
+    @Test
+    func testDefaultFactoryRejectsTraversalName() async throws {
+        let fm = FileManager.default
+        let tempURL = try fm.url(
+            for: .itemReplacementDirectory,
+            in: .userDomainMask,
+            appropriateFor: .temporaryDirectory,
+            create: true
+        )
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        // A complete, loadable plugin layout planted outside the plugin parent directory.
+        let outsideURL = tempURL.appending(path: "outside")
+        let binDirURL = outsideURL.appending(path: "bin")
+        try fm.createDirectory(at: binDirURL, withIntermediateDirectories: true)
+        try "abstract = \"payload\"\nauthor = \"Apple\""
+            .write(to: outsideURL.appending(path: "config.toml"), atomically: true, encoding: .utf8)
+        try "".write(to: binDirURL.appending(path: "outside"), atomically: true, encoding: .utf8)
+
+        let pluginParent = tempURL.appending(path: "plugins")
+        try fm.createDirectory(at: pluginParent, withIntermediateDirectories: true)
+
+        let factory = DefaultPluginFactory(logger: Logger(label: "test"))
+        #expect(throws: ContainerizationError.self) {
+            try factory.create(parentURL: pluginParent, name: "../outside")
+        }
+    }
+
+    @Test
+    func testDefaultFactoryRejectsParentDirectoryName() async throws {
+        let factory = DefaultPluginFactory(logger: Logger(label: "test"))
+        #expect(throws: ContainerizationError.self) {
+            try factory.create(parentURL: URL(fileURLWithPath: "/tmp"), name: "..")
+        }
+    }
+
+    @Test
+    func testDefaultFactoryRejectsNullByteTraversalName() async throws {
+        let factory = DefaultPluginFactory(logger: Logger(label: "test"))
+        #expect(throws: ContainerizationError.self) {
+            try factory.create(parentURL: URL(fileURLWithPath: "/tmp"), name: "evil\u{0}/../../../../etc")
+        }
+    }
+
+    @Test
+    func testAppBundleFactoryRejectsTraversalName() async throws {
+        let fm = FileManager.default
+        let tempURL = try fm.url(
+            for: .itemReplacementDirectory,
+            in: .userDomainMask,
+            appropriateFor: .temporaryDirectory,
+            create: true
+        )
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        // A complete, loadable app-bundle plugin layout planted outside the plugin parent directory.
+        let outsideURL = tempURL.appending(path: "outside.app")
+        let resourcesURL = outsideURL.appending(path: "Contents").appending(path: "Resources")
+        try fm.createDirectory(at: resourcesURL, withIntermediateDirectories: true)
+        try "abstract = \"payload\"\nauthor = \"Apple\""
+            .write(to: resourcesURL.appending(path: "config.toml"), atomically: true, encoding: .utf8)
+        let macosURL = outsideURL.appending(path: "Contents").appending(path: "MacOS")
+        try fm.createDirectory(at: macosURL, withIntermediateDirectories: true)
+        try "".write(to: macosURL.appending(path: "outside"), atomically: true, encoding: .utf8)
+
+        let pluginParent = tempURL.appending(path: "plugins")
+        try fm.createDirectory(at: pluginParent, withIntermediateDirectories: true)
+
+        let factory = AppBundlePluginFactory(logger: Logger(label: "test"))
+        #expect(throws: ContainerizationError.self) {
+            try factory.create(parentURL: pluginParent, name: "../outside")
+        }
     }
 }

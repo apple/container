@@ -62,6 +62,14 @@ public struct ContainerConfiguration: Sendable, Codable {
     public var shmSize: UInt64?
     /// Signal to send to the container process on stop (from image config).
     public var stopSignal: String?
+    /// Paths inside the container to hide from the workload. When nil, the
+    /// runtime's default set is used. Set to `[]` to opt out, or provide a
+    /// custom list to override the default entirely.
+    public var maskedPaths: [String]?
+    /// Paths inside the container to mark read-only. When nil, the runtime's
+    /// default set is used. Set to `[]` to opt out, or provide a custom list
+    /// to override the default entirely.
+    public var readonlyPaths: [String]?
     /// The time at which the container was created.
     public var creationDate: Date = Date()
 
@@ -88,6 +96,8 @@ public struct ContainerConfiguration: Sendable, Codable {
         case capDrop
         case shmSize
         case stopSignal
+        case maskedPaths
+        case readonlyPaths
         case creationDate
     }
 
@@ -124,6 +134,8 @@ public struct ContainerConfiguration: Sendable, Codable {
         capDrop = try container.decodeIfPresent([String].self, forKey: .capDrop) ?? []
         shmSize = try container.decodeIfPresent(UInt64.self, forKey: .shmSize)
         stopSignal = try container.decodeIfPresent(String.self, forKey: .stopSignal)
+        maskedPaths = try container.decodeIfPresent([String].self, forKey: .maskedPaths)
+        readonlyPaths = try container.decodeIfPresent([String].self, forKey: .readonlyPaths)
         creationDate = try container.decodeIfPresent(Date.self, forKey: .creationDate) ?? Date(timeIntervalSince1970: 0)
     }
 

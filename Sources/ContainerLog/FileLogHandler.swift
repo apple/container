@@ -60,15 +60,7 @@ public struct FileLogHandler: LogHandler {
         self.fileHandle.seekToEndOfFile()
     }
 
-    public func log(
-        level: Logger.Level,
-        message: Logger.Message,
-        metadata: Logger.Metadata?,
-        source: String,
-        file: String,
-        function: String,
-        line: UInt
-    ) {
+    public func log(event: LogEvent) {
         let timestampFormatter: ISO8601DateFormatter = {
             let formatter = ISO8601DateFormatter()
             formatter.formatOptions.insert(.withFractionalSeconds)
@@ -78,15 +70,15 @@ public struct FileLogHandler: LogHandler {
 
         // Merge logger-level metadata with per-message metadata
         var effectiveMetadata = self.metadata
-        if let metadata {
+        if let metadata = event.metadata {
             effectiveMetadata.merge(metadata) { _, new in new }
         }
 
         let text: String
         if !effectiveMetadata.isEmpty {
-            text = "\(timestamp) [\(level)] \(label) \(category) \(effectiveMetadata.description): \(message)\n"
+            text = "\(timestamp) [\(event.level)] \(label) \(category) \(effectiveMetadata.description): \(event.message)\n"
         } else {
-            text = "\(timestamp) [\(level)] \(label): \(category) \(message)\n"
+            text = "\(timestamp) [\(event.level)] \(label): \(category) \(event.message)\n"
         }
         if let data = text.data(using: .utf8) {
             fileHandle.write(data)

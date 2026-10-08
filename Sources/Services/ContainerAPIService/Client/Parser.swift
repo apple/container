@@ -94,6 +94,50 @@ public struct Parser {
         return (user, supplementalGroups)
     }
 
+    /// Resolve a username/uid/gid triple for an account that's about to be created (as opposed
+    /// to `user(user:uid:gid:defaultUser:)`, which selects an *existing* identity to run a
+    /// process as). `user` uses the same `<name|uid>[:<gid>]` format, but unlike
+    /// `user(user:uid:gid:defaultUser:)` the group component must be numeric — there's no existing
+    /// `/etc/group` on the not-yet-created account to resolve a group name against.
+    ///
+    /// Each of the three pieces is resolved independently, falling back in order from `user`, to
+    /// the matching `uid`/`gid` argument, to the default. `user` only wins outright over `uid`/`gid`
+    /// when it actually specifies that piece (e.g. `--user 1500 --uid 9999` keeps 1500) — a bare
+    /// name in `user` doesn't specify a uid/gid, so `uid`/`gid` still apply in that case.
+    public static func userAccount(
+        user: String?, uid: UInt32?, gid: UInt32?,
+        defaultUsername: String, defaultUID: UInt32, defaultGID: UInt32
+    ) throws -> (username: String, uid: UInt32, gid: UInt32) {
+        var username = defaultUsername
+        var resolvedUID: UInt32?
+        var resolvedGID: UInt32?
+
+        if let user, !user.isEmpty {
+            let parts = user.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
+            let primary = String(parts[0])
+
+            if !primary.isEmpty {
+                if let uidValue = UInt32(primary) {
+                    resolvedUID = uidValue
+                } else {
+                    username = primary
+                }
+            }
+
+            if parts.count == 2 {
+                guard let gidValue = UInt32(parts[1]) else {
+                    throw ContainerizationError(
+                        .invalidArgument,
+                        message: "invalid group '\(parts[1])' in --user '\(user)': group must be numeric"
+                    )
+                }
+                resolvedGID = gidValue
+            }
+        }
+
+        return (username, resolvedUID ?? uid ?? defaultUID, resolvedGID ?? gid ?? defaultGID)
+    }
+
     public static func platform(os: String, arch: String) -> ContainerizationOCI.Platform {
         .init(arch: arch, os: os)
     }
@@ -125,7 +169,9 @@ public struct Parser {
 
     public static func allEnv(imageEnvs: [String], envFiles: [String], envs: [String]) throws -> [String] {
         var combined: [String] = []
-        combined.append(contentsOf: Parser.env(envList: imageEnvs))
+        // Image config is untrusted. Bare env var names here must not be expanded from the host
+        // process's environment.
+        combined.append(contentsOf: imageEnvs.filter { $0.contains("=") })
         for envFile in envFiles {
             let content = try Parser.envFile(path: envFile)
             combined.append(contentsOf: content)
@@ -285,7 +331,8 @@ public struct Parser {
             if let entrypoint = managementFlags.entrypoint, !entrypoint.isEmpty {
                 result = [entrypoint]
                 hasEntrypointOverride = true
-            } else if let entrypoint = config?.entrypoint, !entrypoint.isEmpty {
+            } else if let entrypoint = config?.entrypoint, !entrypoint.isEmpty, entrypoint != [""] {
+                // A single empty string clears the image entrypoint.
                 result = entrypoint
             }
             if !arguments.isEmpty {
@@ -316,7 +363,7 @@ public struct Parser {
         let rlimits = try Parser.rlimits(processFlags.ulimits)
 
         return .init(
-            executable: commandToRun.first!,
+            executable: commandToRun[0],
             arguments: [String](commandToRun.dropFirst()),
             environment: envvars,
             workingDirectory: workingDir,
@@ -338,11 +385,31 @@ public struct Parser {
     public static let defaultDirectives = ["type": "virtiofs"]
 
     public static func tmpfsMounts(_ mounts: [String]) throws -> [Filesystem] {
-        let mounts = mounts.dedupe()
         var result: [Filesystem] = []
         result.reserveCapacity(mounts.count)
+        var seenDestinations: Set<String> = []
+
         for tmpfs in mounts {
-            let fs = Filesystem.tmpfs(destination: tmpfs, options: [])
+            let parts = tmpfs.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
+            let destination = String(parts[0])
+            let options = parts.count == 2 ? String(parts[1]).split(separator: ",").map(String.init) : []
+
+            if destination.isEmpty {
+                throw ContainerizationError(.invalidArgument, message: "mount destination cannot be empty")
+            }
+
+            let filePath = FilePath(destination)
+            guard filePath.isAbsolute else {
+                throw ContainerizationError(.invalidArgument, message: "\(destination) is not an absolute path")
+            }
+
+            let normalizedDest = filePath.lexicallyNormalized().string
+            if seenDestinations.contains(normalizedDest) {
+                continue
+            }
+            seenDestinations.insert(normalizedDest)
+
+            let fs = Filesystem.tmpfs(destination: destination, options: options)
             try validateMount(.filesystem(fs))
             result.append(fs)
         }
@@ -411,6 +478,7 @@ public struct Parser {
                     fs.type = Filesystem.FSType.virtiofs
                 case "tmpfs":
                     fs.type = Filesystem.FSType.tmpfs
+                    fs.source = "tmpfs"
                 case "volume":
                     isVolume = true
                 default:
@@ -1052,6 +1120,60 @@ public struct Parser {
         }
 
         return (normalizedAdd, normalizedDrop)
+    }
+
+    // MARK: Security paths
+
+    /// Sentinel that clears all previously accumulated paths, including the runtime defaults.
+    private static let pathResetSentinel = "NONE"
+
+    /// Parse and validate --masked-path arguments.
+    ///
+    /// Values are processed in order on top of the runtime default set, so
+    /// `--masked-path /foo` yields the defaults plus `/foo`. The `NONE` sentinel
+    /// clears everything accumulated so far, including the defaults. A nil result
+    /// means the flag was not supplied and the runtime defaults apply unchanged.
+    public static func maskedPaths(_ values: [String]) throws -> [String]? {
+        try pathOverrides(values, defaults: LinuxContainer.defaultMaskedPaths(), flagName: "masked-path")
+    }
+
+    /// Parse and validate --read-only-path arguments. Ordering, the `NONE`
+    /// sentinel, and the nil result carry the same meaning as ``maskedPaths(_:)``.
+    public static func readonlyPaths(_ values: [String]) throws -> [String]? {
+        try pathOverrides(values, defaults: LinuxContainer.defaultReadonlyPaths(), flagName: "read-only-path")
+    }
+
+    /// Accumulate absolute paths on top of `defaults`, honoring the `NONE` reset
+    /// sentinel and dropping duplicates while preserving first-occurrence order.
+    private static func pathOverrides(_ values: [String], defaults: [String], flagName: String) throws -> [String]? {
+        guard !values.isEmpty else {
+            return nil
+        }
+        var paths = defaults
+        var seen = Set(defaults)
+        for value in values {
+            let trimmed = value.trimmingCharacters(in: .whitespaces)
+            if trimmed.uppercased() == pathResetSentinel {
+                paths = []
+                seen = []
+                continue
+            }
+            guard trimmed.hasPrefix("/") else {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "invalid path '\(value)' for --\(flagName): path must be absolute, or the \(pathResetSentinel) sentinel"
+                )
+            }
+            // Strip trailing slashes, preserving the root path itself.
+            var normalized = trimmed
+            while normalized.count > 1 && normalized.hasSuffix("/") {
+                normalized.removeLast()
+            }
+            if seen.insert(normalized).inserted {
+                paths.append(normalized)
+            }
+        }
+        return paths
     }
 
     // MARK: Miscellaneous

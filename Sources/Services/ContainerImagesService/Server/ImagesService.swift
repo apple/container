@@ -302,7 +302,7 @@ public actor ImagesService {
         for image in images {
             guard activeReferences.contains(image.reference) else { continue }
             activeCount += 1
-            let imageDigest = image.digest.trimmingDigestPrefix
+            let imageDigest = try image.digest.validatedDigestEncoding()
             guard processedDigests.insert(imageDigest).inserted else { continue }
 
             for digest in try await image.referencedDigests() where activeContentSizes[digest] == nil {

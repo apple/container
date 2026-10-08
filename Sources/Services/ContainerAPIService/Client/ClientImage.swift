@@ -320,7 +320,7 @@ extension ClientImage {
     public static func pull(
         reference: String,
         platform: Platform? = nil,
-        scheme: RequestScheme = .auto,
+        scheme: RequestScheme = .https,
         containerSystemConfig: ContainerSystemConfig,
         progressUpdate: ProgressUpdateHandler? = nil,
         maxConcurrentDownloads: Int = 3
@@ -427,7 +427,7 @@ extension ClientImage {
     public static func fetch(
         reference: String,
         platform: Platform? = nil,
-        scheme: RequestScheme = .auto,
+        scheme: RequestScheme = .https,
         containerSystemConfig: ContainerSystemConfig,
         progressUpdate: ProgressUpdateHandler? = nil,
         maxConcurrentDownloads: Int = 3

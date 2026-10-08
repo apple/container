@@ -44,7 +44,7 @@ public enum Output {
     /// Renders an `Encodable` value as a JSON string.
     public static func renderJSON<T: Encodable>(_ value: T, options: JSONOptions = .compact) throws -> String {
         let encoder = JSONEncoder()
-        encoder.outputFormatting = options.outputFormatting
+        encoder.outputFormatting = options.outputFormatting.union(.withoutEscapingSlashes)
         encoder.dateEncodingStrategy = options.dateEncodingStrategy
         let data = try encoder.encode(value)
         return String(decoding: data, as: UTF8.self)
@@ -94,7 +94,8 @@ public enum Output {
     /// adopting commands handle every format by construction: a new `ListFormat`
     /// case becomes a compile error here until it is given an encoder.
     public static func render<J: Encodable>(
-        payload: J, format: ListFormat, jsonOptions: JSONOptions = .compact, table: () throws -> String
+        payload: J, format: ListFormat, jsonOptions: JSONOptions = .compact,
+        emit: (String) -> Void = Output.emit, table: () throws -> String
     ) throws {
         switch format {
         case .json: try emit(renderJSON(payload, options: jsonOptions))

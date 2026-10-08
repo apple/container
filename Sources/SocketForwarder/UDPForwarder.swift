@@ -26,6 +26,12 @@ private final class UDPProxyBackend: ChannelInboundHandler {
     typealias InboundIn = AddressedEnvelope<ByteBuffer>
     typealias OutboundOut = AddressedEnvelope<ByteBuffer>
 
+    // Datagrams sent by the client before the outbound backend channel finishes binding are
+    // queued here. The window is normally tiny (a local bind, not a network round-trip), so this
+    // cap is a safety valve, not the primary defense. UDP has no delivery guarantee, so dropping
+    // the newest datagram once full is an acceptable, protocol-consistent fallback.
+    private static let maxQueuedPayloads = 8
+
     private struct State {
         var queuedPayloads: Deque<ByteBuffer>
         var channel: (any Channel)?
@@ -72,10 +78,12 @@ private final class UDPProxyBackend: ChannelInboundHandler {
             self.log?.trace("backend - writing datagram to server")
             let outbound: UDPProxyBackend.OutboundOut = OutboundOut(remoteAddress: self.serverAddress, data: data)
             channel.writeAndFlush(outbound, promise: nil)
-        } else {
+        } else if state.queuedPayloads.count < Self.maxQueuedPayloads {
             // channel is initializing, queue
             self.log?.trace("backend - queuing datagram")
             state.queuedPayloads.append(data)
+        } else {
+            self.log?.trace("backend - queue full, dropping datagram")
         }
     }
 

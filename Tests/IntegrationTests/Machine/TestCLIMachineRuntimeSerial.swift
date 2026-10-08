@@ -14,7 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import Darwin
+import ContainerTestSupport
 import Foundation
 import Testing
 
@@ -202,6 +202,54 @@ struct TestCLIMachineRuntimeSerial {
 
             let output = try f.doMachineRun(name: name, root: true, cwd: "/tmp", command: ["pwd"])
             #expect(output.trimmingCharacters(in: .whitespacesAndNewlines) == "/tmp")
+        }
+    }
+
+    @Test func testReadonlyPathsEmpty() async throws {
+        try await ContainerFixture.with { f in
+            let name = "\(f.testID)-machine"
+            f.addCleanup { f.cleanupMachine(name) }
+            try f.doMachineCreate(name: name, image: machineImage)
+            try f.doMachineBoot(name: name)
+            try await f.waitForMachineStatus(name, status: "running")
+
+            // Verify there are no default readonlyPaths on the container config.
+            let inspect = try f.doMachineInspect(name: name)
+            let containerId = try #require(inspect.containerId, "running machine should have a containerId")
+            let containerInspect = try f.inspectContainer(containerId)
+            #expect(containerInspect.configuration.readonlyPaths == [], "machines should not have any readonly paths by default")
+
+            // /proc/sys is one of the default mount readonly paths. Check that we can write to this path.
+            let write = try f.runMachine([
+                "run", "-n", name, "--root",
+                "sh", "-c", "echo test > /proc/sys/kernel/domainname && echo WROTE",
+            ])
+            #expect(write.status == 0)
+            #expect(write.output.trimmingCharacters(in: .whitespacesAndNewlines) == "WROTE")
+        }
+    }
+
+    @Test func testMaskedPathsEmpty() async throws {
+        try await ContainerFixture.with { f in
+            let name = "\(f.testID)-machine"
+            f.addCleanup { f.cleanupMachine(name) }
+            try f.doMachineCreate(name: name, image: machineImage)
+            try f.doMachineBoot(name: name)
+            try await f.waitForMachineStatus(name, status: "running")
+
+            // Verify there are no default maskedPaths on the container config.
+            let inspect = try f.doMachineInspect(name: name)
+            let containerId = try #require(inspect.containerId, "running machine should have a containerId")
+            let containerInspect = try f.inspectContainer(containerId)
+            #expect(containerInspect.configuration.maskedPaths == [], "machines should not have any masked paths by default")
+
+            // /proc/timer_list is one of the default masked paths. Check that we can read the file and get a response.
+            let byteCount = try f.runMachine([
+                "run", "-n", name, "--root",
+                "cat", "/proc/timer_list",
+            ])
+            #expect(byteCount.status == 0)
+            #expect(!byteCount.output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
     }
 
@@ -527,6 +575,105 @@ struct TestCLIMachineRuntimeSerial {
             let home = try f.doMachineRun(name: name, command: ["echo", "$HOME"])
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             #expect(home == "/home/\(NSUserName())")
+        }
+    }
+
+    @Test func testUserSetupRerunsAcrossRestart() async throws {
+        try await ContainerFixture.with { f in
+            let name = "\(f.testID)-machine"
+            f.addCleanup { f.cleanupMachine(name) }
+            try f.doMachineCreate(name: name, image: machineImage)
+            try f.doMachineBoot(name: name)
+            try await f.waitForMachineStatus(name, status: "running")
+            try f.doMachineStop(name: name)
+
+            try f.doMachineBoot(name: name)
+            try await f.waitForMachineStatus(name, status: "running")
+
+            let username = NSUserName()
+            let passwdCount = try f.doMachineRun(
+                name: name, root: true,
+                command: ["grep", "-c", "^\(username):", "/etc/passwd"]
+            ).trimmingCharacters(in: .whitespacesAndNewlines)
+            #expect(passwdCount == "1", "user setup re-running on restart should not duplicate the passwd entry")
+
+            let sudoers = try f.doMachineRun(
+                name: name, root: true,
+                command: ["cat", "/etc/sudoers.d/\(username)"]
+            ).trimmingCharacters(in: .whitespacesAndNewlines)
+            #expect(sudoers == "\(username) ALL=(ALL) NOPASSWD:ALL")
+        }
+    }
+
+    @Test func testCreateWithCustomUser() async throws {
+        try await ContainerFixture.with { f in
+            let name = "\(f.testID)-machine"
+            f.addCleanup { f.cleanupMachine(name) }
+            try f.doMachineCreate(
+                name: name, image: machineImage,
+                extraArgs: ["--user", "devuser", "--uid", "1500", "--gid", "1600"])
+            try f.doMachineBoot(name: name)
+            try await f.waitForMachineStatus(name, status: "running")
+
+            let uid = try f.doMachineRun(name: name, command: ["id", "-u"])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let gid = try f.doMachineRun(name: name, command: ["id", "-g"])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let username = try f.doMachineRun(name: name, command: ["id", "-un"])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let home = try f.doMachineRun(name: name, command: ["echo", "$HOME"])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            #expect(uid == "1500")
+            #expect(gid == "1600")
+            #expect(username == "devuser")
+            #expect(home == "/home/devuser")
+
+            let sudoers = try f.doMachineRun(
+                name: name, root: true,
+                command: ["cat", "/etc/sudoers.d/devuser"]
+            ).trimmingCharacters(in: .whitespacesAndNewlines)
+            #expect(sudoers == "devuser ALL=(ALL) NOPASSWD:ALL")
+        }
+    }
+
+    @Test func testCreateWithUidGidOnlyKeepsHostUsername() async throws {
+        try await ContainerFixture.with { f in
+            let name = "\(f.testID)-machine"
+            f.addCleanup { f.cleanupMachine(name) }
+            try f.doMachineCreate(
+                name: name, image: machineImage,
+                extraArgs: ["--uid", "1500", "--gid", "1600"])
+            try f.doMachineBoot(name: name)
+            try await f.waitForMachineStatus(name, status: "running")
+
+            let uid = try f.doMachineRun(name: name, command: ["id", "-u"])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let username = try f.doMachineRun(name: name, command: ["id", "-un"])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            #expect(uid == "1500")
+            #expect(username == NSUserName(), "username should stay host-derived when only --uid/--gid are set")
+        }
+    }
+
+    @Test func testCreateWithCustomHome() async throws {
+        try await ContainerFixture.with { f in
+            let name = "\(f.testID)-machine"
+            f.addCleanup { f.cleanupMachine(name) }
+            try f.doMachineCreate(
+                name: name, image: machineImage,
+                extraArgs: ["--home", "/srv/devhome"])
+            try f.doMachineBoot(name: name)
+            try await f.waitForMachineStatus(name, status: "running")
+
+            let home = try f.doMachineRun(name: name, command: ["echo", "$HOME"])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            #expect(home == "/srv/devhome")
+
+            let listing = try f.doMachineRun(
+                name: name, root: true,
+                command: ["ls", "-ld", "/srv/devhome"]
+            ).trimmingCharacters(in: .whitespacesAndNewlines)
+            #expect(listing.hasPrefix("d"), "custom home directory should have been created")
         }
     }
 
@@ -879,52 +1026,7 @@ struct TestCLIMachineRuntimeSerial {
             let name = "\(f.testID)-machine"
             f.addCleanup { f.cleanupMachine(name) }
 
-            // sockaddr_un.sun_path is 104 bytes on macOS — use /tmp to keep
-            // the path short enough to fit regardless of the project directory depth.
-            let socketDir = "/tmp/\(f.testID)-ssh"
-            try FileManager.default.createDirectory(
-                atPath: socketDir, withIntermediateDirectories: true)
-            f.addCleanup { try? FileManager.default.removeItem(atPath: socketDir) }
-            let socketPath = socketDir + "/ssh-auth.sock"
-
-            let serverFd = socket(AF_UNIX, SOCK_STREAM, 0)
-            guard serverFd >= 0 else {
-                Issue.record("socket() failed")
-                return
-            }
-            defer { Darwin.close(serverFd) }
-
-            var addr = sockaddr_un()
-            addr.sun_family = sa_family_t(AF_UNIX)
-            withUnsafeMutableBytes(of: &addr.sun_path) { bytes in
-                socketPath.withCString { cStr in
-                    bytes.copyMemory(
-                        from: UnsafeRawBufferPointer(
-                            start: cStr, count: socketPath.utf8.count + 1))
-                }
-            }
-            let bindResult = withUnsafePointer(to: addr) { ptr in
-                ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-                    bind(serverFd, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
-                }
-            }
-            guard bindResult == 0 else {
-                Issue.record("bind() failed")
-                return
-            }
-            guard listen(serverFd, 5) == 0 else {
-                Issue.record("listen() failed")
-                return
-            }
-
-            let acceptThread = Thread {
-                while true {
-                    let clientFd = accept(serverFd, nil, nil)
-                    if clientFd < 0 { break }
-                    Darwin.close(clientFd)
-                }
-            }
-            acceptThread.start()
+            let socketPath = try f.makeFakeSSHAgentSocket()
             try await Task.sleep(for: .seconds(1))
 
             try f.doMachineCreate(name: name, image: machineImage)
