@@ -1030,4 +1030,33 @@ struct TestCLIBuilder {
             try f.assertImageBuilt(image)
         }
     }
+
+    /// Regression test for issue #2037: `container build` with single file COPY and no `.dockerignore`.
+    /// Verifies context files under symlinked parent paths (like /tmp on macOS) are transferred properly.
+    @Test func testBuildContextSingleFileCOPY() async throws {
+        try await ContainerFixture.with { f in
+            let dir = try f.createTempDir()
+            let dockerfile = """
+                FROM ghcr.io/linuxcontainers/alpine:3.20
+                COPY staged-run.sh /run.sh
+                RUN cat /run.sh
+                """
+            try f.createContext(
+                dir: dir,
+                dockerfile: dockerfile,
+                context: [
+                    .file("staged-run.sh", content: .data(Data("#!/bin/sh\necho hello\n".utf8)))
+                ])
+
+            let image = "registry.local/build-context-single-file:\(UUID().uuidString)"
+            try f.build(tag: image, contextDir: dir)
+            try f.assertImageBuilt(image)
+
+            let containerName = "test-repro-2037-\(UUID().uuidString)"
+            try f.run(["run", "-d", "--name", containerName, image, "sleep", "60"]).check()
+            defer { try? f.run(["rm", "-f", containerName]) }
+
+            try f.assertContainerHasFile(containerName, at: "/run.sh", "/run.sh should exist in image")
+        }
+    }
 }
