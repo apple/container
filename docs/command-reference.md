@@ -595,6 +595,8 @@ container image list [--format <format>] [--quiet] [--verbose] [--debug]
 
 Pulls an image from a registry. Supports specifying a platform and controlling progress display.
 
+`container pull` is a shortcut for `container image pull` and accepts the same arguments and options.
+
 **Usage**
 
 ```bash

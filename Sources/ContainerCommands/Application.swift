@@ -74,6 +74,7 @@ public struct Application: AsyncLoggableCommand {
                 name: "Image",
                 subcommands: [
                     ImageCommand.self,
+                    ImagePull.self,
                     RegistryCommand.self,
                 ]
             ),
