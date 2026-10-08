@@ -149,3 +149,59 @@ private struct _LegacyPluginInfo: Codable {
     let plugin: String
     let variant: String?
 }
+
+/// Intermediate representation for loading network configuration from a JSON file.
+///
+/// Only `mode` is required. All other fields have sensible defaults.
+/// The network name (ID) is provided separately via the CLI argument, not the file.
+public struct NetworkConfigurationFile: Codable, Sendable {
+    /// The network type (e.g. "nat", "hostOnly").
+    public let mode: NetworkMode
+
+    /// The preferred CIDR address for the IPv4 subnet, if specified.
+    public let ipv4Subnet: String?
+
+    /// The preferred CIDR address for the IPv6 subnet, if specified.
+    public let ipv6Subnet: String?
+
+    /// Key-value labels for the network.
+    public let labels: [String: String]?
+
+    /// The network plugin that manages this network.
+    public let plugin: String?
+
+    /// Plugin-specific options for this network.
+    public let options: [String: String]?
+
+    public init(
+        mode: NetworkMode,
+        ipv4Subnet: String? = nil,
+        ipv6Subnet: String? = nil,
+        labels: [String: String]? = nil,
+        plugin: String? = nil,
+        options: [String: String]? = nil
+    ) {
+        self.mode = mode
+        self.ipv4Subnet = ipv4Subnet
+        self.ipv6Subnet = ipv6Subnet
+        self.labels = labels
+        self.plugin = plugin
+        self.options = options
+    }
+
+    /// Convert to a full ``NetworkConfiguration`` using the supplied network ID.
+    public func toNetworkConfiguration(id: String) throws -> NetworkConfiguration {
+        let v4 = try ipv4Subnet.map { try CIDRv4($0) }
+        let v6 = try ipv6Subnet.map { try CIDRv6($0) }
+        let resourceLabels = try ResourceLabels(labels ?? [:])
+        return try NetworkConfiguration(
+            name: id,
+            mode: mode,
+            ipv4Subnet: v4,
+            ipv6Subnet: v6,
+            labels: resourceLabels,
+            plugin: plugin ?? "container-network-vmnet",
+            options: options ?? [:]
+        )
+    }
+}
