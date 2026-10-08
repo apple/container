@@ -50,6 +50,12 @@ extension Application {
             transform: { FilePath(FileManager.default.currentDirectoryPath).resolve($0, defaultPath: FilePath($0)) })
         var logRoot: FilePath? = nil
 
+        @Option(
+            name: .long,
+            help: "Path to the root directory for launchd service registration files; must reside on an internal volume",
+            transform: { FilePath(FileManager.default.currentDirectoryPath).resolve($0, defaultPath: FilePath($0)) })
+        var serviceRoot = ServiceRoot.path
+
         @Flag(
             name: .long,
             inversion: .prefixedEnableDisable,
@@ -109,6 +115,7 @@ extension Application {
             var env = PluginLoader.filterEnvironment()
             env[ApplicationRoot.environmentName] = appRoot.string
             env[InstallRoot.environmentName] = installRoot.string
+            env[ServiceRoot.environmentName] = serviceRoot.string
             if let logRoot {
                 env[LogRoot.environmentName] = logRoot.string
             }
@@ -121,8 +128,20 @@ extension Application {
                 machServices: ["com.apple.container.apiserver"]
             )
 
-            let plistPath = apiServerDataPath.appending(FilePath.Component("apiserver.plist"))
-            let plistURL = URL(fileURLWithPath: plistPath.string)
+            // Write the plist under serviceRoot, intentionally separate from appRoot.
+            // launchd cannot register Mach services from plists on external or removable
+            // volumes; keeping service files on the internal system volume (serviceRoot)
+            // while application data lives in appRoot preserves that guarantee even when
+            // the user's home directory is on an external volume.
+            // CONTAINER_SERVICE_ROOT is forwarded into the plist environment so the
+            // daemon's PluginLoader writes plugin plists to the same root without
+            // requiring any additional wiring at other call sites.
+            let plistDir =
+                serviceRoot
+                .appending(FilePath.Component("apiserver"))
+            let plistDirURL = URL(fileURLWithPath: plistDir.string)
+            try FileManager.default.createDirectory(at: plistDirURL, withIntermediateDirectories: true)
+            let plistURL = plistDirURL.appendingPathComponent("apiserver.plist")
             let data = try plist.encode()
             try data.write(to: plistURL)
 
