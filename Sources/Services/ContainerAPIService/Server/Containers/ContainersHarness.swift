@@ -318,20 +318,27 @@ public struct ContainersHarness: Sendable {
                 message: "id cannot be empty"
             )
         }
-        guard let sourcePath = message.string(key: .sourcePath) else {
-            throw ContainerizationError(
-                .invalidArgument,
-                message: "source path cannot be empty"
-            )
-        }
         guard let destinationPath = message.string(key: .destinationPath) else {
             throw ContainerizationError(
                 .invalidArgument,
                 message: "destination path cannot be empty"
             )
         }
-        let mode = UInt32(message.uint64(key: .fileMode))
         let createParents = message.bool(key: .createParents)
+
+        if let archive = message.fileHandle(key: .archiveFd) {
+            defer { try? archive.close() }
+            try await service.copyIn(id: id, archive: archive, destination: destinationPath, createParents: createParents)
+            return message.reply()
+        }
+
+        guard let sourcePath = message.string(key: .sourcePath) else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "source path cannot be empty"
+            )
+        }
+        let mode = UInt32(message.uint64(key: .fileMode))
 
         try await service.copyIn(id: id, source: sourcePath, destination: destinationPath, mode: mode, createParents: createParents)
         return message.reply()
@@ -351,6 +358,13 @@ public struct ContainersHarness: Sendable {
                 message: "source path cannot be empty"
             )
         }
+
+        if let archive = message.fileHandle(key: .archiveFd) {
+            defer { try? archive.close() }
+            try await service.copyOut(id: id, source: sourcePath, archive: archive)
+            return message.reply()
+        }
+
         guard let destinationPath = message.string(key: .destinationPath) else {
             throw ContainerizationError(
                 .invalidArgument,

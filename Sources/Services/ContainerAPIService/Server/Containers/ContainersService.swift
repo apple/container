@@ -786,6 +786,30 @@ public actor ContainersService {
         try await client.copyOut(source: source, destination: destination, createParents: createParents)
     }
 
+    /// Extract a tar stream read from `archive` into a container directory.
+    public func copyIn(id: String, archive: FileHandle, destination: String, createParents: Bool = true) async throws {
+        self.log.debug("\(#function)")
+
+        let state = try self._getContainerState(id: id)
+        guard state.snapshot.status == .running else {
+            throw ContainerizationError(.invalidState, message: "container \(id) is not running")
+        }
+        let client = try state.getClient()
+        try await client.copyIn(archive: archive, destination: destination, createParents: createParents)
+    }
+
+    /// Write a container path to `archive` as a tar stream.
+    public func copyOut(id: String, source: String, archive: FileHandle) async throws {
+        self.log.debug("\(#function)")
+
+        let state = try self._getContainerState(id: id)
+        guard state.snapshot.status == .running else {
+            throw ContainerizationError(.invalidState, message: "container \(id) is not running")
+        }
+        let client = try state.getClient()
+        try await client.copyOut(source: source, archive: archive)
+    }
+
     /// Get statistics for the container.
     public func stats(id: String) async throws -> ContainerStats {
         log.debug(

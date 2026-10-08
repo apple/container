@@ -15,11 +15,80 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerTestSupport
+import ContainerizationArchive
 import Foundation
 import Testing
 
 @Suite
 struct TestCLICopyCommand {
+
+    // MARK: - Tar stream helpers
+
+    /// Builds an uncompressed tar in memory with the exact ownership and mode
+    /// recorded in each header, without creating the files on the host. This is
+    /// the `cp -` use case: a tar stream acting as a dynamic image layer, with
+    /// metadata the host filesystem could not otherwise express unprivileged.
+    private func makeTarStream(_ entries: [TarEntry]) throws -> Data {
+        let tempFile = URL(filePath: NSTemporaryDirectory()).appendingPathComponent(UUID().uuidString + ".tar")
+        defer { try? FileManager.default.removeItem(at: tempFile) }
+
+        let writer = try ArchiveWriter(configuration: .init(format: .pax, filter: .none))
+        try writer.open(file: tempFile)
+        for entry in entries {
+            let header = WriteEntry()
+            header.path = entry.path
+            header.fileType = entry.fileType
+            header.permissions = entry.mode
+            header.owner = entry.uid
+            header.group = entry.gid
+            if let target = entry.symlinkTarget {
+                header.symlinkTarget = target
+            }
+            let payload = entry.contents.map { Data($0.utf8) } ?? Data()
+            header.size = Int64(payload.count)
+            try writer.writeEntry(entry: header, data: payload)
+        }
+        try writer.finishEncoding()
+        return try Data(contentsOf: tempFile)
+    }
+
+    /// Reads a tar stream produced by `container cp <ctr>:<path> -`, keyed by
+    /// entry path. Uses the auto-detecting reader so a compressed stream would
+    /// still parse, letting the tests assert that the output is plain tar.
+    private func readTarStream(_ data: Data) throws -> [String: WriteEntry] {
+        let tempFile = URL(filePath: NSTemporaryDirectory()).appendingPathComponent(UUID().uuidString + ".tar")
+        defer { try? FileManager.default.removeItem(at: tempFile) }
+        try data.write(to: tempFile)
+
+        var entries = [String: WriteEntry]()
+        let reader = try ArchiveReader(file: tempFile)
+        for (entry, _) in reader {
+            guard let path = entry.path else { continue }
+            entries[path] = entry
+        }
+        return entries
+    }
+
+    private struct TarEntry {
+        var path: String
+        var fileType: URLFileResourceType = .regular
+        var mode: mode_t
+        var uid: uid_t
+        var gid: gid_t
+        var contents: String?
+        var symlinkTarget: String?
+    }
+
+    /// `stat -c` for a guest path, returning uid, gid and octal mode.
+    private func guestStat(_ f: ContainerFixture, _ name: String, _ path: String) throws -> (uid: String, gid: String, mode: String) {
+        let out = try f.doExec(name, cmd: ["stat", "-c", "%u %g %a", path])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let parts = out.split(separator: " ").map(String.init)
+        guard parts.count == 3 else {
+            throw CommandError.executionFailed("unexpected stat output for \(path): \(out)")
+        }
+        return (parts[0], parts[1], parts[2])
+    }
 
     // MARK: - Basic host/container copy
 
@@ -62,6 +131,133 @@ struct TestCLICopyCommand {
                 let cat = try f.doExec(name, cmd: ["cat", "/tmp/aliasfile.txt"])
                 #expect(cat.trimmingCharacters(in: .whitespacesAndNewlines) == content)
             }
+        }
+    }
+
+    // MARK: - Tar stream copy (`cp -`)
+
+    /// The reason tar streaming exists: a stream can carry ownership and modes
+    /// the host could not reproduce unprivileged, and they must land in the
+    /// container exactly as written in the headers.
+    @Test func testCopyStdinTarStreamPreservesOwnershipAndMode() async throws {
+        try await ContainerFixture.with { f in
+            let image = WarmupImage.alpine320.rawValue
+            try await f.withContainer(image: image) { name in
+                let tar = try makeTarStream([
+                    TarEntry(path: "layer/", fileType: .directory, mode: 0o750, uid: 1234, gid: 5678),
+                    TarEntry(path: "layer/app.conf", mode: 0o640, uid: 1234, gid: 5678, contents: "secret=1"),
+                    TarEntry(path: "layer/exec.sh", mode: 0o755, uid: 4321, gid: 8765, contents: "#!/bin/sh\n"),
+                    TarEntry(path: "layer/link", fileType: .symbolicLink, mode: 0o777, uid: 1234, gid: 5678, symlinkTarget: "app.conf"),
+                ])
+
+                try f.run(["copy", "-", "\(name):/tmp/"], stdin: tar).check("stdin tar stream copy failed")
+
+                let content = try f.doExec(name, cmd: ["cat", "/tmp/layer/app.conf"])
+                #expect(content.trimmingCharacters(in: .whitespacesAndNewlines) == "secret=1")
+
+                let dir = try guestStat(f, name, "/tmp/layer")
+                #expect(dir == ("1234", "5678", "750"), "directory metadata not preserved: \(dir)")
+
+                let conf = try guestStat(f, name, "/tmp/layer/app.conf")
+                #expect(conf == ("1234", "5678", "640"), "file metadata not preserved: \(conf)")
+
+                let exec = try guestStat(f, name, "/tmp/layer/exec.sh")
+                #expect(exec == ("4321", "8765", "755"), "per-entry metadata not preserved: \(exec)")
+
+                let target = try f.doExec(name, cmd: ["readlink", "/tmp/layer/link"])
+                #expect(target.trimmingCharacters(in: .whitespacesAndNewlines) == "app.conf")
+            }
+        }
+    }
+
+    /// Absolute and `..` entries must not escape the destination. The guest
+    /// rejects them during extraction rather than the host pre-scanning paths.
+    @Test func testCopyStdinTarStreamRejectsPathTraversal() async throws {
+        try await ContainerFixture.with { f in
+            let image = WarmupImage.alpine320.rawValue
+            try await f.withContainer(image: image) { name in
+                let tar = try makeTarStream([
+                    TarEntry(path: "../escaped.txt", mode: 0o644, uid: 0, gid: 0, contents: "escaped")
+                ])
+                _ = try f.run(["copy", "-", "\(name):/tmp/"], stdin: tar)
+
+                let listing = try f.doExec(name, cmd: ["sh", "-c", "ls / /tmp"])
+                #expect(!listing.contains("escaped.txt"), "traversal entry escaped the destination")
+            }
+        }
+    }
+
+    /// `docker cp CONTAINER:/file -` emits an uncompressed tar holding a single
+    /// entry named after the file, carrying the guest's ownership and mode.
+    @Test func testCopyFileToStdoutTarStream() async throws {
+        try await ContainerFixture.with { f in
+            let image = WarmupImage.alpine320.rawValue
+            try await f.withContainer(image: image) { name in
+                try f.doExec(name, cmd: ["sh", "-c", "echo -n 'tar-stream-out' > /tmp/tarout.txt; chmod 600 /tmp/tarout.txt; chown 1111:2222 /tmp/tarout.txt"])
+
+                let result = try f.run(["copy", "\(name):/tmp/tarout.txt", "-"])
+                try result.check("stdout tar stream copy failed")
+
+                #expect(result.outputData.prefix(2) != Data([0x1f, 0x8b]), "stdout stream is gzip compressed")
+
+                let entries = try readTarStream(result.outputData)
+                guard let entry = entries["tarout.txt"] else {
+                    Issue.record("expected entry named 'tarout.txt', got \(entries.keys.sorted())")
+                    return
+                }
+                #expect(entry.permissions & 0o777 == 0o600)
+                #expect(entry.owner == 1111)
+                #expect(entry.group == 2222)
+            }
+        }
+    }
+
+    /// For a directory, docker names entries relative to the source's parent, so
+    /// the source's own basename is the top level entry. That is what makes
+    /// `cp ctr:/dir - | cp - other:/dest` reproduce `/dest/dir`.
+    @Test func testCopyDirectoryToStdoutTarStreamIsParentRelative() async throws {
+        try await ContainerFixture.with { f in
+            let image = WarmupImage.alpine320.rawValue
+            try await f.withContainer(image: image) { name in
+                try f.doExec(name, cmd: ["sh", "-c", "mkdir -p /tmp/bundle/nested && echo -n hi > /tmp/bundle/nested/file.txt"])
+
+                let result = try f.run(["copy", "\(name):/tmp/bundle", "-"])
+                try result.check("stdout tar stream copy of directory failed")
+
+                let paths = try readTarStream(result.outputData).keys.sorted()
+                #expect(paths.contains { $0 == "bundle" || $0 == "bundle/" }, "missing top level 'bundle' entry: \(paths)")
+                #expect(paths.contains("bundle/nested/file.txt"), "entries not parent relative: \(paths)")
+            }
+        }
+    }
+
+    /// Round trip: streaming a directory out and back in reproduces the tree,
+    /// which only holds if both directions agree on entry naming.
+    @Test func testCopyTarStreamRoundTrip() async throws {
+        try await ContainerFixture.with { f in
+            let image = WarmupImage.alpine320.rawValue
+            try await f.withContainer(image: image) { name in
+                try f.doExec(name, cmd: ["sh", "-c", "mkdir -p /tmp/bundle && echo -n roundtrip > /tmp/bundle/file.txt; chmod 604 /tmp/bundle/file.txt"])
+
+                let out = try f.run(["copy", "\(name):/tmp/bundle", "-"])
+                try out.check("round trip copy out failed")
+
+                try f.doExec(name, cmd: ["mkdir", "-p", "/tmp/dest"])
+                try f.run(["copy", "-", "\(name):/tmp/dest/"], stdin: out.outputData).check("round trip copy in failed")
+
+                let content = try f.doExec(name, cmd: ["cat", "/tmp/dest/bundle/file.txt"])
+                #expect(content.trimmingCharacters(in: .whitespacesAndNewlines) == "roundtrip")
+
+                let mode = try guestStat(f, name, "/tmp/dest/bundle/file.txt").mode
+                #expect(mode == "604", "mode not preserved across round trip: \(mode)")
+            }
+        }
+    }
+
+    @Test func testCopyStdinTarStreamToLocalPathFails() async throws {
+        try await ContainerFixture.with { f in
+            let result = try f.run(["copy", "-", "/tmp/dest.txt"])
+            #expect(result.status != 0)
         }
     }
 
