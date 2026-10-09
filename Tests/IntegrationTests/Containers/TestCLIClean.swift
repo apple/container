@@ -101,6 +101,9 @@ struct TestCLIClean {
                 try f.doExec(name, cmd: ["sync"])
                 let afterWrite = try allocatedBytes(at: rootfsBlockURL)
                 try f.doExec(name, cmd: ["rm", "/test-file"])
+                // ext4 only discards blocks whose release has been committed to the journal, so make
+                // sure the removal is committed before `clean` trims.
+                try f.doExec(name, cmd: ["sync"])
 
                 try f.doClean(name)
                 try f.doExec(name, cmd: ["sync"])
@@ -140,6 +143,8 @@ struct TestCLIClean {
                 try f.doExec(name, cmd: ["sync"])
                 let afterWrite = try allocatedBytes(at: rwBlockURL)
                 try f.doExec(name, cmd: ["rm", "/rw/test"])
+                // The removal must be committed to the journal before `clean` trims.
+                try f.doExec(name, cmd: ["sync"])
 
                 try f.doClean(name)
                 try f.doExec(name, cmd: ["sync"])
@@ -183,6 +188,8 @@ struct TestCLIClean {
                 try f.doExec(name, cmd: ["sync"])
                 let afterWrite = try allocatedBytes(at: volumeBlockURL)
                 try f.doExec(name, cmd: ["rm", "/mnt/vol/test"])
+                // The removal must be committed to the journal before `clean` trims.
+                try f.doExec(name, cmd: ["sync"])
 
                 try f.doClean(name)
                 try f.doExec(name, cmd: ["sync"])

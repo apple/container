@@ -40,7 +40,7 @@ extension Application {
 
         public func run() async throws {
             let client = ContainerClient()
-            let containerSystemConfig = try await Application.loadContainerSystemConfig()
+            let containerSystemConfig = try await ClientHealthCheck.loadContainerSystemConfig()
             let normalizedReference = try ClientImage.normalizeReference(reference, containerSystemConfig: containerSystemConfig)
             let snapshot = try await client.get(id: id)
             let platform = snapshot.configuration.platform

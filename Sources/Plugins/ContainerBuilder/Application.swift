@@ -14,28 +14,30 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerCommands
-import ContainerResource
-import Testing
+import ArgumentParser
+import ContainerAPIClient
+import TerminalProgress
 
-// MARK: - ManagedContainer conformance tests
+@main
+struct Application: AsyncParsableCommand {
+    public init() {}
 
-struct ManagedContainerDisplayTests {
-    @Test
-    func tableHeaderHasNineColumns() {
-        #expect(ManagedContainer.tableHeader.count == 9)
-        #expect(ManagedContainer.tableHeader[0] == "ID")
-        #expect(ManagedContainer.tableHeader[4] == "STATE")
-        #expect(ManagedContainer.tableHeader[8] == "STARTED")
+    static func main() async {
+        // The root CLI's handlers are discarded when it execs into this plugin.
+        ProgressBar.restoreCursorAtExit()
+        await main(nil)
     }
-}
 
-// MARK: - NetworkResource ListDisplayable conformance tests
+    public static let configuration = CommandConfiguration(
+        commandName: "builder",
+        abstract: "Manage an image builder instance",
+        subcommands: [
+            BuilderStart.self,
+            BuilderStatus.self,
+            BuilderStop.self,
+            BuilderDelete.self,
+        ])
 
-struct NetworkResourceDisplayTests {
-    @Test
-    func tableHeaderHasTwoColumns() {
-        #expect(NetworkResource.tableHeader.count == 2)
-        #expect(NetworkResource.tableHeader == ["NETWORK", "SUBNET"])
-    }
+    @OptionGroup
+    public var logOptions: Flags.Logging
 }

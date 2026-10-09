@@ -33,7 +33,8 @@ public struct StandardRoles {
 ///
 /// For a **worker** node, the caller additionally calls:
 /// 4. `join` — run kubeadm join with the bootstrap token and CA cert hash
-/// 5. `waitForReady` — poll until the node is registered and Ready in the cluster
+/// 5. `waitForReady` — poll until the node is registered and Ready in the cluster, or
+///    `waitForRegistered` when no CNI is installed (nodes stay NotReady without one)
 ///
 /// `K8sDelete` calls `teardown` before removing cluster containers.
 ///
@@ -59,6 +60,10 @@ public protocol NodeProvisioner: Sendable {
 
     /// Poll until the node with `name` is registered and Ready in the cluster.
     func waitForReady(name: String, log: Logger) async throws
+
+    /// Poll until the node with `name` is registered in the cluster, without requiring it to be Ready.
+    /// Used instead of `waitForReady` when no CNI is installed.
+    func waitForRegistered(name: String, log: Logger) async throws
 
     /// Remove the machine identified by `name`.
     func teardown(name: String, log: Logger) async throws
