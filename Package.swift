@@ -472,7 +472,6 @@ let package = Package(
                 .product(name: "Containerization", package: "containerization"),
                 .product(name: "TOML", package: "swift-toml"),
                 "ContainerXPC",
-                "CAuditToken",
                 "CVersion",
                 "Yams",
             ]
@@ -537,7 +536,6 @@ let package = Package(
             dependencies: [
                 .product(name: "ContainerizationExtras", package: "containerization"),
                 .product(name: "Logging", package: "swift-log"),
-                "CAuditToken",
             ]
         ),
         .target(
@@ -617,14 +615,6 @@ let package = Package(
                 .define("RELEASE_VERSION", to: "\"\(releaseVersion)\""),
                 .define("BUILDER_SHIM_VERSION", to: "\"\(builderShimVersion)\""),
             ],
-        ),
-        .target(
-            name: "CAuditToken",
-            dependencies: [],
-            publicHeadersPath: "include",
-            linkerSettings: [
-                .linkedLibrary("bsm")
-            ]
         ),
         .target(
             name: "ContainerTestSupport",
