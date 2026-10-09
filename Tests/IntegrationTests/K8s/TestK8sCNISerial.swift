@@ -21,6 +21,51 @@ import Testing
 @Suite(.serialized)
 struct TestK8sCNISerial {
 
+    @Test func testCreateStreamsOversizedCNIManifest() async throws {
+        try await ContainerFixture.with { f in
+            let name = "k8s-\(f.testID)"
+            f.addCleanup { _ = try? f.run(["k8s", "delete", "--name", name]) }
+
+            let repositoryRoot = URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+            let kindnetURL = repositoryRoot.appendingPathComponent("Sources/Plugins/K8s/Resources/kindnet.yaml")
+            let kindnet = try String(contentsOf: kindnetURL, encoding: .utf8)
+            let payload = String(repeating: "a", count: 150_000)
+            let manifest =
+                kindnet
+                    + """
+
+                    ---
+                    apiVersion: v1
+                    kind: ConfigMap
+                    metadata:
+                      name: stdin-regression
+                      namespace: kube-system
+                    data:
+                      payload: \(payload)
+                    """
+            let manifestPath = f.testDir.appending("oversized-cni.yaml").string
+            try manifest.write(toFile: manifestPath, atomically: true, encoding: .utf8)
+            #expect(Data(manifest.utf8).count > 128 * 1024)
+
+            try f.restoreWarmupImage(.kindestNodeV1_35_5)
+            let result = try f.run(["k8s", "create", "--name", name, "--cni", manifestPath])
+            if result.status != 0 {
+                f.dumpNodeDiagnostics(node: name)
+            }
+
+            try result.check()
+            let (output, status) = try f.kubectl(
+                node: name,
+                args: ["get", "configmap", "stdin-regression", "-n", "kube-system", "-o", "name"])
+            #expect(status == 0)
+            #expect(output.contains("configmap/stdin-regression"))
+        }
+    }
+
     @Test func testCreateWithCNINoneSkipsCNIInstallation() async throws {
         try await ContainerFixture.with { f in
             let name = "k8s-\(f.testID)"
