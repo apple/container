@@ -30,7 +30,6 @@ public struct K8sCommand: AsyncParsableCommand {
 
               Switch between clusters:
                 $ container k8s create --name second-cluster
-                $ kubectl config use-context second-cluster
                 $ kubectl config use-context my-cluster
 
               Write the cluster context to an alternate configuration file:
