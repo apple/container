@@ -51,6 +51,13 @@ struct TestCLIImagesCommand {
         }
     }
 
+    @Test func testTopLevelPull() async throws {
+        try await ContainerFixture.with { f in
+            try f.run(["pull", busybox]).check("failed to pull \(busybox) with top-level pull")
+            #expect(try f.isImagePresent(busybox), "expected \(busybox) to be present")
+        }
+    }
+
     @Test func testPullPlatform() async throws {
         try await ContainerFixture.with { f in
             let os = "linux"
