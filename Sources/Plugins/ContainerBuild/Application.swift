@@ -319,9 +319,7 @@ struct Application: AsyncParsableCommand {
             }
 
             let imageNames: [String] = try targetImageNames.map { name in
-                let parsedReference = try Reference.parse(name)
-                parsedReference.normalize()
-                return parsedReference.description
+                try ClientImage.normalizeReference(name, containerSystemConfig: containerSystemConfig)
             }
 
             var terminal: Terminal?
