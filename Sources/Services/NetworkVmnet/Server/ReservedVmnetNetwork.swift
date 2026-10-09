@@ -31,6 +31,15 @@ public final class ReservedVmnetNetwork: ContainerNetworkServer.Network {
     private struct State {
         var status: NetworkStatus?
         var network: vmnet_network_ref?
+        /// Pins the kernel bridge for the helper's lifetime; see `startAnchorInterface`.
+        var anchor: Anchor?
+    }
+
+    private struct Anchor {
+        let interface: interface_ref
+        /// vmnet does not retain this, and dispatches the start completion onto it after
+        /// `vmnet_interface_start_with_network` has returned.
+        let queue: DispatchQueue
     }
 
     private struct NetworkInfo {
@@ -82,6 +91,7 @@ public final class ReservedVmnetNetwork: ContainerNetworkServer.Network {
             }
 
             let networkInfo = try startNetwork(configuration: configuration, log: log)
+            state.anchor = try Self.startAnchorInterface(network: networkInfo.network, id: configuration.id, log: log)
 
             state.status = NetworkStatus(
                 ipv4Subnet: networkInfo.ipv4Subnet,
@@ -90,6 +100,78 @@ public final class ReservedVmnetNetwork: ContainerNetworkServer.Network {
             )
             state.network = networkInfo.network
         }
+    }
+
+    /// Stop the anchor, releasing the network object vmnet retains on its behalf.
+    ///
+    /// Exiting with the anchor still started strands the network's subnet: InternetSharing does not
+    /// reclaim one whose client died holding a live interface, and after 64 of them every
+    /// `vmnet_network_create` on the host fails with `VMNET_FAILURE` until reboot.
+    public func stop() async {
+        let anchor = stateMutex.withLock { state -> Anchor? in
+            let anchor = state.anchor
+            state.anchor = nil
+            return anchor
+        }
+        guard let anchor else { return }
+
+        let (id, log) = (configuration.id, self.log)
+
+        // vmnet schedules the handler only when the call itself succeeds, so resume on both paths.
+        // Nothing bounds the wait but launchd's SIGKILL, and the stop is prompt in practice.
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            let resumed = Mutex(false)
+            let resumeOnce: @Sendable () -> Void = {
+                let first = resumed.withLock { done -> Bool in
+                    guard !done else { return false }
+                    done = true
+                    return true
+                }
+                if first {
+                    continuation.resume()
+                }
+            }
+
+            let status = vmnet_stop_interface(anchor.interface, anchor.queue) { status in
+                if status != .VMNET_SUCCESS {
+                    log.error("anchor interface failed to stop", metadata: ["id": "\(id)", "status": "\(status)"])
+                }
+                resumeOnce()
+            }
+            guard status == .VMNET_SUCCESS else {
+                log.error("failed to schedule anchor interface stop", metadata: ["id": "\(id)", "status": "\(status)"])
+                resumeOnce()
+                return
+            }
+        }
+    }
+
+    /// Start one interface on the network and hold it until `stop()`, so the bridge ifnet and its
+    /// gateway exist for as long as the network does.
+    ///
+    /// Without it the bridge is destroyed when the last interface detaches. Its unit number can then
+    /// be reassigned to a sibling network, and that network's later teardown destroys the recycled
+    /// ifnet out from under our live attachments, which presents as a network that is up but has
+    /// silently lost all egress. Holding a reference removes the window entirely.
+    private static func startAnchorInterface(network: vmnet_network_ref, id: String, log: Logger) throws -> Anchor {
+        let description = xpc_dictionary_create(nil, nil, 0)
+        xpc_dictionary_set_bool(description, vmnet_allocate_mac_address_key, true)
+
+        // Deliberately does not wait for the completion handler. `start()` is called from an async
+        // context and holds the state lock, so blocking here ties up a cooperative thread for as
+        // long as vmnet takes, and every concurrent network start pays it. The returned handle is
+        // what pins the bridge; the handler only reports the outcome.
+        let queue = DispatchQueue(label: "com.apple.container.vmnet.anchor.\(id)")
+        guard
+            let interface = vmnet_interface_start_with_network(network, description, queue, { status, _ in
+                guard status != .VMNET_SUCCESS else { return }
+                log.error("anchor interface failed to start", metadata: ["id": "\(id)", "status": "\(status)"])
+            })
+        else {
+            throw ContainerizationError(.unsupported, message: "failed to start anchor interface for network \(id)")
+        }
+
+        return Anchor(interface: interface, queue: queue)
     }
 
     private static func serialize_network_ref(ref: vmnet_network_ref) throws -> XPCMessage {
