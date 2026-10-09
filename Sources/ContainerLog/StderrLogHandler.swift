@@ -60,7 +60,11 @@ public struct StderrLogHandler: LogHandler {
             }
         }
 
-        FileHandle.standardError.write(data)
+        if isatty(FileHandle.standardError.fileDescriptor) == 1 {
+            FileHandle.standardError.write(Data("\r\u{001B}[K".utf8) + data)
+        } else {
+            FileHandle.standardError.write(data)
+        }
     }
 
     private func isoTimestamp() -> String {
