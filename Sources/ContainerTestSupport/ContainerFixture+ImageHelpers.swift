@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerAPIClient
 import Foundation
 import SystemPackage
 
@@ -108,7 +109,8 @@ extension ContainerFixture {
     /// Asserts that the image was successfully built and is present in the image store.
     public func assertImageBuilt(_ image: String) throws {
         let name = try inspectImage(image)
-        guard name == image else {
+        let expected = try ClientImage.normalizeReference(image, containerSystemConfig: getSystemConfig())
+        guard name == expected else {
             throw CommandError.executionFailed("expected image \(image) to be present")
         }
     }
