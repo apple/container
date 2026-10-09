@@ -345,6 +345,12 @@ let package = Package(
             ],
             path: "Sources/Services/ContainerImagesService/Server"
         ),
+        .testTarget(
+            name: "ImagesServiceTests",
+            dependencies: [
+                "ContainerImagesService"
+            ]
+        ),
         .target(
             name: "ContainerImagesServiceClient",
             dependencies: [
