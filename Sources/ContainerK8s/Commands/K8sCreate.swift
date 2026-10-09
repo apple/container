@@ -30,7 +30,7 @@ public struct K8sCreate: AsyncParsableCommand {
 
     public static let configuration = CommandConfiguration(
         commandName: "create",
-        abstract: "Create and start a local Kubernetes cluster and worker nodes"
+        abstract: "Create and start a local Kubernetes cluster and optional worker nodes"
     )
 
     @Option(name: .long, help: "Cluster name (default: \(K8sHelper.defaultName))")
