@@ -57,6 +57,15 @@ public struct K8sCreate: AsyncParsableCommand {
     @Option(name: .long, help: "Number of worker nodes to create")
     var workers: UInt = 0
 
+    /// Task count is `4 + workers` as an `Int`, so keep `workers` far enough below `Int.max` to avoid overflow.
+    static let maxWorkers: UInt = 1024
+
+    public func validate() throws {
+        guard workers <= Self.maxWorkers else {
+            throw ValidationError("--workers must be at most \(Self.maxWorkers)")
+        }
+    }
+
     public func run() async throws {
         LoggingSystem.bootstrap { _ in StderrLogHandler() }
         let log = Logger(label: K8sHelper.pluginName)
