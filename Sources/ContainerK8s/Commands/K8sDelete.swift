@@ -39,7 +39,8 @@ public struct K8sDelete: AsyncParsableCommand {
 
         let client = ContainerClient()
 
-        if let container = try? await client.get(id: name) {
+        let clusterContainer = try? await client.get(id: name)
+        if let container = clusterContainer {
             guard container.configuration.labels[ResourceLabelKeys.plugin] == K8sHelper.pluginName else {
                 log.error("container is not a k8s cluster, refusing delete", metadata: ["name": "\(name)"])
                 throw ContainerizationError(.invalidArgument, message: "\(name) is not a k8s cluster")
@@ -71,7 +72,13 @@ public struct K8sDelete: AsyncParsableCommand {
             failures.append((name, error))
         }
 
-        try K8sHelper.removeConfig(containerId: name, log: log)
+        // Only touch the kubeconfig for a cluster we found. Otherwise the entries
+        // named `name` belong to someone else, so leave them alone.
+        if clusterContainer != nil || !workerNames.isEmpty {
+            try K8sHelper.removeConfig(containerId: name, log: log)
+        } else {
+            log.debug("no cluster container found, leaving kubeconfig untouched", metadata: ["name": "\(name)"])
+        }
 
         guard failures.isEmpty else {
             let details = failures.map { "\($0.name): \($0.error)" }.joined(separator: "; ")
