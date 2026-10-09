@@ -35,7 +35,7 @@ public struct K8sLoadImage: AsyncParsableCommand {
         abstract: "Load a container image into a cluster's containerd"
     )
 
-    @Option(name: .long, help: "Cluster name (default: \(K8sHelper.defaultName))")
+    @Option(name: .long, help: "Cluster name")
     var name: String = K8sHelper.defaultName
 
     @Argument(help: "Image reference to load (e.g. demo-api:latest)")

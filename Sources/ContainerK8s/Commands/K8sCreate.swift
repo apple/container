@@ -33,7 +33,7 @@ public struct K8sCreate: AsyncParsableCommand {
         abstract: "Create and start a local Kubernetes cluster and worker nodes"
     )
 
-    @Option(name: .long, help: "Cluster name (default: \(K8sHelper.defaultName))")
+    @Option(name: .long, help: "Cluster name")
     var name: String = K8sHelper.defaultName
 
     @Flag(name: [.customLong("rm"), .long], help: "Remove the cluster container after it stops")
@@ -48,14 +48,23 @@ public struct K8sCreate: AsyncParsableCommand {
     @OptionGroup(title: "Image fetch options")
     var imageFetchFlags: Flags.ImageFetch
 
-    @Option(help: "Node image reference (default: \(K8sHelper.nodeImage))")
+    @Option(help: "Node image reference")
     var nodeImage: String = K8sHelper.nodeImage
 
     @Option(name: .long, help: "Optional path to a CNI manifest to apply, or \"NONE\" to skip installing a CNI.")
     var cni: String?
 
-    @Option(name: .long, help: "Number of worker nodes to create (default: 0)")
+    @Option(name: .long, help: "Number of worker nodes to create")
     var workers: UInt = 0
+
+    /// Task count is `4 + workers` as an `Int`, so keep `workers` far enough below `Int.max` to avoid overflow.
+    static let maxWorkers: UInt = 1024
+
+    public func validate() throws {
+        guard workers <= Self.maxWorkers else {
+            throw ValidationError("--workers must be at most \(Self.maxWorkers)")
+        }
+    }
 
     public func run() async throws {
         LoggingSystem.bootstrap { _ in StderrLogHandler() }

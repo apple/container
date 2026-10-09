@@ -29,7 +29,7 @@ public struct K8sWriteConfig: AsyncParsableCommand {
         abstract: "Write the cluster context to a Kubernetes configuration file"
     )
 
-    @Option(name: .long, help: "Cluster name (default: \(K8sHelper.defaultName))")
+    @Option(name: .long, help: "Cluster name")
     var name: String = K8sHelper.defaultName
 
     @Option(name: .long, help: "Path to the kubeconfig file to write or append to (default: ~/.kube/config)")
