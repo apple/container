@@ -106,4 +106,5 @@ The `container` CLI compatibility generally preserves backward compatibility wit
 The `container-apiserver` XPC API compatibility preserves forward and backward compatibility within a major version. 
 Other non-public XPC helpers do not guarantee CLI or API compatibility across different versions.
 
-The `container` application data provides forward compatibility only, guaranteed within one major version. Upgrading to a newer major version may require a specific upgrade path.
+The `container` application data provides forward compatibility only, guaranteed within one major version. Upgrading to a newer major version may require a specific upgrade path. 
+......................................
