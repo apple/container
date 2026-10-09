@@ -1628,7 +1628,7 @@ container system property list --format json
 
 ### `container k8s create`
 
-Creates and starts a local Kubernetes cluster. Pulls the node image if needed, runs `kubeadm init`, installs a CNI (default: bundled kindnet), and merges the cluster credentials into `~/.kube/config`.
+Creates and starts a local Kubernetes cluster and optional worker nodes. Pulls the node image if needed, runs `kubeadm init`, installs a CNI (default: bundled kindnet), and merges the cluster credentials into `~/.kube/config`.
 
 **Usage**
 
