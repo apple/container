@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerPersistence
 import Foundation
 
 // MARK: - Machine output types
@@ -40,6 +41,7 @@ public struct MachineInspectOutput: Codable {
     public let cpus: Int
     public let memory: UInt64
     public let homeMount: String?
+    public let mounts: [MachineConfig.Mount]
     public let diskSize: UInt64?
     public let ipAddress: String?
 
