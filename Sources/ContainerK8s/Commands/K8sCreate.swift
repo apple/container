@@ -33,7 +33,7 @@ public struct K8sCreate: AsyncParsableCommand {
         abstract: "Create and start a local Kubernetes cluster and worker nodes"
     )
 
-    @Option(name: .long, help: "Cluster name (default: \(K8sHelper.defaultName))")
+    @Option(name: .long, help: "Cluster name")
     var name: String = K8sHelper.defaultName
 
     @Flag(name: [.customLong("rm"), .long], help: "Remove the cluster container after it stops")
@@ -48,13 +48,13 @@ public struct K8sCreate: AsyncParsableCommand {
     @OptionGroup(title: "Image fetch options")
     var imageFetchFlags: Flags.ImageFetch
 
-    @Option(help: "Node image reference (default: \(K8sHelper.nodeImage))")
+    @Option(help: "Node image reference")
     var nodeImage: String = K8sHelper.nodeImage
 
     @Option(name: .long, help: "Optional path to a CNI manifest to apply, or \"NONE\" to skip installing a CNI.")
     var cni: String?
 
-    @Option(name: .long, help: "Number of worker nodes to create (default: 0)")
+    @Option(name: .long, help: "Number of worker nodes to create")
     var workers: UInt = 0
 
     public func run() async throws {

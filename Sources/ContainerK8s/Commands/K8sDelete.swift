@@ -30,7 +30,7 @@ public struct K8sDelete: AsyncParsableCommand {
         aliases: ["rm"]
     )
 
-    @Option(name: .long, help: "Cluster name (default: \(K8sHelper.defaultName))")
+    @Option(name: .long, help: "Cluster name")
     var name: String = K8sHelper.defaultName
 
     public func run() async throws {
