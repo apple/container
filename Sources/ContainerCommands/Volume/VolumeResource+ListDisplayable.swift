@@ -26,7 +26,11 @@ extension VolumeResource: ListDisplayable {
             name,
             isAnonymous ? "anonymous" : "named",
             configuration.driver,
-            configuration.options.isEmpty ? "" : configuration.options.sorted(by: { $0.key < $1.key }).map { "\($0.key)=\($0.value)" }.joined(separator: ","),
+            configuration.options.isEmpty
+                ? ""
+                : configuration.options.sorted(by: { $0.key < $1.key })
+                    .map { "\($0.key)=\($0.key == "password" ? "***" : $0.value)" }
+                    .joined(separator: ","),
         ]
     }
 
