@@ -131,4 +131,62 @@ struct UtilityTests {
         #expect(ports[1].proto == .udp)
         #expect(ports[1].count == 100)
     }
+
+    @Test("Infra images are recognized at the configured reference exactly")
+    func testInfraImageExactMatch() {
+        #expect(
+            Utility.isInfraImage(
+                name: "ghcr.io/apple/containerization/vminit:1.0.0",
+                builderImage: "ghcr.io/apple/container-builder-shim/builder:0.5.0",
+                initImage: "ghcr.io/apple/containerization/vminit:1.0.0"))
+    }
+
+    @Test("Infra images are recognized at other tags of the configured repository")
+    func testInfraImageOtherTag() {
+        // The copy left behind by a previous release: same repository, older tag.
+        #expect(
+            Utility.isInfraImage(
+                name: "ghcr.io/apple/containerization/vminit:0.9.0",
+                builderImage: "ghcr.io/apple/container-builder-shim/builder:0.5.0",
+                initImage: "ghcr.io/apple/containerization/vminit:1.0.0"))
+    }
+
+    @Test("Infra images are recognized by digest reference")
+    func testInfraImageDigestReference() {
+        #expect(
+            Utility.isInfraImage(
+                name: "ghcr.io/apple/containerization/vminit@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+                builderImage: "ghcr.io/apple/container-builder-shim/builder:0.5.0",
+                initImage: "ghcr.io/apple/containerization/vminit:1.0.0"))
+    }
+
+    @Test("A registry port is not mistaken for a tag")
+    func testInfraImageRegistryPort() {
+        // The tag colon is the one after the last path separator; a bare colon
+        // in the registry host must not truncate the reference at the port.
+        #expect(
+            Utility.isInfraImage(
+                name: "registry.local:5000/infra/vminit:2.0.0",
+                builderImage: "registry.local:5000/infra/vminit:1.0.0",
+                initImage: "ghcr.io/apple/containerization/vminit:1.0.0"))
+        #expect(
+            !Utility.isInfraImage(
+                name: "registry.local:5000/infra/other:1.0.0",
+                builderImage: "registry.local:5000/infra/vminit:1.0.0",
+                initImage: "ghcr.io/apple/containerization/vminit:1.0.0"))
+    }
+
+    @Test("User images sharing only a name suffix are not infra")
+    func testUserImageNotInfra() {
+        #expect(
+            !Utility.isInfraImage(
+                name: "docker.io/library/vminit:1.0.0",
+                builderImage: "ghcr.io/apple/container-builder-shim/builder:0.5.0",
+                initImage: "ghcr.io/apple/containerization/vminit:1.0.0"))
+        #expect(
+            !Utility.isInfraImage(
+                name: "docker.io/library/nginx:alpine",
+                builderImage: "ghcr.io/apple/container-builder-shim/builder:0.5.0",
+                initImage: "ghcr.io/apple/containerization/vminit:1.0.0"))
+    }
 }
