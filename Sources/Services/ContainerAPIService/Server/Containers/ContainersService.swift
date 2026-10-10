@@ -89,6 +89,89 @@ public actor ContainersService {
         self.networksService = service
     }
 
+    /// Maximum time to wait for a single orphaned runtime to respond while reconciling
+    /// state at startup. Bounded so a wedged or unresponsive runtime can't stall apiserver
+    /// startup indefinitely.
+    private static let reconciliationTimeout: Duration = .seconds(3)
+
+    /// Reconnects to any persisted container whose runtime process is still alive under
+    /// launchd but has no in-memory `RuntimeClient` -- the case after this apiserver
+    /// instance was relaunched following an abnormal crash of a previous instance.
+    /// `loadAtBoot` has no way to probe live process state synchronously during `init`
+    /// (reconnecting requires an XPC round trip), so it conservatively marks every
+    /// persisted container `.stopped`; this pass corrects that for any container whose
+    /// runtime turns out to still be running.
+    ///
+    /// Must be called once, after `init`, before the apiserver begins accepting requests --
+    /// running it concurrently with other access to container state is not supported.
+    /// Containers are reconnected concurrently, each bounded by `reconciliationTimeout`, so
+    /// this adds at most `reconciliationTimeout` to startup regardless of how many
+    /// containers are persisted.
+    public func reconcileOrphanedRuntimes() async {
+        let candidates = self.containers.filter { $0.value.client == nil }
+        guard !candidates.isEmpty else { return }
+
+        await withTaskGroup(of: (String, ContainerState?).self) { group in
+            for (id, state) in candidates {
+                group.addTask {
+                    (id, await self.reconnectOrphanedRuntime(id: id, state: state))
+                }
+            }
+            for await (id, reconnected) in group {
+                guard let reconnected else { continue }
+                self.containers[id] = reconnected
+                self.log.info(
+                    "reconnected to still-running container after apiserver restart",
+                    metadata: ["id": "\(id)"]
+                )
+            }
+        }
+    }
+
+    private func reconnectOrphanedRuntime(id: String, state: ContainerState) async -> ContainerState? {
+        let label = Self.bareLaunchdServiceLabel(
+            runtimeName: state.snapshot.configuration.runtimeHandler,
+            instanceId: id
+        )
+        guard (try? ServiceManager.isRegistered(fullServiceLabel: label)) == true else {
+            // No launchd job for this container's runtime -- it really is stopped.
+            return nil
+        }
+
+        do {
+            let client = try await RuntimeClient.create(
+                id: id,
+                runtime: state.snapshot.configuration.runtimeHandler,
+                timeout: Self.reconciliationTimeout
+            )
+            let sandboxSnapshot = try await client.state()
+            guard sandboxSnapshot.status == .running else {
+                // The runtime is alive but not in a state we can usefully resume tracking
+                // (e.g. it's mid-stop). Leave it as `.stopped`; `container delete` can
+                // still clean it up via its launchd label independent of this client.
+                return nil
+            }
+
+            try await self.exitMonitor.registerProcess(id: id, onExit: self.handleContainerExit)
+            let waitFunc: ExitMonitor.WaitHandler = {
+                try await client.wait(id)
+            }
+            try await self.exitMonitor.track(id: id, waitingOn: waitFunc)
+
+            var reconnected = state
+            reconnected.client = client
+            reconnected.snapshot.status = .running
+            reconnected.snapshot.networks = sandboxSnapshot.networks
+            return reconnected
+        } catch {
+            self.log.warning(
+                "failed to reconnect to container's runtime during startup reconciliation",
+                metadata: ["id": "\(id)", "error": "\(error)"]
+            )
+            return nil
+        }
+    }
+
     static func loadAtBoot(root: URL, loader: PluginLoader, log: Logger) throws -> [String: ContainerState] {
         var directories = try FileManager.default.contentsOfDirectory(
             at: root,
@@ -104,32 +187,53 @@ public actor ContainersService {
             do {
                 let (config, options) = try Self.getContainerConfiguration(at: dir)
                 if options?.autoRemove ?? false {
+                    // An auto-remove container whose runtime is still alive (e.g. this
+                    // apiserver instance was relaunched after an abnormal crash of a
+                    // previous instance, while the container was still running) must not
+                    // be reaped here -- that would delete the bundle and deregister the
+                    // service out from under a live process. Leave it to be picked up as
+                    // a normal container below; `reconcileOrphanedRuntimes` will reconnect
+                    // it, and its normal exit handling will still honor autoRemove once it
+                    // actually stops.
+                    let bareLabel = Self.bareLaunchdServiceLabel(
+                        runtimeName: config.runtimeHandler,
+                        instanceId: config.id)
+                    let stillAlive = (try? ServiceManager.isRegistered(fullServiceLabel: bareLabel)) == true
+
+                    if !stillAlive {
+                        log.info(
+                            "reap auto-remove container",
+                            metadata: [
+                                "id": "\(config.id)"
+                            ])
+
+                        let label = Self.fullLaunchdServiceLabel(
+                            runtimeName: config.runtimeHandler,
+                            instanceId: config.id)
+
+                        var status: Int32 = -1
+                        try? ServiceManager.deregister(fullServiceLabel: label, status: &status)
+                        if status != 0 {
+                            log.warning(
+                                "failed to deregister service",
+                                metadata: [
+                                    "id": "\(config.id)",
+                                    "service": "\(label)",
+                                    "status": "\(status)",
+                                ]
+                            )
+                        }
+
+                        let bundle = ContainerResource.Bundle(path: dir)
+                        try? bundle.delete()
+                        continue
+                    }
+
                     log.info(
-                        "reap auto-remove container",
+                        "auto-remove container's runtime is still alive; deferring reap",
                         metadata: [
                             "id": "\(config.id)"
                         ])
-
-                    let label = Self.fullLaunchdServiceLabel(
-                        runtimeName: config.runtimeHandler,
-                        instanceId: config.id)
-
-                    var status: Int32 = -1
-                    try? ServiceManager.deregister(fullServiceLabel: label, status: &status)
-                    if status != 0 {
-                        log.warning(
-                            "failed to deregister service",
-                            metadata: [
-                                "id": "\(config.id)",
-                                "service": "\(label)",
-                                "status": "\(status)",
-                            ]
-                        )
-                    }
-
-                    let bundle = ContainerResource.Bundle(path: dir)
-                    try? bundle.delete()
-                    continue
                 }
 
                 let state = ContainerState(
@@ -1015,6 +1119,13 @@ public actor ContainersService {
 
     private static func fullLaunchdServiceLabel(runtimeName: String, instanceId: String) -> String {
         "\(Self.launchdDomainString)/\(Self.machServicePrefix).\(runtimeName).\(instanceId)"
+    }
+
+    // `ServiceManager.isRegistered` shells out to `launchctl list <label>`, which (unlike
+    // `bootout`) only accepts a bare label scoped to the current session domain, not the
+    // domain-qualified form used by `fullLaunchdServiceLabel`/`bootout`.
+    private static func bareLaunchdServiceLabel(runtimeName: String, instanceId: String) -> String {
+        "\(Self.machServicePrefix).\(runtimeName).\(instanceId)"
     }
 
     private func _cleanUp(id: String) async throws {
