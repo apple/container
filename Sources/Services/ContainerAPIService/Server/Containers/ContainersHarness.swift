@@ -209,7 +209,7 @@ public struct ContainersHarness: Sendable {
     }
 
     @Sendable
-    public func createProcess(_ message: XPCMessage) async throws -> XPCMessage {
+    public func createProcess(_ message: XPCMessage, session: XPCServerSession) async throws -> XPCMessage {
         let id = message.string(key: .id)
         guard let id else {
             throw ContainerizationError(
@@ -233,6 +233,11 @@ public struct ContainersHarness: Sendable {
             config: config,
             stdio: stdio
         )
+
+        await session.onDisconnect { [service] in
+            // Clean up the process if the client connection drops unexpectedly
+            try? await service.kill(id: id, processID: processID, signal: "SIGKILL")
+        }
 
         return message.reply()
     }
