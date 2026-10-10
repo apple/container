@@ -78,4 +78,33 @@ struct TestK8sLoadImageSerial {
             #expect(try imageExistsInNode(f, node: name, image: "alpine"))
         }
     }
+
+    @Test func testLoadImageReferenceForms() async throws {
+        try await ContainerFixture.with { f in
+            let name = "k8s-\(f.testID)"
+            let sourceImage = Self.testImage
+            let images = [
+                "img-\(f.testID)",
+                "img-\(f.testID):v1",
+                "org-\(f.testID)/img",
+                "docker.io/hub-\(f.testID)",
+                "ghcr.io/org/img-\(f.testID):v1",
+            ]
+            f.addCleanup { _ = try? f.run(["k8s", "delete", "--name", name]) }
+            f.addCleanup { try? f.doRemoveImages(images) }
+
+            try f.restoreWarmupImage(.kindestNodeV1_35_5)
+            try f.run(["k8s", "create", "--name", name]).check()
+
+            try f.restoreWarmupImage(.alpine320)
+            for image in images {
+                try f.doImageTag(sourceImage, newName: image)
+                let fullImage = try f.inspectImage(image)
+
+                try f.run(["k8s", "load-image", "--name", name, image]).check()
+
+                #expect(try imageExistsInNode(f, node: name, image: fullImage))
+            }
+        }
+    }
 }
