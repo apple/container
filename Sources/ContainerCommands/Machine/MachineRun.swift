@@ -111,7 +111,8 @@ extension Application {
                 workingDirectory: cwd,
                 terminal: tty,
                 user: user,
-                supplementalGroups: additionalGroups
+                supplementalGroups: additionalGroups,
+                rlimits: try Parser.rlimits(processFlags.ulimits)
             )
 
             let io = try ProcessIO.create(tty: tty, interactive: interactive, detach: detach)
