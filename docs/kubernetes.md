@@ -179,6 +179,9 @@ The manifest must be a plain Kubernetes YAML file (the same shape `kubectl apply
 
 ### Example: Cilium
 
+> [!WARNING]
+> With the default kernel, pods in this cluster **cannot** currently reach anything outside the cluster, such as the internet or external DNS. The kernel lacks `CONFIG_NETFILTER_XT_MATCH_SOCKET`, so Cilium cannot install its masquerade rules. See [apple/containerization#912](https://github.com/apple/containerization/issues/912). If pods need outside access, use the default kindnet CNI.
+
 Cilium is distributed as a Helm chart, so render a plain manifest from it first:
 
 ```bash
