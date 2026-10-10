@@ -30,7 +30,6 @@ public struct K8sCommand: AsyncParsableCommand {
 
               Switch between clusters:
                 $ container k8s create --name second-cluster
-                $ kubectl config use-context second-cluster
                 $ kubectl config use-context my-cluster
 
               Write the cluster context to an alternate configuration file:
@@ -39,9 +38,9 @@ public struct K8sCommand: AsyncParsableCommand {
 
               Load a local image into the cluster and run it:
                 $ container image pull docker.io/library/hello-world:latest
-                $ container image tag docker.io/library/hello-world:latest registry.example.com/max_mustermann/my-hello-world:latest
-                $ container k8s load-image --name my-cluster registry.example.com/max_mustermann/my-hello-world:latest
-                $ kubectl run hello-job --image=registry.example.com/max_mustermann/my-hello-world:latest --image-pull-policy=Never --restart=Never --attach --rm -i
+                $ container image tag docker.io/library/hello-world:latest registry.example.com/my-hello-world:latest
+                $ container k8s load-image --name my-cluster registry.example.com/my-hello-world:latest
+                $ kubectl run hello-job --image=registry.example.com/my-hello-world:latest --image-pull-policy=Never --restart=Never --attach --rm -i
 
               Stop and delete the cluster:
                 $ container k8s delete --name my-cluster
