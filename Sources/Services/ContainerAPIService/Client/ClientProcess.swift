@@ -80,7 +80,14 @@ struct ClientProcessImpl: ClientProcess, Sendable {
         let request = XPCMessage(route: .containerKill)
         request.set(key: .id, value: containerId)
         request.set(key: .processIdentifier, value: id)
-        request.set(key: .signal, value: Int64(signal))
+        // The server reads `.signal` as a string and resolves it against the Linux
+        // signal table, so send the canonical signal name rather than a raw integer.
+        // A bare Int64 is read back as an empty string and rejected with
+        // "missing signal in xpc message". Translating the host signal number to its
+        // name (instead of sending the number) also keeps signals whose numbers differ
+        // between macOS and Linux (e.g. SIGUSR1) correct. Fall back to the numeric
+        // string for signals with no platform name (e.g. real-time signals).
+        request.set(key: .signal, value: Signal.platformName(signal) ?? "\(signal)")
 
         try await xpcClient.send(request)
     }
