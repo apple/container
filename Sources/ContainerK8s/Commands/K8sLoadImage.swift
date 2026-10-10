@@ -79,8 +79,7 @@ public struct K8sLoadImage: AsyncParsableCommand {
         var failures: [(node: String, error: Error)] = []
         for target in targets {
             do {
-                try await Self.importImage(
-                    into: target, tarPath: tmpFile.string, fq: fq, image: image, client: client, log: log)
+                try await Self.importImage(into: target, tarPath: tmpFile.string, client: client, log: log)
             } catch {
                 log.error("Failed to load image", metadata: ["target": "\(target)", "error": "\(error)"])
                 failures.append((node: target, error: error))
@@ -116,7 +115,7 @@ public struct K8sLoadImage: AsyncParsableCommand {
     }
 
     private static func importImage(
-        into target: String, tarPath: String, fq: String, image: String, client: ContainerClient, log: Logger
+        into target: String, tarPath: String, client: ContainerClient, log: Logger
     ) async throws {
         log.info("Importing image into node", metadata: ["target": "\(target)"])
         guard let inputHandle = FileHandle(forReadingAtPath: tarPath) else {
@@ -142,31 +141,6 @@ public struct K8sLoadImage: AsyncParsableCommand {
             throw ContainerizationError(
                 .internalError,
                 message: "ctr import exited \(importCode) on \(target)")
-        }
-
-        // Tag with the fully-qualified docker.io/library/ name that kubelet expects,
-        // but only for short (unqualified) references.
-        if fq != image {
-            log.info("Tagging image for kubelet", metadata: ["short": "\(image)", "fq": "\(fq)", "target": "\(target)"])
-            let tagConfig = ProcessConfiguration(
-                executable: Self.ctrPath,
-                arguments: ["--namespace", "k8s.io", "images", "tag", fq, image],
-                environment: [],
-                terminal: false
-            )
-            let tagProc = try await client.createProcess(
-                containerId: target,
-                processId: UUID().uuidString.lowercased(),
-                configuration: tagConfig,
-                stdio: [nil, nil, nil]
-            )
-            try await tagProc.start()
-            let tagCode = try await tagProc.wait()
-            guard tagCode == 0 else {
-                throw ContainerizationError(
-                    .internalError,
-                    message: "ctr tag exited \(tagCode) on \(target)")
-            }
         }
     }
 }
