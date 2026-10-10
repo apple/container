@@ -124,8 +124,7 @@ struct TestCLINetwork {
     }
 
     @available(macOS 26, *)
-    @Test func testIsolatedNetwork() async {
-        await withKnownIssue("curl error 7 despite retries", isIntermittent: true) {
+    @Test func testIsolatedNetwork() async throws {
             try await ContainerFixture.with { f in
                 let net = "\(f.testID)-net"
                 let server = "\(f.testID)-server"
@@ -163,15 +162,15 @@ struct TestCLINetwork {
                     return result.status == 0
                 }
 
-                // External connection should be blocked — the isolated network has no gateway.
+                // Reaching a literal IP proves egress is open regardless of DNS state.
                 let externalResult = try f.run([
                     "run", "--rm", "--network", net, curlImage,
-                    "curl", "--connect-timeout", "5", "http://google.com",
+                    "curl", "-sSk", "--connect-timeout", "5", "https://1.1.1.1/",
                 ])
-                let hostOnlyBlockedCodes: Set<Int32> = [6, 7, 28]
                 #expect(
-                    hostOnlyBlockedCodes.contains(externalResult.status),
-                    "external connection from isolated network should be blocked, got exit \(externalResult.status)")
+                    externalResult.status != 0,
+                    "hostOnly network must not reach external IPs. curl exited with \(externalResult.status)"
+                )
             }
         }
     }
@@ -210,4 +209,3 @@ struct TestCLINetwork {
             #expect(result.error.contains("network not found"))
         }
     }
-}
