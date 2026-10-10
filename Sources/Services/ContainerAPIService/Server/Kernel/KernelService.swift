@@ -66,15 +66,25 @@ public actor KernelService {
         let kFile = url.resolvingSymlinksInPath()
         let destPath = self.kernelDirectory.appendingPathComponent(kFile.lastPathComponent)
         if force {
+            // Copy beside the destination and rename over it. Removing the installed kernel
+            // first would leave nothing behind when the copy then fails.
+            let stagingPath = self.kernelDirectory.appendingPathComponent(".\(kFile.lastPathComponent).\(UUID().uuidString)")
             do {
-                try FileManager.default.removeItem(at: destPath)
-            } catch let error as NSError {
-                guard error.code == NSFileNoSuchFileError else {
-                    throw error
+                try FileManager.default.copyItem(at: kFile, to: stagingPath)
+                try Task.checkCancellation()
+                guard rename(stagingPath.path, destPath.path) == 0 else {
+                    throw ContainerizationError(
+                        .internalError,
+                        message: "failed to install kernel at '\(destPath.path)': \(String(cString: strerror(errno)))"
+                    )
                 }
+            } catch {
+                try? FileManager.default.removeItem(at: stagingPath)
+                throw error
             }
+        } else {
+            try FileManager.default.copyItem(at: kFile, to: destPath)
         }
-        try FileManager.default.copyItem(at: kFile, to: destPath)
         try Task.checkCancellation()
         do {
             try self.setDefaultKernel(name: kFile.lastPathComponent, platform: platform)
