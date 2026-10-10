@@ -38,12 +38,14 @@ public actor NetworkHarness: Sendable {
     @Sendable
     public func allocate(_ message: XPCMessage, _ session: XPCServerSession) async throws -> XPCMessage {
         let hostname = try message.hostname()
+        let aliases = try message.aliases()
         let macAddress =
             try message.string(key: NetworkKeys.macAddress.rawValue)
             .map { try MACAddress($0) }
 
         let (attachment:attachment, additionalData:additionalData) = try await service.allocate(
             hostname: hostname,
+            aliases: aliases,
             macAddress: macAddress,
             session: session
         )

@@ -54,15 +54,25 @@ extension DNSServer {
             self.log?.debug("processing query: \(query.questions)")
 
             self.log?.debug("awaiting processing")
-            var response =
-                try await handler.answer(query: query)
-                ?? Message(
+            let context = DNSRequestContext(
+                remoteIPAddress: packet.remoteAddress.ipAddress,
+                remotePort: packet.remoteAddress.port
+            )
+            var response: Message
+            if let handlerResponse = try await handler.answer(query: query, context: context) {
+                response = handlerResponse
+            } else if respondWhenUnhandled {
+                response = Message(
                     id: query.id,
                     type: .response,
                     returnCode: .notImplemented,
                     questions: query.questions,
                     answers: []
                 )
+            } else {
+                self.log?.debug("dropping unhandled DNS query")
+                return
+            }
 
             // Only set NXDOMAIN if handler didn't explicitly set noError (NODATA response).
             // This preserves NODATA responses for AAAA queries when A record exists,
