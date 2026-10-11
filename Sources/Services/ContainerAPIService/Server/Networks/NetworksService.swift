@@ -301,16 +301,23 @@ public actor NetworksService {
 
     /// Perform a hostname lookup on all networks.
     ///
+    /// The name can be the hostname of an attachment, an alias of it, or a name below a subtree alias.
+    /// A hostname or an exact alias is returned as soon as a network reports it. Otherwise every network
+    /// is asked, and the subtree alias with the longest base wins.
+    ///
     /// - Parameter hostname: A canonical DNS hostname with a trailing dot (e.g. `"example.com."`).
     public func lookup(hostname: String) async throws -> Attachment? {
         try await self.stateLock.withLock { _ in
+            var selector = NetworkMatchSelector()
             for state in await self.serviceStates.values {
-                guard let allocation = try await state.client.lookup(hostname: hostname) else {
+                guard let match = try await state.client.match(name: hostname) else {
                     continue
                 }
-                return allocation
+                if selector.offer(match) {
+                    break
+                }
             }
-            return nil
+            return selector.best?.attachment
         }
     }
 
