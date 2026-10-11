@@ -308,15 +308,16 @@ public struct Utility {
             return try networks.enumerated().map { item in
                 let macAddress = try item.element.macAddress.map { try MACAddress($0) }
                 let mtu = item.element.mtu ?? 1280
+                let aliases = item.element.aliases.isEmpty ? nil : item.element.aliases
                 guard item.offset == 0 else {
                     return AttachmentConfiguration(
                         network: item.element.name,
-                        options: AttachmentOptions(hostname: containerId, macAddress: macAddress, mtu: mtu)
+                        options: AttachmentOptions(hostname: containerId, macAddress: macAddress, mtu: mtu, aliases: aliases)
                     )
                 }
                 return AttachmentConfiguration(
                     network: item.element.name,
-                    options: AttachmentOptions(hostname: fqdn ?? containerId, macAddress: macAddress, mtu: mtu)
+                    options: AttachmentOptions(hostname: fqdn ?? containerId, macAddress: macAddress, mtu: mtu, aliases: aliases)
                 )
             }
         }

@@ -131,4 +131,58 @@ struct UtilityTests {
         #expect(ports[1].proto == .udp)
         #expect(ports[1].count == 100)
     }
+
+    @Test("Aliases from the network specification land on the attachment they were declared for")
+    func testAttachmentConfigurationsCarryAliases() throws {
+        let networks = [
+            Parser.ParsedNetwork(name: "default", aliases: ["api.test", ".foo.test"]),
+            Parser.ParsedNetwork(name: "backend"),
+        ]
+
+        let attachments = try Utility.getAttachmentConfigurations(
+            containerId: "foo",
+            builtinNetworkId: "default",
+            networks: networks,
+            dnsDomain: "test"
+        )
+
+        #expect(attachments.count == 2)
+        #expect(attachments[0].network == "default")
+        #expect(attachments[0].options.hostname == "foo.test.")
+        #expect(attachments[0].options.aliases == ["api.test", ".foo.test"])
+        #expect(attachments[1].network == "backend")
+        #expect(attachments[1].options.hostname == "foo")
+        #expect(attachments[1].options.aliases == nil)
+    }
+
+    @Test("Aliases are carried to a later attachment")
+    func testAttachmentConfigurationsCarryAliasesOnLaterNetworks() throws {
+        let networks = [
+            Parser.ParsedNetwork(name: "default"),
+            Parser.ParsedNetwork(name: "backend", aliases: ["db.internal"]),
+        ]
+
+        let attachments = try Utility.getAttachmentConfigurations(
+            containerId: "foo",
+            builtinNetworkId: "default",
+            networks: networks,
+            dnsDomain: "test"
+        )
+
+        #expect(attachments[0].options.aliases == nil)
+        #expect(attachments[1].options.aliases == ["db.internal"])
+    }
+
+    @Test("A container with no network specification has no aliases")
+    func testDefaultAttachmentHasNoAliases() throws {
+        let attachments = try Utility.getAttachmentConfigurations(
+            containerId: "foo",
+            builtinNetworkId: "default",
+            networks: [],
+            dnsDomain: "test"
+        )
+
+        #expect(attachments.count == 1)
+        #expect(attachments[0].options.aliases == nil)
+    }
 }
