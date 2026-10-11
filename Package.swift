@@ -393,6 +393,7 @@ let package = Package(
                 "ContainerNetworkClient",
                 "ContainerResource",
                 "ContainerXPC",
+                "DNSServer",
             ],
             path: "Sources/Services/Network/Server"
         ),
@@ -401,6 +402,7 @@ let package = Package(
             dependencies: [
                 .product(name: "ContainerizationExtras", package: "containerization"),
                 "ContainerNetworkServer",
+                "DNSServer",
             ]
         ),
         .target(
