@@ -897,6 +897,27 @@ struct ParserTest {
     }
 
     @Test
+    func testParseNetworkWithMTU() throws {
+        let result = try Parser.network("backend,mtu=1280")
+        #expect(result.name == "backend")
+        #expect(result.mtu == 1280)
+    }
+
+    @Test
+    func testParseNetworkMTUOutOfRange() throws {
+        for value in ["1279", "65536", "abc"] {
+            #expect {
+                _ = try Parser.network("backend,mtu=\(value)")
+            } throws: { error in
+                guard let error = error as? ContainerizationError else {
+                    return false
+                }
+                return error.description.contains("invalid mtu value '\(value)'")
+            }
+        }
+    }
+
+    @Test
     func testParseNetworkEmptyString() throws {
         #expect {
             _ = try Parser.network("")

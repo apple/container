@@ -49,8 +49,7 @@ public struct NonisolatedInterfaceStrategy: InterfaceStrategy {
             ipv4Gateway: ipv4Gateway,
             reference: networkRef,
             macAddress: attachment.macAddress,
-            // https://github.com/apple/containerization/pull/38
-            mtu: attachment.mtu ?? 1280
+            mtu: attachment.mtu ?? 1500
         )
     }
 }
