@@ -401,7 +401,10 @@ let package = Package(
             name: "ContainerNetworkServerTests",
             dependencies: [
                 .product(name: "ContainerizationExtras", package: "containerization"),
+                "ContainerNetworkClient",
                 "ContainerNetworkServer",
+                "ContainerResource",
+                "ContainerXPC",
                 "DNSServer",
             ]
         ),
