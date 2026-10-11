@@ -41,10 +41,18 @@ public struct AttachmentOptions: Codable, Sendable {
     /// The MTU for the network interface.
     public let mtu: UInt32?
 
-    public init(hostname: String, macAddress: MACAddress? = nil, mtu: UInt32? = nil) {
+    /// Additional DNS names that resolve to the attachment (optional).
+    ///
+    /// Each value is the normalized string form of a `DNSMatchRule`: an exact name such as
+    /// `api.example.test`, or a name with a leading dot such as `.example.test` that matches every
+    /// name below it. A nil value means the attachment has no aliases.
+    public let aliases: [String]?
+
+    public init(hostname: String, macAddress: MACAddress? = nil, mtu: UInt32? = nil, aliases: [String]? = nil) {
         self.hostname = hostname
         self.macAddress = macAddress
         self.mtu = mtu
+        self.aliases = aliases
     }
 }
 
