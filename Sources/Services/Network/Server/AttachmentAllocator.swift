@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerResource
 import ContainerizationError
 import ContainerizationExtras
 
@@ -30,6 +31,7 @@ actor AttachmentAllocator {
 
     /// Allocate a network address for a host.
     func allocate(hostname: String) async throws -> UInt32 {
+        let hostname = AttachmentOptions.canonicalHostname(hostname)
         // Client is responsible for ensuring two containers don't use same hostname, so provide existing IP if hostname exists
         if let index = hostnames[hostname] {
             return index
@@ -44,7 +46,7 @@ actor AttachmentAllocator {
     /// Free an allocated network address by hostname.
     @discardableResult
     func deallocate(hostname: String) async throws -> UInt32? {
-        guard let index = hostnames.removeValue(forKey: hostname) else {
+        guard let index = hostnames.removeValue(forKey: AttachmentOptions.canonicalHostname(hostname)) else {
             return nil
         }
 
@@ -54,6 +56,6 @@ actor AttachmentAllocator {
 
     /// Retrieve the allocator index for a hostname.
     func lookup(hostname: String) async throws -> UInt32? {
-        hostnames[hostname]
+        hostnames[AttachmentOptions.canonicalHostname(hostname)]
     }
 }

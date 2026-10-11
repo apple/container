@@ -155,4 +155,40 @@ struct AttachmentAllocatorTest {
         let secondDeallocate = try await allocator.deallocate(hostname: "test-host")
         #expect(secondDeallocate == nil)
     }
+
+    @Test func testLookupIgnoresCase() async throws {
+        let allocator = try AttachmentAllocator(lower: 100, size: 10)
+
+        let allocatedAddress = try await allocator.allocate(hostname: "Foo.Test.")
+
+        #expect(try await allocator.lookup(hostname: "foo.test.") == allocatedAddress)
+        #expect(try await allocator.lookup(hostname: "FOO.TEST.") == allocatedAddress)
+    }
+
+    @Test func testLookupIgnoresTrailingDot() async throws {
+        let allocator = try AttachmentAllocator(lower: 100, size: 10)
+
+        let allocatedAddress = try await allocator.allocate(hostname: "foo.test")
+
+        #expect(try await allocator.lookup(hostname: "foo.test.") == allocatedAddress)
+    }
+
+    @Test func testAllocateSameHostnameDifferentCaseReusesAddress() async throws {
+        let allocator = try AttachmentAllocator(lower: 100, size: 10)
+
+        let address1 = try await allocator.allocate(hostname: "foo.test.")
+        let address2 = try await allocator.allocate(hostname: "FOO.test.")
+
+        #expect(address1 == address2)
+    }
+
+    @Test func testDeallocateIgnoresCase() async throws {
+        let allocator = try AttachmentAllocator(lower: 100, size: 10)
+
+        let allocatedAddress = try await allocator.allocate(hostname: "Foo.Test.")
+        let deallocatedAddress = try await allocator.deallocate(hostname: "foo.test.")
+
+        #expect(deallocatedAddress == allocatedAddress)
+        #expect(try await allocator.lookup(hostname: "foo.test.") == nil)
+    }
 }

@@ -47,3 +47,15 @@ public struct AttachmentOptions: Codable, Sendable {
         self.mtu = mtu
     }
 }
+
+extension AttachmentOptions {
+    /// Returns the form of a hostname used to compare hostnames and to look them up.
+    ///
+    /// DNS names are case-insensitive, and a trailing dot only marks a name as fully qualified,
+    /// so `Foo.Test.` and `foo.test` are the same name. The result is lowercase with any
+    /// trailing dot removed.
+    public static func canonicalHostname(_ hostname: String) -> String {
+        let name = hostname.hasSuffix(".") ? String(hostname.dropLast()) : hostname
+        return name.lowercased()
+    }
+}

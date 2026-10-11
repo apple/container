@@ -293,13 +293,13 @@ public actor ContainersService {
             var allHostnames = Set<String>()
             for container in await self.containers.values {
                 for attachmentConfiguration in container.snapshot.configuration.networks {
-                    allHostnames.insert(attachmentConfiguration.options.hostname)
+                    allHostnames.insert(AttachmentOptions.canonicalHostname(attachmentConfiguration.options.hostname))
                 }
             }
 
             var conflictingHostnames = [String]()
             for attachmentConfiguration in configuration.networks {
-                if allHostnames.contains(attachmentConfiguration.options.hostname) {
+                if allHostnames.contains(AttachmentOptions.canonicalHostname(attachmentConfiguration.options.hostname)) {
                     conflictingHostnames.append(attachmentConfiguration.options.hostname)
                 }
             }
