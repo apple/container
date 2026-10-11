@@ -74,6 +74,15 @@ struct ManagedContainerTests {
         #expect(UUID(uuidString: id) != nil)
     }
 
+    @Test func generateInstanceTokenIsOpaqueAndUnique() {
+        let first = ManagedContainer.generateInstanceToken()
+        let second = ManagedContainer.generateInstanceToken()
+
+        #expect(first != second)
+        #expect(first == first.lowercased())
+        #expect(UUID(uuidString: first) != nil)
+    }
+
     @Test func labelsDeriveFromConfiguration() {
         let mc = ManagedContainer(
             configuration: makeTestConfiguration(labels: ["com.example.role": "x"]),
