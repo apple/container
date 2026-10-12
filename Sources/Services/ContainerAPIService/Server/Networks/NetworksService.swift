@@ -305,20 +305,27 @@ public actor NetworksService {
     /// A hostname or an exact alias is returned as soon as a network reports it. Otherwise every network
     /// is asked, and the subtree alias with the longest base wins.
     ///
+    /// The network helpers are called without holding `stateLock`. Network create and delete hold it
+    /// for as long as a helper takes to start or stop, and a DNS answer must not wait for them. A
+    /// network that cannot answer, because its helper is starting or stopping, is skipped.
+    ///
     /// - Parameter hostname: A canonical DNS hostname with a trailing dot (e.g. `"example.com."`).
     public func lookup(hostname: String) async throws -> Attachment? {
-        try await self.stateLock.withLock { _ in
-            var selector = NetworkMatchSelector()
-            for state in await self.serviceStates.values {
-                guard let match = try await state.client.match(name: hostname) else {
-                    continue
-                }
-                if selector.offer(match) {
-                    break
-                }
-            }
-            return selector.best?.attachment
+        let sources = self.serviceStates.map { id, entry in
+            let client = entry.client
+            return (name: id, match: { @Sendable in try await client.match(name: hostname) })
         }
+        let log = self.log
+        let match = await NetworkMatchSelector.select(from: sources) { network, error in
+            log.warning(
+                "network lookup failed",
+                metadata: [
+                    "network": "\(network)",
+                    "name": "\(hostname)",
+                    "error": "\(error)",
+                ])
+        }
+        return match?.attachment
     }
 
     public func plugin(for id: String) throws -> String {

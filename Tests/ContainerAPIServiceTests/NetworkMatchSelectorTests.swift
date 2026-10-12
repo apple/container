@@ -135,4 +135,101 @@ struct NetworkMatchSelectorTests {
 
         #expect(selector.best?.attachment.network == "exact")
     }
+
+    // MARK: - Selecting from sources
+
+    private struct SourceError: Error {}
+
+    /// Records which sources were asked.
+    private final class Asked: @unchecked Sendable {
+        var names = [String]()
+    }
+
+    private func source(
+        _ name: String,
+        asked: Asked,
+        _ result: @escaping @Sendable () throws -> NetworkMatch?
+    ) -> (name: String, match: @Sendable () async throws -> NetworkMatch?) {
+        (
+            name: name,
+            match: {
+                asked.names.append(name)
+                return try result()
+            }
+        )
+    }
+
+    @Test func testSelectReturnsTheBestSubtreeFromAllSources() async throws {
+        let asked = Asked()
+        let short = try match("short", .subtree(baseLabelCount: 2))
+        let long = try match("long", .subtree(baseLabelCount: 4))
+
+        let selected = await NetworkMatchSelector.select(
+            from: [
+                source("a", asked: asked) { short },
+                source("b", asked: asked) { nil },
+                source("c", asked: asked) { long },
+            ],
+            onFailure: { _, _ in }
+        )
+
+        #expect(selected?.attachment.network == "long")
+        #expect(asked.names == ["a", "b", "c"])
+    }
+
+    @Test func testSelectStopsAtTheFirstDecisiveMatch() async throws {
+        let asked = Asked()
+        let subtree = try match("subtree", .subtree(baseLabelCount: 3))
+        let exact = try match("exact", .alias)
+
+        let selected = await NetworkMatchSelector.select(
+            from: [
+                source("a", asked: asked) { subtree },
+                source("b", asked: asked) { exact },
+                source("c", asked: asked) { throw SourceError() },
+            ],
+            onFailure: { _, _ in }
+        )
+
+        #expect(selected?.attachment.network == "exact")
+        #expect(asked.names == ["a", "b"])
+    }
+
+    @Test func testSelectSkipsASourceThatFailsAndReportsIt() async throws {
+        let asked = Asked()
+        let exact = try match("exact", .hostname)
+        let failures = Asked()
+
+        let selected = await NetworkMatchSelector.select(
+            from: [
+                source("broken", asked: asked) { throw SourceError() },
+                source("good", asked: asked) { exact },
+            ],
+            onFailure: { name, _ in failures.names.append(name) }
+        )
+
+        #expect(selected?.attachment.network == "exact")
+        #expect(failures.names == ["broken"])
+    }
+
+    @Test func testSelectReturnsNothingWhenEverySourceFailsOrHasNoMatch() async throws {
+        let asked = Asked()
+
+        let selected = await NetworkMatchSelector.select(
+            from: [
+                source("broken", asked: asked) { throw SourceError() },
+                source("empty", asked: asked) { nil },
+            ],
+            onFailure: { _, _ in }
+        )
+
+        #expect(selected == nil)
+        #expect(asked.names == ["broken", "empty"])
+    }
+
+    @Test func testSelectWithNoSourcesReturnsNothing() async {
+        let selected = await NetworkMatchSelector.select(from: [], onFailure: { _, _ in })
+
+        #expect(selected == nil)
+    }
 }

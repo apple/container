@@ -84,14 +84,14 @@ When the container starts, the runtime service opens one XPC session to the help
 
 * **Case of the answer.** `DNSName` lowercases labels when a query is decoded, so a response echoes a lowercased question and owner name even when the client used mixed case. DNS is case preserving (RFC 4343), and resolvers that randomize the case of query names (0x20 encoding) may discard a response whose case does not match. This predates aliases. Fixing it means keeping the original labels in the decoded question.
 * **Domains outside the resolver files.** An alias is reachable from macOS only when the most specific registered domain that covers it is a regular one. A name under a domain created with `--localhost`, or under no registered domain, does not reach the container DNS server through the system resolver. Container creation does not warn about this.
-* **Lookup locking.** `NetworksService.lookup` holds the networks state lock while it calls the helpers one at a time, so a slow helper delays DNS answers and network create and delete operations. A hostname or exact alias match ends the search early, but a subtree match needs every helper to answer.
+* **Unavailable networks.** `NetworksService.lookup` calls the helpers one at a time and does not hold the networks state lock while it does, so a network being created or deleted does not delay DNS answers. A helper that is starting up, shutting down or has failed cannot answer, so its network is skipped and the failure is logged. A name that only that network could answer is reported as not found for that query. A helper that hangs, instead of failing, still delays the queries that reach it, because the calls have no timeout.
 * **Broad domains.** The two-label minimum does not stop a subtree alias whose base is itself a public suffix, such as `.co.uk`. This adds no exposure beyond what registering such a domain already allows. A user who runs `container system dns create com` sends every name under `com` to the container DNS server, which answers NXDOMAIN for the ones it does not know, with or without aliases. A subtree alias also needs the container to own the base as its hostname or as an exact alias.
 * **Other kinds of container.** Container machines and the builder build attachment configurations without aliases.
 
 ## Possible future work
 
 * A create-time warning when an alias is not covered by a registered regular domain.
-* Concurrent helper calls in the lookup, and calling the helpers without holding the state lock.
+* Concurrent helper calls in the lookup, and a timeout for each helper call.
 * Alias support for container machines.
 * A shared library for the alias matching code that third-party helpers can link.
 * Showing aliases in list output.
