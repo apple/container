@@ -20,6 +20,7 @@ import Containerization
 import ContainerizationError
 import ContainerizationExtras
 import ContainerizationOCI
+import DNSServer
 import Foundation
 import Logging
 import TerminalProgress
@@ -308,7 +309,7 @@ public struct Utility {
             return try networks.enumerated().map { item in
                 let macAddress = try item.element.macAddress.map { try MACAddress($0) }
                 let mtu = item.element.mtu ?? 1280
-                let aliases = item.element.aliases.isEmpty ? nil : item.element.aliases
+                let aliases = try qualifyAliases(item.element.aliases, dnsDomain: dnsDomain)
                 guard item.offset == 0 else {
                     return AttachmentConfiguration(
                         network: item.element.name,
@@ -327,6 +328,42 @@ public struct Utility {
             throw ContainerizationError(.invalidState, message: "builtin network is not present")
         }
         return [AttachmentConfiguration(network: builtinNetworkId, options: AttachmentOptions(hostname: fqdn ?? containerId, macAddress: nil, mtu: 1280))]
+    }
+
+    /// Appends the default DNS domain to the aliases that have no domain of their own.
+    ///
+    /// This follows the rule that makes `--name foo` the hostname `foo.test.` when the default domain
+    /// is `test`: a name without a dot gets the domain, and a name with a dot is taken to be
+    /// qualified already. For a name with a leading dot, which matches every name below it, the rule
+    /// applies to the name after the dot. Without a default domain the aliases are left as they are,
+    /// and the server rejects any that is not fully qualified.
+    ///
+    /// - Parameters:
+    ///   - aliases: The aliases of an attachment, in their normalized form.
+    ///   - dnsDomain: The default DNS domain from the system configuration, if there is one.
+    /// - Returns: The qualified aliases, or nil if there are none.
+    static func qualifyAliases(_ aliases: [String], dnsDomain: String?) throws -> [String]? {
+        guard !aliases.isEmpty else {
+            return nil
+        }
+        guard let dnsDomain else {
+            return aliases
+        }
+        return try aliases.map { alias in
+            let isSubtree = alias.hasPrefix(".")
+            let name = isSubtree ? String(alias.dropFirst()) : alias
+            guard !name.contains(".") else {
+                return alias
+            }
+            do {
+                return try DNSMatchRule("\(isSubtree ? "." : "")\(name).\(dnsDomain)").description
+            } catch {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "cannot qualify alias \"\(alias)\" with the default DNS domain \"\(dnsDomain)\": \(error)"
+                )
+            }
+        }
     }
 
     private static func getKernel(management: Flags.Management) async throws -> Kernel {

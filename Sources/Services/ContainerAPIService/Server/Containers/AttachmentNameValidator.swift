@@ -28,9 +28,12 @@ enum AttachmentNameValidator {
     /// The most aliases that a single attachment may declare.
     static let maximumAliasesPerAttachment = 32
 
-    /// The fewest labels that the base of a subtree alias may have, which keeps an alias from
-    /// capturing a whole top-level domain.
-    static let minimumSubtreeBaseLabels = 2
+    /// The fewest labels that an exact alias, or the base of a subtree alias, may have.
+    ///
+    /// A name with one label is not under any domain, so the system resolver never sends queries for
+    /// it to the container DNS server, and an alias like that would never resolve. For a subtree it
+    /// also keeps an alias from capturing a whole top-level domain.
+    static let minimumAliasLabels = 2
 
     /// Validates the attachments of a new container against the attachments of all existing containers.
     ///
@@ -97,8 +100,15 @@ enum AttachmentNameValidator {
                     throw ContainerizationError(.invalidArgument, message: "alias \"\(alias)\" is listed more than once for network \(attachment.network)")
                 }
                 switch rule {
-                case .exact:
+                case .exact(let exactName):
                     let name = rule.description
+                    guard exactName.labels.count >= Self.minimumAliasLabels else {
+                        throw ContainerizationError(
+                            .invalidArgument,
+                            message:
+                                "alias \"\(alias)\" must be a fully qualified name with at least \(Self.minimumAliasLabels) labels, such as \"api.example.test\". Configure a default DNS domain to have the domain added to a name that has none"
+                        )
+                    }
                     guard !ownHostnames.contains(name) else {
                         throw ContainerizationError(.invalidArgument, message: "alias \"\(alias)\" is already a hostname of the container")
                     }
@@ -109,10 +119,11 @@ enum AttachmentNameValidator {
                         conflictingAliases.append(alias)
                     }
                 case .subtree(let base):
-                    guard base.labels.count >= Self.minimumSubtreeBaseLabels else {
+                    guard base.labels.count >= Self.minimumAliasLabels else {
                         throw ContainerizationError(
                             .invalidArgument,
-                            message: "alias \"\(alias)\" must have at least \(Self.minimumSubtreeBaseLabels) labels after the leading dot"
+                            message:
+                                "alias \"\(alias)\" must have at least \(Self.minimumAliasLabels) labels after the leading dot. Configure a default DNS domain to have the domain added to a name that has none"
                         )
                     }
                     guard owned.contains(base) else {

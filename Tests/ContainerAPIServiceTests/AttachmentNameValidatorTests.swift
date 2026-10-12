@@ -123,8 +123,8 @@ struct AttachmentNameValidatorTests {
     func aliasMatchesOtherOwnHostname() {
         expectError(.invalidArgument, containing: "already a hostname") {
             try validate([
-                attachment("foo.test.", aliases: ["foo"]),
-                attachment("foo", network: "other"),
+                attachment("foo.test.", aliases: ["bar.test"]),
+                attachment("bar.test", network: "other"),
             ])
         }
     }
@@ -137,6 +137,18 @@ struct AttachmentNameValidatorTests {
                 attachment("foo", network: "other", aliases: ["api.test"]),
             ])
         }
+    }
+
+    @Test("An exact alias with a single label is rejected", arguments: ["api", "API.", "localhost"])
+    func unqualifiedExactAlias(alias: String) {
+        expectError(.invalidArgument, containing: "fully qualified") {
+            try validate([attachment("foo.test.", aliases: [alias])])
+        }
+    }
+
+    @Test("An exact alias with two labels is accepted")
+    func qualifiedExactAlias() throws {
+        try validate([attachment("foo.test.", aliases: ["api.test"])])
     }
 
     @Test("An alias listed twice is rejected")

@@ -148,10 +148,11 @@ struct TestCLINetworkAlias {
             #expect(notOwned.status != 0)
             #expect(notOwned.error.contains("must be below"))
 
-            // A subtree base needs at least two labels.
+            // A subtree base needs at least two labels, once the default domain is added.
             let tooShort = try f.run(["run", "-d", "--name", c, "--network", "default,alias=.test", WarmupImage.alpine320.rawValue, "sleep", "infinity"])
             #expect(tooShort.status != 0)
-            #expect(tooShort.error.contains("at least 2 labels"))
+            // With a default domain configured the name is qualified first, and it is then not owned.
+            #expect(tooShort.error.contains("at least 2 labels") || tooShort.error.contains("must be below"))
         }
     }
 }
