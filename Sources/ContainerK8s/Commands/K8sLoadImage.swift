@@ -150,7 +150,7 @@ public struct K8sLoadImage: AsyncParsableCommand {
             log.info("Tagging image for kubelet", metadata: ["short": "\(image)", "fq": "\(fq)", "target": "\(target)"])
             let tagConfig = ProcessConfiguration(
                 executable: Self.ctrPath,
-                arguments: ["--namespace", "k8s.io", "images", "tag", fq, image],
+                arguments: ["--namespace", "k8s.io", "images", "tag", "--force", image, fq],
                 environment: [],
                 terminal: false
             )
