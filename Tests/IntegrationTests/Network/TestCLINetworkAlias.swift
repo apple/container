@@ -34,7 +34,7 @@ struct TestCLINetworkAlias {
         let process = Process()
         process.executableURL = URL(filePath: "/usr/bin/dig")
         process.arguments = [
-            "@127.0.0.1", "-p", "\(Self.dnsPort)", "+time=2", "+tries=1", "+noall", "+answer", "+comments", name, type,
+            "@127.0.0.1", "-p", "\(Self.dnsPort)", "+time=5", "+tries=1", "+noall", "+answer", "+comments", name, type,
         ]
         let pipe = Pipe()
         process.standardOutput = pipe
@@ -56,6 +56,40 @@ struct TestCLINetworkAlias {
         return DigResult(status: status, answers: answers)
     }
 
+    /// Waits until the container DNS server answers a query with the expected address records.
+    ///
+    /// The DNS server shares a lock with network creation and deletion, and other suites create and
+    /// delete networks while this one runs, so an answer can be late. A query that times out gives no
+    /// answers, and it is asked again.
+    private func expectAnswers(
+        _ f: ContainerFixture, _ name: String, _ expected: [String], type: String = "A",
+        sourceLocation: SourceLocation = #_sourceLocation
+    ) async throws {
+        var last = DigResult(status: "", answers: [])
+        do {
+            try await f.retry(attempts: 10) {
+                last = (try? self.dig(name, type: type)) ?? last
+                return last.answers == expected
+            }
+        } catch {}
+        #expect(last.answers == expected, "answers for \(name) \(type)", sourceLocation: sourceLocation)
+    }
+
+    /// Waits until the container DNS server answers a query with the expected response code.
+    private func expectStatus(
+        _ f: ContainerFixture, _ name: String, _ expected: String, type: String = "A",
+        sourceLocation: SourceLocation = #_sourceLocation
+    ) async throws {
+        var last = DigResult(status: "", answers: [])
+        do {
+            try await f.retry(attempts: 10) {
+                last = (try? self.dig(name, type: type)) ?? last
+                return last.status == expected
+            }
+        } catch {}
+        #expect(last.status == expected, "status for \(name) \(type)", sourceLocation: sourceLocation)
+    }
+
     private func startContainer(_ f: ContainerFixture, name: String, aliases: [String]) async throws -> String {
         let spec = (["default"] + aliases.map { "alias=\($0)" }).joined(separator: ",")
         try await f.doLongRun(name: name, args: ["--network", spec], autoRemove: false, waitUntilRunning: true)
@@ -73,25 +107,21 @@ struct TestCLINetworkAlias {
             let base = "\(f.testID).alias.test"
             let ip = try await startContainer(f, name: c, aliases: [base, ".\(base)"])
 
-            try await f.retry(attempts: 10) {
-                (try? self.dig(base).answers) == [ip]
-            }
-
             // An exact alias resolves, and so does every name below a subtree alias.
-            #expect(try dig(base).answers == [ip])
-            #expect(try dig("web.\(base)").answers == [ip])
-            #expect(try dig("a.b.\(base)").answers == [ip])
+            try await expectAnswers(f, base, [ip])
+            try await expectAnswers(f, "web.\(base)", [ip])
+            try await expectAnswers(f, "a.b.\(base)", [ip])
 
             // Names are case-insensitive.
-            #expect(try dig("WEB.\(base.uppercased())").answers == [ip])
+            try await expectAnswers(f, "WEB.\(base.uppercased())", [ip])
 
             // Matching is by label: a name that only ends with the base string does not match.
-            #expect(try dig("evil\(base)").status == "NXDOMAIN")
-            #expect(try dig("\(f.testID).other.test").status == "NXDOMAIN")
+            try await expectStatus(f, "evil\(base)", "NXDOMAIN")
+            try await expectStatus(f, "\(f.testID).other.test", "NXDOMAIN")
 
             // A name that exists but has no IPv6 address is NODATA, and not NXDOMAIN.
-            #expect(try dig("web.\(base)", type: "AAAA").status == "NOERROR")
-            #expect(try dig(base, type: "AAAA").status == "NOERROR")
+            try await expectStatus(f, "web.\(base)", "NOERROR", type: "AAAA")
+            try await expectStatus(f, base, "NOERROR", type: "AAAA")
         }
     }
 
@@ -100,15 +130,12 @@ struct TestCLINetworkAlias {
             let c = "\(f.testID)-c"
             let base = "\(f.testID).alias.test"
             let ip = try await startContainer(f, name: c, aliases: [base, ".\(base)"])
-            try await f.retry(attempts: 10) {
-                (try? self.dig(base).answers) == [ip]
-            }
+            try await expectAnswers(f, base, [ip])
 
             try f.doStop(c)
 
-            try await f.retry(attempts: 15) {
-                (try? self.dig(base).status) == "NXDOMAIN" && (try? self.dig("web.\(base)").status) == "NXDOMAIN"
-            }
+            try await expectStatus(f, base, "NXDOMAIN")
+            try await expectStatus(f, "web.\(base)", "NXDOMAIN")
         }
     }
 
