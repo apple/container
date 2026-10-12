@@ -42,7 +42,7 @@ public actor NetworkHarness: Sendable {
             try message.string(key: NetworkKeys.macAddress.rawValue)
             .map { try MACAddress($0) }
 
-        let aliases = try message.aliases() ?? []
+        let aliases = try message.aliases()
 
         let (attachment:attachment, additionalData:additionalData) = try await service.allocate(
             hostname: hostname,
@@ -53,10 +53,6 @@ public actor NetworkHarness: Sendable {
 
         let reply = message.reply()
         try reply.setAttachment(attachment)
-        if !aliases.isEmpty {
-            // Echo the aliases to acknowledge that they were registered.
-            try reply.setAliases(aliases)
-        }
         if let additionalData {
             try reply.setAdditionalData(additionalData.underlying)
         }
@@ -66,9 +62,9 @@ public actor NetworkHarness: Sendable {
 
     @Sendable
     public func lookup(_ message: XPCMessage) async throws -> XPCMessage {
-        let hostname = try message.hostname()
+        let name = try message.name()
         let reply = message.reply()
-        guard let match = try await service.match(name: hostname) else {
+        guard let match = try await service.lookup(name: name) else {
             return reply
         }
 

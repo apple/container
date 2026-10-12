@@ -313,7 +313,7 @@ public actor NetworksService {
     public func lookup(hostname: String) async throws -> Attachment? {
         let sources = self.serviceStates.map { id, entry in
             let client = entry.client
-            return (name: id, match: { @Sendable in try await client.match(name: hostname) })
+            return (name: id, lookup: { @Sendable in try await client.lookup(name: hostname) })
         }
         let log = self.log
         let match = await NetworkMatchSelector.select(from: sources) { network, error in

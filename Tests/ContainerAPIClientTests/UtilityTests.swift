@@ -152,7 +152,7 @@ struct UtilityTests {
         #expect(attachments[0].options.aliases == ["api.test", ".foo.test"])
         #expect(attachments[1].network == "backend")
         #expect(attachments[1].options.hostname == "foo")
-        #expect(attachments[1].options.aliases == nil)
+        #expect(attachments[1].options.aliases.isEmpty)
     }
 
     @Test("Aliases are carried to a later attachment")
@@ -169,7 +169,7 @@ struct UtilityTests {
             dnsDomain: "test"
         )
 
-        #expect(attachments[0].options.aliases == nil)
+        #expect(attachments[0].options.aliases.isEmpty)
         #expect(attachments[1].options.aliases == ["db.internal"])
     }
 
@@ -183,7 +183,7 @@ struct UtilityTests {
         )
 
         #expect(attachments.count == 1)
-        #expect(attachments[0].options.aliases == nil)
+        #expect(attachments[0].options.aliases.isEmpty)
     }
 
     @Test("Aliases without a domain get the default domain")
@@ -207,10 +207,10 @@ struct UtilityTests {
         #expect(aliases == ["api", ".gateway", "web.internal"])
     }
 
-    @Test("No aliases stay none")
+    @Test("No aliases stay empty")
     func testQualifyAliasesWithNoAliases() throws {
-        #expect(try Utility.qualifyAliases([], dnsDomain: "test") == nil)
-        #expect(try Utility.qualifyAliases([], dnsDomain: nil) == nil)
+        #expect(try Utility.qualifyAliases([], dnsDomain: "test").isEmpty)
+        #expect(try Utility.qualifyAliases([], dnsDomain: nil).isEmpty)
     }
 
     @Test("The default domain is normalized when it is added")

@@ -69,8 +69,7 @@ extension NetworkClient {
     /// releases the allocation on the network helper automatically.
     ///
     /// - Parameter aliases: Additional names that resolve to the attachment, in their normalized
-    ///   string form. A network helper that does not support aliases does not acknowledge them in its
-    ///   reply, and the call fails with an unsupported error.
+    ///   string form.
     public func allocate(
         hostname: String,
         macAddress: MACAddress? = nil,
@@ -86,38 +85,20 @@ extension NetworkClient {
             try request.setAliases(aliases)
         }
         let response = try await session.send(request)
-        try Self.verifyAliasAcknowledgement(requested: aliases, acknowledged: try response.aliases(), plugin: plugin)
         let attachment = try response.attachment()
         let additionalData = response.additionalData()
         return (attachment, additionalData)
     }
 
-    /// Checks that a network helper registered the aliases that were requested for an attachment.
-    ///
-    /// A helper acknowledges aliases by echoing them in its reply. A helper that predates aliases
-    /// ignores them, which would leave them silently unresolvable.
-    ///
-    /// - Throws: \`ContainerizationError\` with code \`.unsupported\` if aliases were requested and the
-    ///   reply does not acknowledge exactly them.
-    static func verifyAliasAcknowledgement(requested: [String], acknowledged: [String]?, plugin: String) throws {
-        guard !requested.isEmpty else {
-            return
-        }
-        guard acknowledged == requested else {
-            throw ContainerizationError(.unsupported, message: "network plugin \(plugin) does not support aliases")
-        }
-    }
-
-    public func lookup(hostname: String) async throws -> Attachment? {
-        try await match(name: hostname)?.attachment
-    }
-
-    /// Find the attachment that a name resolves to, and how the name matched.
+    /// Look up a name on the network.
     ///
     /// The name can be the hostname of an attachment, an alias of it, or a name below a subtree alias.
-    public func match(name: String) async throws -> NetworkMatch? {
+    ///
+    /// - Returns: The attachment that the name resolves to and how the name matched, or nil if the
+    ///   name does not resolve on this network.
+    public func lookup(name: String) async throws -> NetworkMatch? {
         let request = XPCMessage(route: NetworkRoutes.lookup.rawValue)
-        request.set(key: NetworkKeys.hostname.rawValue, value: name)
+        request.set(key: NetworkKeys.name.rawValue, value: name)
 
         let client = createClient()
 
@@ -158,6 +139,14 @@ extension XPCMessage {
             throw ContainerizationError(.invalidArgument, message: "no hostname data in message")
         }
         return hostname
+    }
+
+    public func name() throws -> String {
+        let name = self.string(key: NetworkKeys.name.rawValue)
+        guard let name else {
+            throw ContainerizationError(.invalidArgument, message: "no name data in message")
+        }
+        return name
     }
 
     public func status() throws -> NetworkStatus {

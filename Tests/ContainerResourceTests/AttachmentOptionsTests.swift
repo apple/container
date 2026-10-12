@@ -40,7 +40,7 @@ struct AttachmentOptionsTests {
         let options = try JSONDecoder().decode(AttachmentOptions.self, from: Data(json.utf8))
         #expect(options.hostname == "foo.test.")
         #expect(options.mtu == 1280)
-        #expect(options.aliases == nil)
+        #expect(options.aliases.isEmpty)
     }
 
     @Test("Options without aliases do not encode an aliases key")
@@ -69,5 +69,12 @@ struct AttachmentOptionsTests {
         let decoded = try JSONDecoder().decode(AttachmentConfiguration.self, from: JSONEncoder().encode(original))
         #expect(decoded.network == "default")
         #expect(decoded.options.aliases == [".foo.test"])
+    }
+
+    @Test("An empty aliases list in stored options decodes as no aliases")
+    func decodeEmptyAliases() throws {
+        let json = #"{"hostname":"foo.test.","aliases":[]}"#
+        let options = try JSONDecoder().decode(AttachmentOptions.self, from: Data(json.utf8))
+        #expect(options.aliases.isEmpty)
     }
 }

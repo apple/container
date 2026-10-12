@@ -21,7 +21,7 @@ import Testing
 @testable import ContainerAPIService
 
 struct AttachmentNameValidatorTests {
-    private func attachment(_ hostname: String, network: String = "default", aliases: [String]? = nil) -> AttachmentConfiguration {
+    private func attachment(_ hostname: String, network: String = "default", aliases: [String] = []) -> AttachmentConfiguration {
         AttachmentConfiguration(network: network, options: AttachmentOptions(hostname: hostname, aliases: aliases))
     }
 

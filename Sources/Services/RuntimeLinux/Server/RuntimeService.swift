@@ -193,7 +193,7 @@ public actor RuntimeService {
                     var (attachment, additionalData) = try await client.allocate(
                         hostname: attachmentConfig.options.hostname,
                         macAddress: attachmentConfig.options.macAddress,
-                        aliases: attachmentConfig.options.aliases ?? [],
+                        aliases: attachmentConfig.options.aliases,
                         on: session
                     )
                     if let mtu = attachmentConfig.options.mtu {

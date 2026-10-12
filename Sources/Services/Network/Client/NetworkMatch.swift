@@ -46,10 +46,10 @@ extension XPCMessage {
         self.set(key: NetworkKeys.aliases.rawValue, value: try JSONEncoder().encode(aliases))
     }
 
-    /// The aliases in the message, or nil if the message has none.
-    public func aliases() throws -> [String]? {
+    /// The aliases in the message, which are empty if the message has none.
+    public func aliases() throws -> [String] {
         guard let data = self.dataNoCopy(key: NetworkKeys.aliases.rawValue) else {
-            return nil
+            return []
         }
         return try JSONDecoder().decode([String].self, from: data)
     }
@@ -68,12 +68,9 @@ extension XPCMessage {
     }
 
     /// How a name matched.
-    ///
-    /// A message without a kind comes from a network helper that does not know about aliases, and
-    /// every match it reports is a hostname.
     public func matchKind() throws -> NetworkMatchKind {
         guard let kind = self.string(key: NetworkKeys.matchKind.rawValue) else {
-            return .hostname
+            throw ContainerizationError(.invalidArgument, message: "no match kind in message")
         }
         switch kind {
         case "hostname":

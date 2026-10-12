@@ -59,15 +59,6 @@ public actor DefaultNetworkService: NetworkService {
     public func allocate(
         hostname: String,
         macAddress: MACAddress?,
-        session: XPCServerSession
-    ) async throws -> (attachment: Attachment, additionalData: XPCMessage?) {
-        try await allocate(hostname: hostname, macAddress: macAddress, aliases: [], session: session)
-    }
-
-    @Sendable
-    public func allocate(
-        hostname: String,
-        macAddress: MACAddress?,
         aliases: [String],
         session: XPCServerSession
     ) async throws -> (attachment: Attachment, additionalData: XPCMessage?) {
@@ -137,28 +128,7 @@ public actor DefaultNetworkService: NetworkService {
     }
 
     @Sendable
-    public func lookup(hostname: String) async throws -> Attachment? {
-        log.debug("enter", metadata: ["func": "\(#function)"])
-        defer { log.debug("exit", metadata: ["func": "\(#function)"]) }
-
-        guard let status = await network.status else {
-            throw ContainerizationError(.invalidState, message: "network \(network.id) must be running")
-        }
-
-        // Invariant: hostname -> index if and only if index -> MAC address
-        let index = try await allocator.lookup(hostname: hostname)
-        guard let index else {
-            return nil
-        }
-        guard let macAddress = macAddresses[index] else {
-            return nil
-        }
-
-        return try makeAttachment(hostname: hostname, index: index, macAddress: macAddress, status: status)
-    }
-
-    @Sendable
-    public func match(name: String) async throws -> NetworkMatch? {
+    public func lookup(name: String) async throws -> NetworkMatch? {
         log.debug("enter", metadata: ["func": "\(#function)"])
         defer { log.debug("exit", metadata: ["func": "\(#function)"]) }
 

@@ -46,8 +46,8 @@ Aliases are part of the attachment configuration (`AttachmentOptions.aliases`), 
 
 1. The application asks the system resolver for a name. macOS finds a resolver file whose domain matches and sends the query to `127.0.0.1:2053`.
 2. The container DNS server decodes the question and `ContainerDNSHandler` calls `NetworksService.lookup` with the name.
-3. `NetworksService` asks each network helper to match the name. A helper checks its own attachments in a fixed order: the hostname of an attachment, then an exact alias, then the subtree alias with the longest base. It replies with the attachment, and with how the name matched.
-4. `NetworksService` takes the first reply that is a hostname or exact alias match. If there is none, it takes the subtree match with the most labels in its base, once every helper has answered.
+3. `NetworksService` calls `lookup()` on each network helper with the name. A helper looks the name up among its own attachments in a fixed order: the hostname of an attachment, then an exact alias, then the subtree alias with the longest base. It replies with a `NetworkMatch`, which holds the attachment and how the name matched, for the best match on that network, or with nothing if the name does not resolve there.
+4. `NetworksService` takes the first `NetworkMatch` that is a hostname or exact alias match. If there is none, it takes the subtree match with the most labels in its base, once every helper has answered.
 5. The handler answers with the address of the attachment, using the queried name as the owner name of the record. When the name exists but the attachment has no IPv6 address, an AAAA query gets NODATA (no error, no records) instead of NXDOMAIN. musl libc treats NXDOMAIN for AAAA as the whole name not existing, so this is required for such names to resolve.
 
 ## Registration lifecycle
@@ -56,7 +56,7 @@ Names are registered in two places, and the order matters.
 
 When a container is created, `ContainersService.create` validates the names of its attachments under the container creation lock, before the container is created. This is the only place that sees every container, so it is where uniqueness is enforced.
 
-When the container starts, the runtime service opens one XPC session to the helper of each network and calls `allocate` with the hostname, the optional MAC address, and the aliases. The helper registers the hostname and aliases for the lifetime of the session. A helper that supports aliases echoes them in its reply to acknowledge them. When a container requests aliases and the reply does not acknowledge them, the client treats the plugin as unsupported and fails. A container without aliases sends no aliases and needs no acknowledgement, so a helper that predates aliases keeps working for it. When the session ends, whether the container stops, crashes or disconnects, the helper releases the address and the names. If any allocation fails during startup, the runtime service closes every session it opened, which releases the earlier allocations.
+When the container starts, the runtime service opens one XPC session to the helper of each network and calls `allocate` with the hostname, the optional MAC address, and the aliases. The helper registers the hostname and aliases for the lifetime of the session. When the session ends, whether the container stops, crashes or disconnects, the helper releases the address and the names. If any allocation fails during startup, the runtime service closes every session it opened, which releases the earlier allocations.
 
 ## Invariants
 
@@ -67,7 +67,7 @@ When the container starts, the runtime service opens one XPC session to the help
 * **Names are canonical.** Hostnames and aliases are compared lowercase and without a trailing dot, and the helper stores them that way. A container named `Foo` is therefore found by a query for `foo`.
 * **The helper is authoritative.** The addresses in answers come only from the allocation that a helper made for the attachment. No configuration value can supply an address.
 * **Names live as long as the allocation.** An allocation and its aliases are released together, so a stopped container does not keep answering.
-* **Existing configurations stay valid.** The alias fields in the configuration and in the helper protocol are optional. A reply without a match kind is a hostname match, and a helper that implements only the original methods keeps working.
+* **Existing configurations stay valid.** The `aliases` key of an attachment configuration is optional when it is decoded and is left out when it is empty, so a configuration stored before aliases existed decodes with no aliases, and a configuration without aliases is stored as it was before.
 
 ## Security considerations
 

@@ -341,11 +341,8 @@ public struct Utility {
     /// - Parameters:
     ///   - aliases: The aliases of an attachment, in their normalized form.
     ///   - dnsDomain: The default DNS domain from the system configuration, if there is one.
-    /// - Returns: The qualified aliases, or nil if there are none.
-    static func qualifyAliases(_ aliases: [String], dnsDomain: String?) throws -> [String]? {
-        guard !aliases.isEmpty else {
-            return nil
-        }
+    /// - Returns: The qualified aliases.
+    static func qualifyAliases(_ aliases: [String], dnsDomain: String?) throws -> [String] {
         guard let dnsDomain else {
             return aliases
         }

@@ -149,10 +149,10 @@ struct NetworkMatchSelectorTests {
         _ name: String,
         asked: Asked,
         _ result: @escaping @Sendable () throws -> NetworkMatch?
-    ) -> (name: String, match: @Sendable () async throws -> NetworkMatch?) {
+    ) -> (name: String, lookup: @Sendable () async throws -> NetworkMatch?) {
         (
             name: name,
-            match: {
+            lookup: {
                 asked.names.append(name)
                 return try result()
             }

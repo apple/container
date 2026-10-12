@@ -14,16 +14,11 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerResource
 import ContainerXPC
-import ContainerizationExtras
 import Testing
 
 @testable import ContainerNetworkClient
 @testable import ContainerNetworkServer
-
-// The testing library also defines an Attachment type.
-private typealias NetworkAttachment = ContainerResource.Attachment
 
 struct NetworkAliasProtocolTests {
     private func message() -> XPCMessage {
@@ -40,7 +35,7 @@ struct NetworkAliasProtocolTests {
     }
 
     @Test func testMessageWithoutAliasesHasNone() throws {
-        #expect(try message().aliases() == nil)
+        #expect(try message().aliases().isEmpty)
     }
 
     // MARK: - Match kind in messages
@@ -54,8 +49,10 @@ struct NetworkAliasProtocolTests {
         }
     }
 
-    @Test func testMessageWithoutMatchKindIsAHostnameMatch() throws {
-        #expect(try message().matchKind() == .hostname)
+    @Test func testMessageWithoutMatchKindIsRejected() {
+        #expect(throws: (any Error).self) {
+            try message().matchKind()
+        }
     }
 
     @Test func testUnknownMatchKindIsRejected() throws {
@@ -67,77 +64,18 @@ struct NetworkAliasProtocolTests {
         }
     }
 
-    // MARK: - Acknowledgement
+    // MARK: - Name in messages
 
-    @Test func testAcknowledgementIsNotNeededWithoutAliases() throws {
-        try NetworkClient.verifyAliasAcknowledgement(requested: [], acknowledged: nil, plugin: "test-plugin")
-        try NetworkClient.verifyAliasAcknowledgement(requested: [], acknowledged: ["unexpected.test"], plugin: "test-plugin")
+    @Test func testNameRoundTrip() throws {
+        let message = message()
+        message.set(key: NetworkKeys.name.rawValue, value: "web.example.test.")
+
+        #expect(try message.name() == "web.example.test.")
     }
 
-    @Test func testMatchingAcknowledgementIsAccepted() throws {
-        try NetworkClient.verifyAliasAcknowledgement(
-            requested: ["api.example.test", ".example.test"],
-            acknowledged: ["api.example.test", ".example.test"],
-            plugin: "test-plugin"
-        )
-    }
-
-    @Test func testMissingAcknowledgementIsRejectedWithThePluginName() {
-        do {
-            try NetworkClient.verifyAliasAcknowledgement(requested: ["api.example.test"], acknowledged: nil, plugin: "test-plugin")
-            Issue.record("expected the aliases to be rejected")
-        } catch {
-            #expect("\(error)".contains("test-plugin"))
-        }
-    }
-
-    @Test func testDifferentAcknowledgementIsRejected() {
+    @Test func testMessageWithoutNameIsRejected() {
         #expect(throws: (any Error).self) {
-            try NetworkClient.verifyAliasAcknowledgement(
-                requested: ["api.example.test", "web.example.test"],
-                acknowledged: ["api.example.test"],
-                plugin: "test-plugin"
-            )
+            try message().name()
         }
-    }
-
-    // MARK: - Default NetworkService behavior
-
-    private struct StubError: Error {}
-
-    private struct StubService: NetworkService {
-        let attachment: NetworkAttachment?
-
-        func status() async throws -> NetworkStatus { throw StubError() }
-
-        func allocate(
-            hostname: String,
-            macAddress: MACAddress?,
-            session: XPCServerSession
-        ) async throws -> (attachment: NetworkAttachment, additionalData: XPCMessage?) {
-            throw StubError()
-        }
-
-        func lookup(hostname: String) async throws -> NetworkAttachment? { attachment }
-    }
-
-    @Test func testDefaultMatchReportsAHostnameMatch() async throws {
-        let attachment = NetworkAttachment(
-            network: "default",
-            hostname: "foo.test.",
-            ipv4Address: try CIDRv4("192.168.64.2/24"),
-            ipv4Gateway: try IPv4Address("192.168.64.1"),
-            ipv6Address: nil,
-            macAddress: nil
-        )
-
-        let match = try #require(try await StubService(attachment: attachment).match(name: "foo.test."))
-
-        #expect(match.kind == .hostname)
-        #expect(match.attachment.hostname == "foo.test.")
-    }
-
-    @Test func testDefaultMatchFindsNothingWhenLookupFindsNothing() async throws {
-        #expect(try await StubService(attachment: nil).match(name: "foo.test.") == nil)
     }
 }

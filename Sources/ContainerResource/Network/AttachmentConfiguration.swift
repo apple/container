@@ -41,18 +41,45 @@ public struct AttachmentOptions: Codable, Sendable {
     /// The MTU for the network interface.
     public let mtu: UInt32?
 
-    /// Additional DNS names that resolve to the attachment (optional).
+    /// Additional DNS names that resolve to the attachment.
     ///
     /// Each value is the normalized string form of a `DNSMatchRule`: an exact name such as
     /// `api.example.test`, or a name with a leading dot such as `.example.test` that matches every
-    /// name below it. A nil value means the attachment has no aliases.
-    public let aliases: [String]?
+    /// name below it. The list is empty when the attachment has no aliases.
+    public let aliases: [String]
 
-    public init(hostname: String, macAddress: MACAddress? = nil, mtu: UInt32? = nil, aliases: [String]? = nil) {
+    public init(hostname: String, macAddress: MACAddress? = nil, mtu: UInt32? = nil, aliases: [String] = []) {
         self.hostname = hostname
         self.macAddress = macAddress
         self.mtu = mtu
         self.aliases = aliases
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case hostname
+        case macAddress
+        case mtu
+        case aliases
+    }
+
+    // Configurations stored before aliases existed have no `aliases` key, and decode with none.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.hostname = try container.decode(String.self, forKey: .hostname)
+        self.macAddress = try container.decodeIfPresent(MACAddress.self, forKey: .macAddress)
+        self.mtu = try container.decodeIfPresent(UInt32.self, forKey: .mtu)
+        self.aliases = try container.decodeIfPresent([String].self, forKey: .aliases) ?? []
+    }
+
+    // The key is left out when there are no aliases, so a configuration without them is stored as it was before.
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(hostname, forKey: .hostname)
+        try container.encodeIfPresent(macAddress, forKey: .macAddress)
+        try container.encodeIfPresent(mtu, forKey: .mtu)
+        if !aliases.isEmpty {
+            try container.encode(aliases, forKey: .aliases)
+        }
     }
 }
 

@@ -55,24 +55,24 @@ struct NetworkMatchSelector {
 }
 
 extension NetworkMatchSelector {
-    /// Asks each source for a match, and returns the best one.
+    /// Looks the name up on each source, and returns the best match.
     ///
     /// The sources are asked in order, and the search stops at the first decisive match. A source that
     /// throws is skipped, and reported to `onFailure`. A network whose helper is starting up or shutting
     /// down cannot answer, and it should not make the answers of the other networks fail.
     ///
     /// - Parameters:
-    ///   - sources: The networks to ask, each with a name for reporting and a function that asks it.
+    ///   - sources: The networks to ask, each with a name for reporting and a function that does the lookup.
     ///   - onFailure: Called with the name of a source and the error when a source throws.
     static func select(
-        from sources: [(name: String, match: @Sendable () async throws -> NetworkMatch?)],
+        from sources: [(name: String, lookup: @Sendable () async throws -> NetworkMatch?)],
         onFailure: @Sendable (String, any Error) -> Void
     ) async -> NetworkMatch? {
         var selector = NetworkMatchSelector()
         for source in sources {
             let match: NetworkMatch?
             do {
-                match = try await source.match()
+                match = try await source.lookup()
             } catch {
                 onFailure(source.name, error)
                 continue

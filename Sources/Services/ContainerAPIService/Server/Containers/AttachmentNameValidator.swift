@@ -48,7 +48,7 @@ enum AttachmentNameValidator {
         var claimed = Set<String>()
         for attachment in existing {
             claimed.insert(AttachmentOptions.canonicalHostname(attachment.options.hostname))
-            for alias in attachment.options.aliases ?? [] {
+            for alias in attachment.options.aliases {
                 claimed.insert(Self.canonicalAlias(alias))
             }
         }
@@ -65,7 +65,7 @@ enum AttachmentNameValidator {
         var ownAliases = Set<String>()
         var conflictingAliases = [String]()
         for attachment in networks {
-            let aliases = attachment.options.aliases ?? []
+            let aliases = attachment.options.aliases
             guard !aliases.isEmpty else {
                 continue
             }
