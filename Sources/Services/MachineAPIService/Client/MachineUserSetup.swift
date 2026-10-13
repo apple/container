@@ -24,13 +24,14 @@
 /// population only happen once (guarded by looking the account up by both
 /// uid and username), while the sudoers entry is cheaply reasserted every
 /// run. If the image already has a *different* account using the requested
-/// uid or username, or anything already exists at the requested home path,
-/// setup fails loudly instead of silently skipping — proceeding could mean
-/// resolving to the wrong account, creating a duplicate/ambiguous passwd
-/// entry, or recursively chowning pre-existing content that isn't ours.
+/// uid or username, or anything already exists at the requested home path
+/// without an explicit mount there, setup fails loudly instead of silently
+/// skipping. A mounted home is used as-is: its contents and ownership are
+/// never changed by user setup.
 ///
 /// Expects CONTAINER_USER, CONTAINER_UID, CONTAINER_GID, and CONTAINER_HOME
-/// to be set in the environment.
+/// to be set in the environment. CONTAINER_HOME_MOUNTED=1 is set only when a
+/// configured host mount targets the user's home path.
 public enum MachineUserSetup {
     public static let script = #"""
         set -e
@@ -61,7 +62,12 @@ public enum MachineUserSetup {
             fi
             # Otherwise this is our own account from a previous boot: nothing to do.
         else
-            if [ -e "${CONTAINER_HOME}" ]; then
+            if [ "${CONTAINER_HOME_MOUNTED:-0}" = 1 ]; then
+                if [ ! -d "${CONTAINER_HOME}" ] || [ -L "${CONTAINER_HOME}" ]; then
+                    echo "container machine: mounted home '${CONTAINER_HOME}' is not a directory" >&2
+                    exit 1
+                fi
+            elif [ -e "${CONTAINER_HOME}" ]; then
                 echo "container machine: refusing to use existing path '${CONTAINER_HOME}' as the home directory for user '${CONTAINER_USER}'" >&2
                 exit 1
             fi
@@ -69,11 +75,13 @@ public enum MachineUserSetup {
             echo "${CONTAINER_USER}:x:${CONTAINER_UID}:${CONTAINER_GID}::${CONTAINER_HOME}:${CONTAINER_SHELL}" >> /etc/passwd
             echo "${CONTAINER_USER}:!:$(($(date +%s) / 86400)):0:99999:7:::" >> /etc/shadow
 
-            mkdir -p "${CONTAINER_HOME}"
-            if [ -d /etc/skel ]; then
-                cp -a /etc/skel/. "${CONTAINER_HOME}"
+            if [ "${CONTAINER_HOME_MOUNTED:-0}" != 1 ]; then
+                mkdir -p "${CONTAINER_HOME}"
+                if [ -d /etc/skel ]; then
+                    cp -a /etc/skel/. "${CONTAINER_HOME}"
+                fi
+                chown -R "${CONTAINER_UID}:${CONTAINER_GID}" "${CONTAINER_HOME}"
             fi
-            chown -R "${CONTAINER_UID}:${CONTAINER_GID}" "${CONTAINER_HOME}"
         fi
 
         mkdir -p /etc/sudoers.d

@@ -97,6 +97,16 @@ container machine create --name dev \
 
 Configured mounts are shown by `container machine inspect`. They are fixed for the lifetime of the machine; to change them, recreate the machine.
 
+To use a host directory as the guest user's home, turn off the default host home mount and mount the directory at `/home/$(id -un)` (or the home path selected with `--home`):
+
+```bash
+mkdir -p "$HOME/machine-home"
+container machine create --name dev --home-mount none \
+  --mount "$HOME/machine-home:/home/$(id -un):rw" alpine:3.22
+```
+
+The guest account uses the mounted directory as-is. User setup does not copy `/etc/skel` into it or change its ownership or contents. Ensure the directory is writable by the guest user if you want a writable home.
+
 ### Nested virtualization and custom kernels
 
 A container machine supports nested virtualization. The requirements for this to work are:

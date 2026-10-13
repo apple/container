@@ -849,6 +849,33 @@ struct TestCLIMachineRuntimeSerial {
         }
     }
 
+    @Test func testUserMountAsHomePreservesHostContents() async throws {
+        try await ContainerFixture.with { f in
+            let name = "\(f.testID)-machine"
+            f.addCleanup { f.cleanupMachine(name) }
+
+            let source = f.testDir.appending("machine-home")
+            try FileManager.default.createDirectory(atPath: source.string, withIntermediateDirectories: true)
+            let sentinel = source.appending("sentinel")
+            try "existing".write(toFile: sentinel.string, atomically: true, encoding: .utf8)
+            let guestHome = "/home/\(NSUserName())"
+
+            try f.doMachineCreate(
+                name: name,
+                image: machineImage,
+                extraArgs: ["--home-mount", "none", "--mount", "\(source.string):\(guestHome):rw"])
+            try f.doMachineBoot(name: name)
+            try await f.waitForMachineStatus(name, status: "running")
+
+            let content = try f.doMachineRun(name: name, command: ["cat", "\(guestHome)/sentinel"])
+            #expect(content.trimmingCharacters(in: .whitespacesAndNewlines) == "existing")
+            #expect(try String(contentsOfFile: sentinel.string, encoding: .utf8) == "existing")
+
+            try f.doMachineRun(name: name, command: ["touch", "\(guestHome)/from-guest"])
+            #expect(FileManager.default.fileExists(atPath: source.appending("from-guest").string))
+        }
+    }
+
     @Test func testCreateAutoBoots() async throws {
         try await ContainerFixture.with { f in
             let name = "\(f.testID)-machine"
