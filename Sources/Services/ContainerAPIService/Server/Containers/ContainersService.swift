@@ -404,6 +404,7 @@ public actor ContainersService {
 
             let path = self.containerRoot.appendingPathComponent(id)
             let (config, _) = try Self.getContainerConfiguration(at: path)
+            try AttachmentNameValidator.validateStored(id: id, networks: config.networks)
 
             var networkBootstrapInfos = [NetworkBootstrapInfo]()
             for n in config.networks {

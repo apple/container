@@ -54,9 +54,9 @@ Aliases are part of the attachment configuration (`AttachmentOptions.aliases`), 
 
 Names are registered in two places, and the order matters.
 
-When a container is created, `ContainersService.create` validates the names of its attachments under the container creation lock, before the container is created. This is the only place that sees every container, so it is where uniqueness is enforced.
+When a container is created, `ContainersService.create` validates the names of its attachments under the container creation lock, before the container is created. This is the only place that sees every container, so it is where uniqueness is enforced. The rules that involve only one attachment (the limit, the label minimum, the ownership rule, duplicates) are in `AliasPolicy` in the `DNSServer` module, so the later checks use the same code.
 
-When the container starts, the runtime service opens one XPC session to the helper of each network and calls `allocate` with the hostname, the optional MAC address, and the aliases. The helper registers the hostname and aliases for the lifetime of the session. When the session ends, whether the container stops, crashes or disconnects, the helper releases the address and the names. If any allocation fails during startup, the runtime service closes every session it opened, which releases the earlier allocations.
+When a container starts, the API server validates its stored names again with the same rules, since a stored configuration is not trusted to be what creation accepted. A container whose stored names break a rule fails to start with an error that names it. Then the runtime service opens one XPC session to the helper of each network and calls `allocate` with the hostname, the optional MAC address, and the aliases. The helper checks the aliases against `AliasPolicy` before it registers anything, because they arrive over XPC and are not taken on faith, and it registers the hostname and aliases for the lifetime of the session. When the session ends, whether the container stops, crashes or disconnects, the helper releases the address and the names. If any allocation fails during startup, the runtime service closes every session it opened, which releases the earlier allocations.
 
 ## Invariants
 
@@ -73,7 +73,7 @@ When the container starts, the runtime service opens one XPC session to the help
 
 * Aliases come only from the request that creates the container, through the CLI or the API. They are never read from image metadata, labels or anything that a workload controls.
 * Both DNS servers accept connections from the loopback address only.
-* The create-time checks run under the creation lock, and aliases cannot change afterward, so there is no later path to re-validate. The helper also refuses an alias that is already registered on its own network, as a second line of defense.
+* The create-time checks run under the creation lock, and aliases cannot change afterward, so there is no later mutation path to re-check. Even so, the per-attachment rules are applied three times: at creation, when a stored container starts, and when the network helper registers the aliases. A damaged or edited stored configuration, or a caller of the helper that skipped validation, cannot get past the helper with an alias that the API server would have rejected. The helper also refuses an alias that is already registered on its own network, as a second line of defense for the rules that involve other containers.
 * Matching is by label, which keeps `evilexample.test` from matching `.example.test`.
 * The ownership rule and the two-label minimum keep a subtree alias from capturing a whole top-level domain or the names of other containers. Exact names always win over a subtree.
 * A subtree makes every name below its base resolve to the container. A proxy behind such a name receives the requested name in the `Host` header and must treat it as untrusted input.

@@ -263,4 +263,60 @@ struct AttachmentNameValidatorTests {
             )
         }
     }
+
+    // MARK: - Stored configurations
+
+    @Test("A stored configuration that follows the rules is accepted")
+    func storedValid() throws {
+        try AttachmentNameValidator.validateStored(
+            id: "gateway",
+            networks: [attachment("gateway.test.", aliases: ["api.test", ".gateway.test"])]
+        )
+    }
+
+    @Test("A stored configuration without aliases is accepted")
+    func storedWithoutAliases() throws {
+        try AttachmentNameValidator.validateStored(id: "foo", networks: [attachment("foo.test.")])
+    }
+
+    @Test("A stored subtree alias below a name the attachment does not own is rejected")
+    func storedUnownedSubtree() {
+        expectError(.invalidState, containing: "container victim") {
+            try AttachmentNameValidator.validateStored(
+                id: "victim",
+                networks: [attachment("victim.test.", aliases: [".com.example"])]
+            )
+        }
+    }
+
+    @Test("A stored alias that is not a valid rule is rejected and the error names the container")
+    func storedMalformed() {
+        expectError(.invalidState, containing: "invalid alias") {
+            try AttachmentNameValidator.validateStored(
+                id: "victim",
+                networks: [attachment("victim.test.", aliases: ["*.victim.test"])]
+            )
+        }
+    }
+
+    @Test("A stored configuration with too many aliases is rejected")
+    func storedTooMany() {
+        let aliases = (0...AttachmentNameValidator.maximumAliasesPerAttachment).map { "alias\($0).test" }
+        expectError(.invalidState, containing: "at most") {
+            try AttachmentNameValidator.validateStored(id: "victim", networks: [attachment("victim.test.", aliases: aliases)])
+        }
+    }
+
+    @Test("A stored alias that is also a hostname of the container is rejected")
+    func storedAliasIsHostname() {
+        expectError(.invalidState, containing: "already a hostname") {
+            try AttachmentNameValidator.validateStored(
+                id: "victim",
+                networks: [
+                    attachment("victim.test.", aliases: ["db.test"]),
+                    attachment("db.test", network: "other"),
+                ]
+            )
+        }
+    }
 }

@@ -26,14 +26,10 @@ import DNSServer
 /// the part of the namespace below another container's name.
 enum AttachmentNameValidator {
     /// The most aliases that a single attachment may declare.
-    static let maximumAliasesPerAttachment = 32
+    static let maximumAliasesPerAttachment = AliasPolicy.maximumAliasesPerAttachment
 
     /// The fewest labels that an exact alias, or the base of a subtree alias, may have.
-    ///
-    /// A name with one label is not under any domain, so the system resolver never sends queries for
-    /// it to the container DNS server, and an alias like that would never resolve. For a subtree it
-    /// also keeps an alias from capturing a whole top-level domain.
-    static let minimumAliasLabels = 2
+    static let minimumAliasLabels = AliasPolicy.minimumLabels
 
     /// Validates the attachments of a new container against the attachments of all existing containers.
     ///
@@ -69,75 +65,53 @@ enum AttachmentNameValidator {
             guard !aliases.isEmpty else {
                 continue
             }
-            guard aliases.count <= Self.maximumAliasesPerAttachment else {
-                throw ContainerizationError(
-                    .invalidArgument,
-                    message: "network \(attachment.network) has \(aliases.count) aliases, but at most \(Self.maximumAliasesPerAttachment) are allowed"
-                )
+
+            // The rules that depend only on this attachment are shared with the network helper.
+            let rules: [DNSMatchRule]
+            do {
+                let hostname = try? DNSName(AttachmentOptions.canonicalHostname(attachment.options.hostname))
+                rules = try AliasPolicy.validate(aliases: aliases, hostname: hostname, network: attachment.network)
+            } catch let violation as AliasPolicy.Violation {
+                throw ContainerizationError(.invalidArgument, message: violation.description)
             }
 
-            var rules = [(alias: String, rule: DNSMatchRule)]()
-            for alias in aliases {
-                do {
-                    rules.append((alias, try DNSMatchRule(alias)))
-                } catch {
-                    throw ContainerizationError(.invalidArgument, message: "invalid alias \"\(alias)\" for network \(attachment.network): \(error)")
+            // The rules that involve the other attachments and the other containers.
+            for (alias, rule) in zip(aliases, rules) {
+                guard case .exact = rule else {
+                    continue
                 }
-            }
-
-            // The names this attachment owns, which are the roots a subtree alias may use.
-            var owned = Set<DNSName>()
-            if let hostname = try? DNSName(AttachmentOptions.canonicalHostname(attachment.options.hostname)) {
-                owned.insert(hostname)
-            }
-            for case (_, .exact(let name)) in rules {
-                owned.insert(name)
-            }
-
-            var seen = Set<DNSMatchRule>()
-            for (alias, rule) in rules {
-                guard seen.insert(rule).inserted else {
-                    throw ContainerizationError(.invalidArgument, message: "alias \"\(alias)\" is listed more than once for network \(attachment.network)")
+                let name = rule.description
+                guard !ownHostnames.contains(name) else {
+                    throw ContainerizationError(.invalidArgument, message: "alias \"\(alias)\" is already a hostname of the container")
                 }
-                switch rule {
-                case .exact(let exactName):
-                    let name = rule.description
-                    guard exactName.labels.count >= Self.minimumAliasLabels else {
-                        throw ContainerizationError(
-                            .invalidArgument,
-                            message:
-                                "alias \"\(alias)\" must be a fully qualified name with at least \(Self.minimumAliasLabels) labels, such as \"api.example.test\". Configure a default DNS domain to have the domain added to a name that has none"
-                        )
-                    }
-                    guard !ownHostnames.contains(name) else {
-                        throw ContainerizationError(.invalidArgument, message: "alias \"\(alias)\" is already a hostname of the container")
-                    }
-                    guard ownAliases.insert(name).inserted else {
-                        throw ContainerizationError(.invalidArgument, message: "alias \"\(alias)\" is declared on more than one network")
-                    }
-                    if claimed.contains(name) {
-                        conflictingAliases.append(alias)
-                    }
-                case .subtree(let base):
-                    guard base.labels.count >= Self.minimumAliasLabels else {
-                        throw ContainerizationError(
-                            .invalidArgument,
-                            message:
-                                "alias \"\(alias)\" must have at least \(Self.minimumAliasLabels) labels after the leading dot. Configure a default DNS domain to have the domain added to a name that has none"
-                        )
-                    }
-                    guard owned.contains(base) else {
-                        throw ContainerizationError(
-                            .invalidArgument,
-                            message:
-                                "alias \"\(alias)\" must be below the hostname or an exact alias of network \(attachment.network), but \"\(base.pqdn)\" is neither"
-                        )
-                    }
+                guard ownAliases.insert(name).inserted else {
+                    throw ContainerizationError(.invalidArgument, message: "alias \"\(alias)\" is declared on more than one network")
+                }
+                if claimed.contains(name) {
+                    conflictingAliases.append(alias)
                 }
             }
         }
         guard conflictingAliases.isEmpty else {
             throw ContainerizationError(.exists, message: "alias(es) already exist: \(conflictingAliases)")
+        }
+    }
+
+    /// Validates the attachments of a container that was read back from storage.
+    ///
+    /// The stored configuration is not trusted to be what `validate` accepted when the container was
+    /// created, since the file can be damaged or edited. This checks every rule that does not depend on
+    /// other containers, so a stored container with bad names fails to start with an explanation.
+    ///
+    /// - Throws: `ContainerizationError` with code `.invalidState` if the stored names break a rule.
+    static func validateStored(id: String, networks: [AttachmentConfiguration]) throws {
+        do {
+            try validate(networks: networks, existing: [])
+        } catch let error as ContainerizationError {
+            throw ContainerizationError(
+                .invalidState,
+                message: "the stored configuration of container \(id) has invalid network names: \(error)"
+            )
         }
     }
 

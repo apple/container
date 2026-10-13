@@ -70,11 +70,14 @@ public actor DefaultNetworkService: NetworkService {
         }
 
         let macAddress = macAddress ?? MACAddress((UInt64.random(in: 0...UInt64.max) & 0x0cff_ffff_ffff) | 0xf200_0000_0000)
+        // The aliases come over XPC, so check them against the same rules as the API server does,
+        // instead of trusting that the caller did.
         let rules: [DNSMatchRule]
         do {
-            rules = try aliases.map { try DNSMatchRule($0) }
+            let name = try? DNSName(AttachmentOptions.canonicalHostname(hostname))
+            rules = try AliasPolicy.validate(aliases: aliases, hostname: name, network: network.id)
         } catch {
-            throw ContainerizationError(.invalidArgument, message: "invalid alias for \(hostname): \(error)")
+            throw ContainerizationError(.invalidArgument, message: "invalid aliases for \(hostname): \(error)")
         }
         let index = try await allocator.allocate(hostname: hostname, aliases: rules)
         let ipv6Address = try status.ipv6Subnet
