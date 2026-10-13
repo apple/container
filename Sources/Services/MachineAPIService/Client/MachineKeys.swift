@@ -19,8 +19,6 @@ public enum MachineKeys: String {
     case id
     /// Container machine configuration.
     case machineConfig
-    /// Container machine resources.
-    case machineResources
     /// List of container machine snapshots.
     case machines
     /// Single container machine snapshot.

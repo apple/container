@@ -94,7 +94,8 @@ public enum Output {
     /// adopting commands handle every format by construction: a new `ListFormat`
     /// case becomes a compile error here until it is given an encoder.
     public static func render<J: Encodable>(
-        payload: J, format: ListFormat, jsonOptions: JSONOptions = .compact, table: () throws -> String
+        payload: J, format: ListFormat, jsonOptions: JSONOptions = .compact,
+        emit: (String) -> Void = Output.emit, table: () throws -> String
     ) throws {
         switch format {
         case .json: try emit(renderJSON(payload, options: jsonOptions))

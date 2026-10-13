@@ -127,6 +127,36 @@ struct K8sNodeRowTests {
     }
 }
 
+// MARK: - K8sHelper.workerContainerNames
+
+@Suite("K8sHelper.workerContainerNames")
+struct WorkerContainerNamesTests {
+    @Test func emptyInputProducesNoNames() {
+        #expect(K8sHelper.workerContainerNames(from: [], clusterName: "dev").isEmpty)
+    }
+
+    @Test func excludesControlPlane() throws {
+        let cp = try makeControlPlane("dev")
+        let names = K8sHelper.workerContainerNames(from: [cp], clusterName: "dev")
+        #expect(names.isEmpty)
+    }
+
+    @Test func includesMatchingWorkers() throws {
+        let cp = try makeControlPlane("dev")
+        let w1 = try makeWorker("dev-worker-1")
+        let w2 = try makeWorker("dev-worker-2")
+        let names = K8sHelper.workerContainerNames(from: [cp, w2, w1], clusterName: "dev")
+        #expect(names == ["dev-worker-1", "dev-worker-2"])
+    }
+
+    @Test func excludesWorkersFromOtherClusters() throws {
+        let w1 = try makeWorker("dev-worker-1")
+        let other = try makeWorker("dev2-worker-1")
+        let names = K8sHelper.workerContainerNames(from: [w1, other], clusterName: "dev")
+        #expect(names == ["dev-worker-1"])
+    }
+}
+
 // MARK: - buildK8sRows ordering and grouping
 
 @Suite("K8sHelper.buildK8sRows")

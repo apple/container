@@ -72,7 +72,22 @@ public actor SnapshotStore {
             let desc = try await image.descriptor(for: platform)
             toUnpack = [desc]
         } else {
-            toUnpack = try await image.unpackableDescriptors()
+            // The index can list platforms whose content is not in the store, for example when the
+            // image was loaded from an archive saved for a single platform, or pulled for one.
+            // There is nothing to unpack for those.
+            for desc in try await image.unpackableDescriptors() {
+                guard let platform = desc.platform, try await image.hasManifest(for: platform) else {
+                    self.log?.info(
+                        "skipping unpack of a platform with no content",
+                        metadata: [
+                            "image": "\(image.reference)",
+                            "platform": "\(desc.platform?.description ?? "unknown")",
+                            "digest": "\(desc.digest)",
+                        ])
+                    continue
+                }
+                toUnpack.append(desc)
+            }
         }
 
         let taskManager = ProgressTaskCoordinator()
@@ -242,6 +257,16 @@ public actor SnapshotStore {
 }
 
 extension Containerization.Image {
+    /// Whether the manifest for the platform is in the content store.
+    fileprivate func hasManifest(for platform: Platform) async throws -> Bool {
+        do {
+            _ = try await self.manifest(for: platform)
+            return true
+        } catch let error as ContainerizationError where error.code == .notFound {
+            return false
+        }
+    }
+
     fileprivate func unpackableDescriptors() async throws -> [Descriptor] {
         let index = try await self.index()
         return index.manifests.filter { desc in

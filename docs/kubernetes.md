@@ -80,6 +80,17 @@ container k8s create --name high-resource --cpus 4 --memory 8g
 
 By default, clusters use 1/4 of your host's CPUs (minimum 2) and 1/4 of your host's memory (minimum 2GB).
 
+### Multi-node clusters
+
+By default, `container k8s create` creates a single node that acts as both control plane and worker. Use `--workers` to add dedicated worker nodes instead:
+
+```bash
+# Create a cluster with a control plane and 3 worker nodes
+container k8s create --name my-cluster --workers 3
+```
+
+When `--workers` is greater than `0`, the control-plane node is tainted so pods only schedule onto worker nodes, matching typical multi-node cluster behavior. Worker nodes share the same `--node-image`, `--cpus`, and `--memory` settings as the control plane, and are named `<cluster-name>-worker-<n>`.
+
 ### Access clusters with kubectl
 
 Once a cluster is created, `kubectl` works normally:
@@ -105,8 +116,14 @@ Build an image and load it into your cluster:
 # Build a local image
 container build -t my-app:latest .
 
-# Load the image into the cluster
+# Load the image into every node of the cluster
 container k8s load-image my-app:latest
+
+# Load the image into a single node instead
+container k8s load-image --node k8s-dev-worker-1 my-app:latest
+
+# Load the image into specific nodes only
+container k8s load-image --node k8s-dev-worker-1 --node k8s-dev-worker-2 my-app:latest
 ```
 
 The image is placed in the `k8s.io` namespace, making it available for pod scheduling:

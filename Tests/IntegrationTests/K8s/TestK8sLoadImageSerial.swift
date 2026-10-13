@@ -78,4 +78,27 @@ struct TestK8sLoadImageSerial {
             #expect(try imageExistsInNode(f, node: name, image: "alpine"))
         }
     }
+
+    @Test func testLoadShortNameImageIsFullyQualifiedInNode() async throws {
+        try await ContainerFixture.with { f in
+            let name = "k8s-\(f.testID)"
+            let shortName = "short-\(f.testID):latest"
+            f.addCleanup {
+                _ = try? f.run(["k8s", "delete", "--name", name])
+                _ = try? f.run(["image", "delete", shortName])
+            }
+
+            try f.restoreWarmupImage(.kindestNodeV1_35_5)
+            try f.run(["k8s", "create", "--name", name]).check()
+
+            try f.restoreWarmupImage(.alpine320)
+            try f.run(["image", "tag", Self.testImage, shortName]).check()
+
+            let loadResult = try f.run(["k8s", "load-image", "--name", name, shortName])
+            #expect(loadResult.status == 0)
+
+            // kubelet resolves a short name to docker.io/library/<name>.
+            #expect(try imageExistsInNode(f, node: name, image: "docker.io/library/\(shortName)"))
+        }
+    }
 }

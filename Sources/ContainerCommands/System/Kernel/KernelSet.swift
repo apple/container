@@ -57,7 +57,7 @@ extension Application {
 
         public func run() async throws {
             if recommended {
-                let containerSystemConfig: ContainerSystemConfig = try await Application.loadContainerSystemConfig()
+                let containerSystemConfig: ContainerSystemConfig = try await ClientHealthCheck.loadContainerSystemConfig()
                 let url = containerSystemConfig.kernel.url
                 let path: String = containerSystemConfig.kernel.binaryPath
                 log.info("Installing the recommended kernel from \(url)...")

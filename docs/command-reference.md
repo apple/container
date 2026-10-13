@@ -1127,6 +1127,13 @@ container machine create [<options>] <image>
 *   `--os <os>`: Set OS if image can target multiple operating systems (default: linux)
 *   `--platform <platform>`: Platform for the image if it's multi-platform. This takes precedence over --os and --arch
 
+**User Options**
+
+*   `-u, --user <user>`: Set the user for the container machine account (format: name|uid[:gid]). Defaults to the host user
+*   `--uid <uid>`: Set the user ID for the container machine account. Defaults to the host user's
+*   `--gid <gid>`: Set the group ID for the container machine account. Defaults to the host user's
+*   `--home <home>`: Set the home directory for the container machine account. Defaults to /home/<user>
+
 **Registry Options**
 
 *   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https) (default: https)
@@ -1618,7 +1625,7 @@ container system property list --format json
 
 ## Kubernetes Cluster Management
 
-`container k8s` manages local single-node Kubernetes clusters backed by container VMs. Each cluster runs a Kubernetes control-plane node inside a container using `kindest/node` and `kubeadm`.
+`container k8s` manages local Kubernetes clusters backed by container VMs. Each cluster runs a Kubernetes control-plane node inside a container using `kindest/node` and `kubeadm`, with optional additional worker nodes.
 
 > [!IMPORTANT]
 > The `k8s` command is an experimental feature and its subcommands and options are subject to change.
@@ -1630,14 +1637,15 @@ Creates and starts a local Kubernetes cluster. Pulls the node image if needed, r
 **Usage**
 
 ```bash
-container k8s create [--name <name>] [--node-image <image>] [--cni <path>] [--rm] [<resource options>] [--debug]
+container k8s create [--name <name>] [--node-image <image>] [--cni <path>] [--workers <n>] [--rm] [<resource options>] [--debug]
 ```
 
 **Options**
 
 *   `--name <name>`: Cluster name (default: `k8s-dev`)
 *   `--node-image <image>`: Node image reference (default: `docker.io/kindest/node:v1.35.5`)
-*   `--cni <path>`: Optional path to a CNI manifest to apply. If not provided, the bundled kindnet CNI is used.
+*   `--cni <path>`: Optional path to a CNI manifest to apply, or `NONE` (case-insensitive) to skip installing a CNI. If not provided, the bundled kindnet CNI is used. With `NONE`, the command returns without waiting for nodes to become `Ready`, since that requires a CNI; apply your own afterward with `kubectl apply`.
+*   `--workers <n>`: Number of worker nodes to create (default: `0`, meaning the control-plane node also acts as a worker)
 *   `--rm`: Remove the cluster container after it stops
 
 **Resource Options**
@@ -1667,11 +1675,17 @@ container k8s create --name temp-cluster --rm
 
 # create a cluster using a custom CNI manifest instead of the bundled kindnet
 container k8s create --cni ./my-cni.yaml
+
+# create a cluster with no CNI installed
+container k8s create --cni NONE
+
+# create a cluster with a control plane and 3 worker nodes
+container k8s create --name my-cluster --workers 3
 ```
 
 ### `container k8s delete (rm)`
 
-Stops and deletes a Kubernetes cluster container and removes its entry from `~/.kube/config`.
+Stops and deletes a Kubernetes cluster container, including any worker nodes, and removes its entry from `~/.kube/config`.
 
 **Usage**
 
@@ -1713,12 +1727,12 @@ container k8s ls
 
 ### `container k8s load-image`
 
-Exports an image from the local `container` image store and imports it into the cluster's containerd (in the `k8s.io` namespace) so that Kubernetes can schedule pods that reference it.
+Exports an image from the local `container` image store and imports it into every node's containerd (in the `k8s.io` namespace) so that Kubernetes can schedule pods that reference it on any node.
 
 **Usage**
 
 ```bash
-container k8s load-image [--name <name>] [--platform <platform>] <image> [--debug]
+container k8s load-image [--name <name>] [--platform <platform>] [--node <node> ...] <image> [--debug]
 ```
 
 **Arguments**
@@ -1729,18 +1743,25 @@ container k8s load-image [--name <name>] [--platform <platform>] <image> [--debu
 
 *   `--name <name>`: Cluster name (default: `k8s-dev`)
 *   `--platform <platform>`: Platform of the image variant to load from a multi-arch image (format: os/arch[/variant], default: `linux/<host-arch>`). Use this when the local store contains a multi-arch manifest list and you want to select a specific variant.
+*   `--node <node>`: Load into specific nodes instead of every node in the cluster. Repeat to target multiple nodes.
 
 **Examples**
 
 ```bash
-# load an image into the default cluster
+# load an image into every node of the default cluster
 container k8s load-image my-app:latest
 
-# load an image into a named cluster
+# load an image into every node of a named cluster
 container k8s load-image --name my-cluster my-app:latest
 
 # load the amd64 variant of a multi-arch image
 container k8s load-image --platform linux/amd64 my-app:latest
+
+# load an image into a single worker node only
+container k8s load-image --node k8s-dev-worker-1 my-app:latest
+
+# load an image into specific worker nodes only
+container k8s load-image --node k8s-dev-worker-1 --node k8s-dev-worker-2 my-app:latest
 ```
 
 ### `container k8s write-config`

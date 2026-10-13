@@ -44,6 +44,8 @@ public struct K8sHelper {
     public static let ignorePreflightErrors =
         "Swap,SystemVerification,FileContent--proc-sys-net-bridge-bridge-nf-call-iptables"
     static let podSubnet = "10.244.0.0/16"
+    /// Sentinel value for `--cni` (compared case-insensitively) that skips installing a CNI entirely.
+    static let noCNIName = "NONE"
     // kubeadm default service subnet; must stay in sync if ClusterConfiguration.serviceSubnet is ever set.
     static let serviceSubnet = "10.96.0.0/12"
 
@@ -78,6 +80,28 @@ public struct K8sHelper {
         try? pipe.fileHandleForReading.close()
         let code = try await proc.wait()
         return (code, String(data: data, encoding: .utf8) ?? "")
+    }
+
+    // MARK: - Node enumeration
+
+    /// Names of worker containers belonging to `clusterName`, sorted (e.g. `<clusterName>-worker-1`).
+    /// Only dedicated workers are returned, never the control-plane container. With no workers
+    /// (`--workers 0`) the control plane doubles as the worker node and this list is empty; with
+    /// one or more workers the control plane is tainted and is not a combined control-plane/worker node.
+    static func workerContainerNames(clusterName: String, client: ContainerClient) async throws -> [String] {
+        let snapshots = try await client.list(
+            filters: ContainerListFilters(labels: [ResourceLabelKeys.plugin: pluginName])
+        )
+        return workerContainerNames(from: snapshots, clusterName: clusterName)
+    }
+
+    /// Pure filtering logic behind `workerContainerNames(clusterName:client:)`, split out for unit testing.
+    static func workerContainerNames(from snapshots: [ContainerSnapshot], clusterName: String) -> [String] {
+        snapshots
+            .filter { $0.configuration.labels[ResourceLabelKeys.role] == workerRoleName }
+            .map { $0.configuration.id }
+            .filter { $0.hasPrefix("\(clusterName)-worker-") }
+            .sorted()
     }
 
     // MARK: - List rows
