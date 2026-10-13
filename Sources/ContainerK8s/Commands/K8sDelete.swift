@@ -26,7 +26,7 @@ public struct K8sDelete: AsyncParsableCommand {
 
     public static let configuration = CommandConfiguration(
         commandName: "delete",
-        abstract: "Delete a Kubernetes cluster",
+        abstract: "Delete a Kubernetes cluster and its nodes",
         aliases: ["rm"]
     )
 
@@ -46,14 +46,38 @@ public struct K8sDelete: AsyncParsableCommand {
             }
         }
 
+        let workerNames = (try? await K8sHelper.workerContainerNames(clusterName: name, client: client)) ?? []
+        var failures: [(name: String, error: Error)] = []
+
+        for workerName in workerNames {
+            do {
+                try? await client.stop(id: workerName)
+                try await client.delete(id: workerName)
+            } catch let error as ContainerizationError where error.code == .notFound {
+                log.debug("worker container not found, skipping delete", metadata: ["name": "\(workerName)"])
+            } catch {
+                log.error("failed to delete worker container", metadata: ["name": "\(workerName)", "error": "\(error)"])
+                failures.append((workerName, error))
+            }
+        }
+
         do {
             try? await client.stop(id: name)
             try await client.delete(id: name)
         } catch let error as ContainerizationError where error.code == .notFound {
             log.debug("cluster container not found, skipping delete", metadata: ["name": "\(name)"])
+        } catch {
+            log.error("failed to delete cluster container", metadata: ["name": "\(name)", "error": "\(error)"])
+            failures.append((name, error))
         }
 
         try K8sHelper.removeConfig(containerId: name, log: log)
+
+        guard failures.isEmpty else {
+            let details = failures.map { "\($0.name): \($0.error)" }.joined(separator: "; ")
+            throw ContainerizationError(.internalError, message: "failed to delete node(s): \(details)")
+        }
+
         print(name)
     }
 }

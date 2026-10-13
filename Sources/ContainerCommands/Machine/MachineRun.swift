@@ -57,7 +57,7 @@ extension Application {
             let client = MachineClient()
             let containerClient = ContainerClient()
 
-            let snapshot = try await bootMachine(id: name, client: client, log: log, interactive: true)
+            let snapshot = try await bootMachine(id: name, client: client, log: log)
 
             guard let containerId = snapshot.containerId else {
                 throw ContainerizationError(

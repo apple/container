@@ -60,7 +60,35 @@ extension K8sHelper {
         }
     }
 
+    /// Wait until the API server is serving. This is the one readiness signal
+    /// that does not depend on a CNI being installed.
+    static func waitForAPIServer(containerId: String, client: ContainerClient, log: Logger) async throws {
+        let timeout = 60
+        log.info("Waiting for API server to become available")
+        for attempt in 1...timeout {
+            let code: Int32
+            do {
+                code = try await runProbe(
+                    client: client, containerId: containerId,
+                    arguments: ["get", "--raw", "/readyz", "--request-timeout=2s"])
+            } catch {
+                throw ContainerizationError(
+                    .internalError, message: "k8s cluster \(containerId) stopped unexpectedly during startup: \(error)")
+            }
+            if code == 0 { return }
+            if attempt == timeout {
+                log.info("check control-plane logs with 'container logs \(containerId)'")
+                throw ContainerizationError(
+                    .timeout,
+                    message: "k8s cluster \(containerId) API server did not become available within \(timeout * 2)s")
+            }
+            try await Task.sleep(for: .seconds(2))
+        }
+    }
+
     static func waitForReady(containerId: String, client: ContainerClient, log: Logger) async throws {
+        try await waitForAPIServer(containerId: containerId, client: client, log: log)
+
         let nodeReadyTimeout = 180
         let podReadyTimeout = 300
 
