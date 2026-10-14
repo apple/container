@@ -63,4 +63,47 @@ struct CompositeResolverTest {
         let otherResponse = try await resolver.answer(query: otherQuery)
         #expect(nil == otherResponse)
     }
+
+    @Test func testCompositeResolverPropagatesContext() async throws {
+        let resolver = CompositeResolver(handlers: [ContextHandler()])
+        let query = Message(
+            id: UInt16(1),
+            type: .query,
+            questions: [
+                Question(name: "context.", type: .host)
+            ])
+
+        let withoutContext = try await resolver.answer(query: query)
+        #expect(nil == withoutContext)
+
+        let response = try await resolver.answer(
+            query: query,
+            context: DNSRequestContext(remoteIPAddress: "192.168.64.2", remotePort: 53)
+        )
+
+        #expect(.noError == response?.returnCode)
+        #expect(1 == response?.answers.count)
+        let answer = response?.answers[0] as? HostRecord<IPv4Address>
+        #expect(try IPv4Address("9.8.7.6") == answer?.ip)
+    }
+}
+
+private struct ContextHandler: DNSHandler {
+    func answer(query: Message) async throws -> Message? {
+        nil
+    }
+
+    func answer(query: Message, context: DNSRequestContext) async throws -> Message? {
+        guard context.remoteIPAddress == "192.168.64.2" else {
+            return nil
+        }
+        let ip = try IPv4Address("9.8.7.6")
+        return Message(
+            id: query.id,
+            type: .response,
+            returnCode: .noError,
+            questions: query.questions,
+            answers: [HostRecord<IPv4Address>(name: query.questions[0].name, ttl: 0, ip: ip)]
+        )
+    }
 }

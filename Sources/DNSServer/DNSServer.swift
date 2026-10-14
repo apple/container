@@ -25,13 +25,16 @@ import NIOPosix
 ///   - port: The port for the server to listen.
 public struct DNSServer {
     public var handler: DNSHandler
+    let respondWhenUnhandled: Bool
     let log: Logger?
 
     public init(
         handler: DNSHandler,
+        respondWhenUnhandled: Bool = true,
         log: Logger? = nil
     ) {
         self.handler = handler
+        self.respondWhenUnhandled = respondWhenUnhandled
         self.log = log
     }
 
