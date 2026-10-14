@@ -61,7 +61,7 @@ container run [<options>] <image> [<arguments> ...]
 *   `--masked-path <path>`: **Experimental.** Hide a path inside the container, in addition to the runtime defaults (or `NONE` to clear prior values and the defaults)
 *   `--mount <mount>`: Add a mount to the container (format: type=<>,source=<>,target=<>,readonly)
 *   `--name <name>`: Use the specified name as the container ID
-*   `--network <network>`: Attach the container to a network (format: `<name>[,mac=XX:XX:XX:XX:XX:XX][,mtu=VALUE]`)
+*   `--network <network>`: Attach the container to a network (format: `<name>[,mac=XX:XX:XX:XX:XX:XX][,mtu=VALUE][,alias=NAME]...`). Use `alias` to give the container additional DNS names; see [Give a container additional DNS names](networking.md#give-a-container-additional-dns-names)
 *   `--no-dns`: Do not configure DNS in the container
 *   `--os <os>`: Set OS if image can target multiple operating systems (default: linux)
 *   `-p, --publish <spec>`: Publish a port from container to host (format: [host-ip:]host-port:container-port[/protocol])
@@ -104,6 +104,9 @@ container run -e NODE_ENV=production --cpus 2 --memory 1G node:18
 
 # run a container with a specific MAC address
 container run --network default,mac=02:42:ac:11:00:02 ubuntu:latest
+
+# run a container that also answers to api.test and to every name below gateway.test
+container run --name gateway --network default,alias=api.test,alias=.gateway.test nginx:latest
 
 # run a container with an init process to reap zombies and forward signals
 container run --init ubuntu:latest my-app
@@ -226,7 +229,7 @@ container create [<options>] <image> [<arguments> ...]
 *   `--masked-path <path>`: **Experimental.** Hide a path inside the container, in addition to the runtime defaults (or `NONE` to clear prior values and the defaults)
 *   `--mount <mount>`: Add a mount to the container (format: type=<>,source=<>,target=<>,readonly)
 *   `--name <name>`: Use the specified name as the container ID
-*   `--network <network>`: Attach the container to a network (format: `<name>[,mac=XX:XX:XX:XX:XX:XX][,mtu=VALUE]`)
+*   `--network <network>`: Attach the container to a network (format: `<name>[,mac=XX:XX:XX:XX:XX:XX][,mtu=VALUE][,alias=NAME]...`). Use `alias` to give the container additional DNS names; see [Give a container additional DNS names](networking.md#give-a-container-additional-dns-names)
 *   `--no-dns`: Do not configure DNS in the container
 *   `--os <os>`: Set OS if image can target multiple operating systems (default: linux)
 *   `-p, --publish <spec>`: Publish a port from container to host (format: [host-ip:]host-port:container-port[/protocol])
@@ -409,6 +412,32 @@ container exec [--detach] [--env <env> ...] [--env-file <env-file> ...] [--gid <
 *   `-u, --user <user>`: Set the user for the process (format: name|uid[:gid])
 *   `--uid <uid>`: Set the user ID for the process
 *   `-w, --workdir, --cwd <dir>`: Set the initial working directory inside the container
+
+### `container commit`
+
+Creates a new image from a container's filesystem. For running containers, commit automatically takes a runtime snapshot to preserve consistency.
+
+**Usage**
+
+```bash
+container commit [--debug] <container-id> <reference>
+```
+
+**Arguments**
+
+*   `<container-id>`: Container ID
+*   `<reference>`: Image reference for the committed image
+
+**Examples**
+
+```bash
+# commit a stopped container to a new image
+container stop mycontainer
+container commit mycontainer myimage:latest
+
+# commit a running container
+container commit mycontainer myimage:latest
+```
 
 ### `container export`
 
@@ -1136,6 +1165,13 @@ container machine create [<options>] <image>
 *   `--os <os>`: Set OS if image can target multiple operating systems (default: linux)
 *   `--platform <platform>`: Platform for the image if it's multi-platform. This takes precedence over --os and --arch
 
+**User Options**
+
+*   `-u, --user <user>`: Set the user for the container machine account (format: name|uid[:gid]). Defaults to the host user
+*   `--uid <uid>`: Set the user ID for the container machine account. Defaults to the host user's
+*   `--gid <gid>`: Set the group ID for the container machine account. Defaults to the host user's
+*   `--home <home>`: Set the home directory for the container machine account. Defaults to /home/<user>
+
 **Registry Options**
 
 *   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https) (default: https)
@@ -1624,26 +1660,27 @@ container system property list --format json
 
 ## Kubernetes Cluster Management
 
-`container k8s` manages local single-node Kubernetes clusters backed by container VMs. Each cluster runs a Kubernetes control-plane node inside a container using `kindest/node` and `kubeadm`.
+`container k8s` manages local Kubernetes clusters backed by container VMs. Each cluster runs a Kubernetes control-plane node inside a container using `kindest/node` and `kubeadm`, with optional additional worker nodes.
 
 > [!IMPORTANT]
 > The `k8s` command is an experimental feature and its subcommands and options are subject to change.
 
 ### `container k8s create`
 
-Creates and starts a local Kubernetes cluster. Pulls the node image if needed, runs `kubeadm init`, installs a CNI (default: bundled kindnet), and merges the cluster credentials into `~/.kube/config`.
+Creates and starts a local Kubernetes cluster and optional worker nodes. Pulls the node image if needed, runs `kubeadm init`, installs a CNI (default: bundled kindnet), and merges the cluster credentials into `~/.kube/config`.
 
 **Usage**
 
 ```bash
-container k8s create [--name <name>] [--node-image <image>] [--cni <path>] [--rm] [<resource options>] [--debug]
+container k8s create [--name <name>] [--node-image <image>] [--cni <path>] [--workers <n>] [--rm] [<resource options>] [--debug]
 ```
 
 **Options**
 
 *   `--name <name>`: Cluster name (default: `k8s-dev`)
 *   `--node-image <image>`: Node image reference (default: `docker.io/kindest/node:v1.35.5`)
-*   `--cni <path>`: Optional path to a CNI manifest to apply. If not provided, the bundled kindnet CNI is used.
+*   `--cni <path>`: Optional path to a CNI manifest to apply, or `NONE` (case-insensitive) to skip installing a CNI. If not provided, the bundled kindnet CNI is used. With `NONE`, the command returns without waiting for nodes to become `Ready`, since that requires a CNI; apply your own afterward with `kubectl apply`.
+*   `--workers <n>`: Number of worker nodes to create (default: `0`, meaning the control-plane node also acts as a worker)
 *   `--rm`: Remove the cluster container after it stops
 
 **Resource Options**
@@ -1673,11 +1710,17 @@ container k8s create --name temp-cluster --rm
 
 # create a cluster using a custom CNI manifest instead of the bundled kindnet
 container k8s create --cni ./my-cni.yaml
+
+# create a cluster with no CNI installed
+container k8s create --cni NONE
+
+# create a cluster with a control plane and 3 worker nodes
+container k8s create --name my-cluster --workers 3
 ```
 
 ### `container k8s delete (rm)`
 
-Stops and deletes a Kubernetes cluster container and removes its entry from `~/.kube/config`.
+Stops and deletes a Kubernetes cluster container, including any worker nodes, and removes its entry from `~/.kube/config`.
 
 **Usage**
 
@@ -1719,12 +1762,12 @@ container k8s ls
 
 ### `container k8s load-image`
 
-Exports an image from the local `container` image store and imports it into the cluster's containerd (in the `k8s.io` namespace) so that Kubernetes can schedule pods that reference it.
+Exports an image from the local `container` image store and imports it into every node's containerd (in the `k8s.io` namespace) so that Kubernetes can schedule pods that reference it on any node.
 
 **Usage**
 
 ```bash
-container k8s load-image [--name <name>] [--platform <platform>] <image> [--debug]
+container k8s load-image [--name <name>] [--platform <platform>] [--node <node> ...] <image> [--debug]
 ```
 
 **Arguments**
@@ -1735,18 +1778,25 @@ container k8s load-image [--name <name>] [--platform <platform>] <image> [--debu
 
 *   `--name <name>`: Cluster name (default: `k8s-dev`)
 *   `--platform <platform>`: Platform of the image variant to load from a multi-arch image (format: os/arch[/variant], default: `linux/<host-arch>`). Use this when the local store contains a multi-arch manifest list and you want to select a specific variant.
+*   `--node <node>`: Load into specific nodes instead of every node in the cluster. Repeat to target multiple nodes.
 
 **Examples**
 
 ```bash
-# load an image into the default cluster
+# load an image into every node of the default cluster
 container k8s load-image my-app:latest
 
-# load an image into a named cluster
+# load an image into every node of a named cluster
 container k8s load-image --name my-cluster my-app:latest
 
 # load the amd64 variant of a multi-arch image
 container k8s load-image --platform linux/amd64 my-app:latest
+
+# load an image into a single worker node only
+container k8s load-image --node k8s-dev-worker-1 my-app:latest
+
+# load an image into specific worker nodes only
+container k8s load-image --node k8s-dev-worker-1 --node k8s-dev-worker-2 my-app:latest
 ```
 
 ### `container k8s write-config`

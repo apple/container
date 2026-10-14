@@ -14,10 +14,12 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerNetworkClient
 import ContainerResource
 import ContainerXPC
 import ContainerizationError
 import ContainerizationExtras
+import DNSServer
 import Logging
 
 public actor DefaultNetworkService: NetworkService {
@@ -57,6 +59,7 @@ public actor DefaultNetworkService: NetworkService {
     public func allocate(
         hostname: String,
         macAddress: MACAddress?,
+        aliases: [String],
         session: XPCServerSession
     ) async throws -> (attachment: Attachment, additionalData: XPCMessage?) {
         log.debug("enter", metadata: ["func": "\(#function)"])
@@ -67,7 +70,16 @@ public actor DefaultNetworkService: NetworkService {
         }
 
         let macAddress = macAddress ?? MACAddress((UInt64.random(in: 0...UInt64.max) & 0x0cff_ffff_ffff) | 0xf200_0000_0000)
-        let index = try await allocator.allocate(hostname: hostname)
+        // The aliases come over XPC, so check them against the same rules as the API server does,
+        // instead of trusting that the caller did.
+        let rules: [DNSMatchRule]
+        do {
+            let name = try? DNSName(AttachmentOptions.canonicalHostname(hostname))
+            rules = try AliasPolicy.validate(aliases: aliases, hostname: name, network: network.id)
+        } catch {
+            throw ContainerizationError(.invalidArgument, message: "invalid aliases for \(hostname): \(error)")
+        }
+        let index = try await allocator.allocate(hostname: hostname, aliases: rules)
         let ipv6Address = try status.ipv6Subnet
             .map { try CIDRv6(macAddress.ipv6Address(network: $0.lower), prefix: $0.prefix) }
         let ip = IPv4Address(index)
@@ -119,7 +131,7 @@ public actor DefaultNetworkService: NetworkService {
     }
 
     @Sendable
-    public func lookup(hostname: String) async throws -> Attachment? {
+    public func lookup(name: String) async throws -> NetworkMatch? {
         log.debug("enter", metadata: ["func": "\(#function)"])
         defer { log.debug("exit", metadata: ["func": "\(#function)"]) }
 
@@ -127,15 +139,26 @@ public actor DefaultNetworkService: NetworkService {
             throw ContainerizationError(.invalidState, message: "network \(network.id) must be running")
         }
 
-        // Invariant: hostname -> index if and only if index -> MAC address
-        let index = try await allocator.lookup(hostname: hostname)
-        guard let index else {
+        guard let match = try await allocator.match(name: name) else {
             return nil
         }
-        guard let macAddress = macAddresses[index] else {
+        // Invariant: hostname -> index if and only if index -> MAC address
+        guard let macAddress = macAddresses[match.index] else {
             return nil
         }
 
+        let attachment = try makeAttachment(hostname: match.hostname, index: match.index, macAddress: macAddress, status: status)
+        switch match.kind {
+        case .hostname:
+            return NetworkMatch(attachment: attachment, kind: .hostname)
+        case .alias:
+            return NetworkMatch(attachment: attachment, kind: .alias)
+        case .subtree(let baseLabelCount):
+            return NetworkMatch(attachment: attachment, kind: .subtree(baseLabelCount: baseLabelCount))
+        }
+    }
+
+    private func makeAttachment(hostname: String, index: UInt32, macAddress: MACAddress, status: NetworkStatus) throws -> Attachment {
         let address = IPv4Address(index)
         let subnet = status.ipv4Subnet
         let ipv4Address = try CIDRv4(address, prefix: subnet.prefix)

@@ -21,6 +21,7 @@ import ContainerizationError
 import ContainerizationExtras
 import ContainerizationOCI
 import ContainerizationOS
+import DNSServer
 import Foundation
 import SystemPackage
 
@@ -92,6 +93,50 @@ public struct Parser {
             return defaultUser
         }()
         return (user, supplementalGroups)
+    }
+
+    /// Resolve a username/uid/gid triple for an account that's about to be created (as opposed
+    /// to `user(user:uid:gid:defaultUser:)`, which selects an *existing* identity to run a
+    /// process as). `user` uses the same `<name|uid>[:<gid>]` format, but unlike
+    /// `user(user:uid:gid:defaultUser:)` the group component must be numeric — there's no existing
+    /// `/etc/group` on the not-yet-created account to resolve a group name against.
+    ///
+    /// Each of the three pieces is resolved independently, falling back in order from `user`, to
+    /// the matching `uid`/`gid` argument, to the default. `user` only wins outright over `uid`/`gid`
+    /// when it actually specifies that piece (e.g. `--user 1500 --uid 9999` keeps 1500) — a bare
+    /// name in `user` doesn't specify a uid/gid, so `uid`/`gid` still apply in that case.
+    public static func userAccount(
+        user: String?, uid: UInt32?, gid: UInt32?,
+        defaultUsername: String, defaultUID: UInt32, defaultGID: UInt32
+    ) throws -> (username: String, uid: UInt32, gid: UInt32) {
+        var username = defaultUsername
+        var resolvedUID: UInt32?
+        var resolvedGID: UInt32?
+
+        if let user, !user.isEmpty {
+            let parts = user.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
+            let primary = String(parts[0])
+
+            if !primary.isEmpty {
+                if let uidValue = UInt32(primary) {
+                    resolvedUID = uidValue
+                } else {
+                    username = primary
+                }
+            }
+
+            if parts.count == 2 {
+                guard let gidValue = UInt32(parts[1]) else {
+                    throw ContainerizationError(
+                        .invalidArgument,
+                        message: "invalid group '\(parts[1])' in --user '\(user)': group must be numeric"
+                    )
+                }
+                resolvedGID = gidValue
+            }
+        }
+
+        return (username, resolvedUID ?? uid ?? defaultUID, resolvedGID ?? gid ?? defaultGID)
     }
 
     public static func platform(os: String, arch: String) -> ContainerizationOCI.Platform {
@@ -838,17 +883,24 @@ public struct Parser {
         public let name: String
         public let macAddress: String?
         public let mtu: UInt32?
+        /// Additional DNS names for the attachment, each in the normalized form of a `DNSMatchRule`.
+        public let aliases: [String]
 
-        public init(name: String, macAddress: String? = nil, mtu: UInt32? = nil) {
+        public init(name: String, macAddress: String? = nil, mtu: UInt32? = nil, aliases: [String] = []) {
             self.name = name
             self.macAddress = macAddress
             self.mtu = mtu
+            self.aliases = aliases
         }
     }
 
     /// Parse network attachment with optional properties
-    /// Format: network_name[,mac=XX:XX:XX:XX:XX:XX][,mtu=VALUE]
-    /// Example: "backend,mac=02:42:ac:11:00:02,mtu=1500"
+    /// Format: network_name[,mac=XX:XX:XX:XX:XX:XX][,mtu=VALUE][,alias=NAME]...
+    ///
+    /// An alias is an exact name such as `api.example.test`, or a name with a leading dot such as
+    /// `.example.test` that matches every name below it. The `alias` property can be repeated.
+    ///
+    /// Example: "backend,mac=02:42:ac:11:00:02,mtu=1500,alias=api.example.test,alias=.example.test"
     public static func network(_ networkSpec: String) throws -> ParsedNetwork {
         guard !networkSpec.isEmpty else {
             throw ContainerizationError(.invalidArgument, message: "network specification cannot be empty")
@@ -867,6 +919,7 @@ public struct Parser {
 
         var macAddress: String?
         var mtu: UInt32?
+        var aliases = [String]()
 
         // Parse properties if any
         for part in parts.dropFirst() {
@@ -901,15 +954,24 @@ public struct Parser {
                     )
                 }
                 mtu = mtuValue
+            case "alias":
+                do {
+                    aliases.append(try DNSMatchRule(value).description)
+                } catch {
+                    throw ContainerizationError(
+                        .invalidArgument,
+                        message: "invalid alias '\(value)': \(error)"
+                    )
+                }
             default:
                 throw ContainerizationError(
                     .invalidArgument,
-                    message: "unknown network property '\(key)'. Available properties: mac, mtu"
+                    message: "unknown network property '\(key)'. Available properties: mac, mtu, alias"
                 )
             }
         }
 
-        return ParsedNetwork(name: networkName, macAddress: macAddress, mtu: mtu)
+        return ParsedNetwork(name: networkName, macAddress: macAddress, mtu: mtu, aliases: aliases)
     }
 
     // MARK: DNS

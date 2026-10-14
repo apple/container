@@ -290,26 +290,11 @@ public actor ContainersService {
                 )
             }
 
-            var allHostnames = Set<String>()
+            var existingNetworks = [AttachmentConfiguration]()
             for container in await self.containers.values {
-                for attachmentConfiguration in container.snapshot.configuration.networks {
-                    allHostnames.insert(attachmentConfiguration.options.hostname)
-                }
+                existingNetworks.append(contentsOf: container.snapshot.configuration.networks)
             }
-
-            var conflictingHostnames = [String]()
-            for attachmentConfiguration in configuration.networks {
-                if allHostnames.contains(attachmentConfiguration.options.hostname) {
-                    conflictingHostnames.append(attachmentConfiguration.options.hostname)
-                }
-            }
-
-            guard conflictingHostnames.isEmpty else {
-                throw ContainerizationError(
-                    .exists,
-                    message: "hostname(s) already exist: \(conflictingHostnames)"
-                )
-            }
+            try AttachmentNameValidator.validate(networks: configuration.networks, existing: existingNetworks)
 
             guard self.runtimePlugins.first(where: { $0.name == configuration.runtimeHandler }) != nil else {
                 throw ContainerizationError(
@@ -419,6 +404,7 @@ public actor ContainersService {
 
             let path = self.containerRoot.appendingPathComponent(id)
             let (config, _) = try Self.getContainerConfiguration(at: path)
+            try AttachmentNameValidator.validateStored(id: id, networks: config.networks)
 
             var networkBootstrapInfos = [NetworkBootstrapInfo]()
             for n in config.networks {

@@ -175,7 +175,7 @@ public actor MachinesService {
         return snapshots
     }
 
-    public func create(configuration: MachineConfiguration, resources: MachineResources?, bootConfig: MachineConfig) async throws {
+    public func create(configuration: MachineConfiguration, bootConfig: MachineConfig) async throws {
         self.log.debug("\(#function)")
 
         try await self.lock.withLock { context in
@@ -191,7 +191,6 @@ public actor MachinesService {
                 path: path,
                 machineConfiguration: configuration,
                 resourceRoot: self.resourceRoot,
-                resources: resources,
                 bootConfig: bootConfig,
             )
 

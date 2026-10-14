@@ -30,4 +30,20 @@ extension Flags {
         @Option(name: .long, help: "Platform for the image if it's multi-platform. This takes precedence over --os and --arch")
         public var platform: String?
     }
+
+    public struct MachineUser: ParsableArguments {
+        public init() {}
+
+        @Option(name: .shortAndLong, help: "Set the user for the container machine account (format: name|uid[:gid]). Defaults to the host user")
+        public var user: String?
+
+        @Option(name: .long, help: "Set the user ID for the container machine account. Defaults to the host user's")
+        public var uid: UInt32?
+
+        @Option(name: .long, help: "Set the group ID for the container machine account. Defaults to the host user's")
+        public var gid: UInt32?
+
+        @Option(name: .long, help: "Set the home directory for the container machine account. Defaults to /home/<user>")
+        public var home: String?
+    }
 }
