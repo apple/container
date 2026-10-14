@@ -15,12 +15,17 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerizationError
+import ContainerizationOS
 import CryptoKit
 import Foundation
+import SystemPackage
 
 struct DockerArchiveConverter {
-    static let ociLayoutFile = "oci-layout"
-    static let dockerManifestFile = "manifest.json"
+    private static let ociLayoutName: FilePath.Component = "oci-layout"
+    private static let dockerManifestName: FilePath.Component = "manifest.json"
+    private static let indexName: FilePath.Component = "index.json"
+    private static let blobsName: FilePath.Component = "blobs"
+    private static let sha256Name: FilePath.Component = "sha256"
 
     private static let ociLayoutMediaType = "application/vnd.oci.image.index.v1+json"
     private static let ociManifestMediaType = "application/vnd.oci.image.manifest.v1+json"
@@ -30,42 +35,65 @@ struct DockerArchiveConverter {
     private static let refNameAnnotation = "org.opencontainers.image.ref.name"
 
     static func convertIfNeeded(at directory: URL) throws {
-        let ociLayoutPath = directory.appendingPathComponent(Self.ociLayoutFile).path
-        if FileManager.default.fileExists(atPath: ociLayoutPath) {
+        let root = try FileDescriptor.open(FilePath(directory.path), .readOnly, options: [.directory, .noFollow, .closeOnExec])
+        defer { try? root.close() }
+
+        if try Self.isRegularFile(root, Self.ociLayoutName) {
             return
         }
-
-        let dockerManifestURL = directory.appendingPathComponent(Self.dockerManifestFile)
-        if FileManager.default.fileExists(atPath: dockerManifestURL.path) {
-            try Self.convert(at: directory, dockerManifestURL: dockerManifestURL)
+        guard try Self.isRegularFile(root, Self.dockerManifestName) else {
+            return
         }
+        try Self.convert(root: root)
     }
 
-    private static func convert(at directory: URL, dockerManifestURL: URL) throws {
+    private static func convert(root: FileDescriptor) throws {
+        let manifestData: Data
+        do {
+            let manifestFile = try Self.openRelative(root, Self.path(Self.dockerManifestName), display: Self.dockerManifestName.string)
+            defer { try? manifestFile.close() }
+            manifestData = try Self.readAll(manifestFile)
+        }
+
         let decoder = JSONDecoder()
-        let archiveManifest = try decoder.decode([DockerManifestEntry].self, from: Data(contentsOf: dockerManifestURL))
-        let blobsDirectory = directory.appendingPathComponent("blobs", isDirectory: true).appendingPathComponent("sha256", isDirectory: true)
-        try FileManager.default.createDirectory(at: blobsDirectory, withIntermediateDirectories: true)
+        let archiveManifest = try decoder.decode([DockerManifestEntry].self, from: manifestData)
+        let blobsDirectory = try Self.openBlobsDirectory(root)
+        defer { try? blobsDirectory.close() }
 
         var indexDescriptors: [Descriptor] = []
         for entry in archiveManifest {
-            let configURL = try Self.archiveMemberURL(entry.config, relativeTo: directory)
-            let configBlob = try Self.copyBlob(from: configURL, to: blobsDirectory)
+            let configData: Data
+            let configBlob: Blob
+            do {
+                let configFile = try Self.openMember(root, entry.config)
+                defer { try? configFile.close() }
+                configData = try Self.readAll(configFile)
+                configBlob = Self.digest(configData)
+                try Self.writeBlob(configBlob, to: blobsDirectory) { destination in
+                    try destination.writeAll(configData)
+                }
+            }
             let configDescriptor = Descriptor(mediaType: Self.ociConfigMediaType, digest: configBlob.digest, size: configBlob.size)
 
             var layerDescriptors: [Descriptor] = []
             for layer in entry.layers {
-                let layerURL = try Self.archiveMemberURL(layer, relativeTo: directory)
-                let layerBlob = try Self.copyBlob(from: layerURL, to: blobsDirectory)
-                layerDescriptors.append(Descriptor(mediaType: try Self.layerMediaType(for: layerURL), digest: layerBlob.digest, size: layerBlob.size))
+                let layerFile = try Self.openMember(root, layer)
+                defer { try? layerFile.close() }
+                let digested = try Self.digest(layerFile)
+                try Self.writeBlob(digested.blob, to: blobsDirectory) { destination in
+                    try Self.copy(layerFile, to: destination)
+                }
+                layerDescriptors.append(Descriptor(mediaType: Self.layerMediaType(for: digested.header), digest: digested.blob.digest, size: digested.blob.size))
             }
 
             let imageManifest = ImageManifest(schemaVersion: 2, config: configDescriptor, layers: layerDescriptors)
-            let manifestData = try Self.encode(imageManifest)
-            let manifestDigest = Self.digest(manifestData)
-            try manifestData.write(to: blobsDirectory.appendingPathComponent(manifestDigest.digestValue), options: .atomic)
+            let imageManifestData = try Self.encode(imageManifest)
+            let manifestDigest = Self.digest(imageManifestData)
+            try Self.writeBlob(manifestDigest, to: blobsDirectory) { destination in
+                try destination.writeAll(imageManifestData)
+            }
 
-            let imageConfig = try? decoder.decode(DockerImageConfig.self, from: Data(contentsOf: configURL))
+            let imageConfig = try? decoder.decode(DockerImageConfig.self, from: configData)
             let tags = entry.repoTags.filter { !$0.isEmpty && $0 != "<none>:<none>" }
             if tags.isEmpty {
                 indexDescriptors.append(Descriptor(mediaType: Self.ociManifestMediaType, digest: manifestDigest.digest, size: manifestDigest.size, platform: imageConfig?.platform))
@@ -84,62 +112,162 @@ struct DockerArchiveConverter {
         }
 
         let index = ImageIndex(schemaVersion: 2, mediaType: Self.ociLayoutMediaType, manifests: indexDescriptors)
-        try Self.encode(index).write(to: directory.appendingPathComponent("index.json"), options: .atomic)
-        try Self.encode(ImageLayout(imageLayoutVersion: "1.0.0")).write(to: directory.appendingPathComponent(Self.ociLayoutFile), options: .atomic)
+        try Self.writeReplacing(root, name: Self.indexName, data: try Self.encode(index))
+        try Self.writeReplacing(root, name: Self.ociLayoutName, data: try Self.encode(ImageLayout(imageLayoutVersion: "1.0.0")))
     }
 
-    private static func archiveMemberURL(_ member: String, relativeTo directory: URL) throws -> URL {
-        guard !member.hasPrefix("/") && !member.split(separator: "/").contains("..") else {
-            throw ContainerizationError(.invalidArgument, message: "docker archive member escapes image directory: \(member)")
+    private static func relativeMemberPath(_ member: String) throws -> FilePath {
+        guard !member.isEmpty, !member.hasPrefix("/"), !member.contains("\0") else {
+            throw Self.escapingMember(member)
         }
-        return URL(fileURLWithPath: member, relativeTo: directory).standardizedFileURL
+        var path = FilePath()
+        var appended = false
+        for piece in member.split(separator: "/", omittingEmptySubsequences: false) {
+            guard let component = FilePath.Component(String(piece)), component.kind == .regular else {
+                throw Self.escapingMember(member)
+            }
+            path.append(component)
+            appended = true
+        }
+        guard appended else {
+            throw Self.escapingMember(member)
+        }
+        return path
     }
 
-    private static func copyBlob(from source: URL, to blobsDirectory: URL) throws -> Blob {
-        let blob = try Self.digest(source)
-        let destination = blobsDirectory.appendingPathComponent(blob.digestValue)
-        if !FileManager.default.fileExists(atPath: destination.path) {
-            try FileManager.default.copyItem(at: source, to: destination)
-        }
-        return blob
+    private static func openMember(_ root: FileDescriptor, _ member: String) throws -> FileDescriptor {
+        try Self.openRelative(root, try Self.relativeMemberPath(member), display: member)
     }
 
-    private static func layerMediaType(for url: URL) throws -> String {
-        let handle = try FileHandle(forReadingFrom: url)
-        defer {
-            try? handle.close()
+    private static func openRelative(_ root: FileDescriptor, _ path: FilePath, display: String) throws -> FileDescriptor {
+        do {
+            return try FileDescriptorOps.openFile(root, relativePath: path, symlinks: .refuse)
+        } catch let error as FileDescriptorOps.Error {
+            switch error {
+            case .cannotFollowSymlink, .invalidRelativePath:
+                throw Self.escapingMember(display)
+            default:
+                throw error
+            }
         }
-        let header = handle.readData(ofLength: 2)
-        if header.count == 2 && header[header.startIndex] == 0x1f && header[header.index(after: header.startIndex)] == 0x8b {
+    }
+
+    private static func openBlobsDirectory(_ root: FileDescriptor) throws -> FileDescriptor {
+        var relative = FilePath()
+        relative.append(Self.blobsName)
+        relative.append(Self.sha256Name)
+        try FileDescriptorOps.mkdir(root, relative, makeIntermediates: true)
+        let blobsDirectory = try FileDescriptorOps.openDirectory(root, Self.blobsName)
+        defer { try? blobsDirectory.close() }
+        return try FileDescriptorOps.openDirectory(blobsDirectory, Self.sha256Name)
+    }
+
+    private static func isRegularFile(_ directory: FileDescriptor, _ name: FilePath.Component) throws -> Bool {
+        try FileDescriptorOps.entryType(directory, name) == .regular
+    }
+
+    private static func path(_ component: FilePath.Component) -> FilePath {
+        var path = FilePath()
+        path.append(component)
+        return path
+    }
+
+    private static func writeBlob(_ blob: Blob, to directory: FileDescriptor, write: (FileDescriptor) throws -> Void) throws {
+        guard let name = FilePath.Component(blob.digestValue), name.kind == .regular else {
+            throw ContainerizationError(.internalError, message: "invalid blob digest \(blob.digest)")
+        }
+        if let existing = try FileDescriptorOps.entryType(directory, name) {
+            if existing == .regular {
+                return
+            }
+            try FileDescriptorOps.unlink(directory, name)
+        }
+        let destination = try FileDescriptorOps.createFile(directory, name)
+        defer { try? destination.close() }
+        try write(destination)
+    }
+
+    private static func writeReplacing(_ directory: FileDescriptor, name: FilePath.Component, data: Data) throws {
+        if try FileDescriptorOps.entryType(directory, name) != nil {
+            try FileDescriptorOps.unlink(directory, name)
+        }
+        let destination = try FileDescriptorOps.createFile(directory, name)
+        defer { try? destination.close() }
+        try destination.writeAll(data)
+    }
+
+    private static func copy(_ source: FileDescriptor, to destination: FileDescriptor) throws {
+        try source.seek(offset: 0, from: .start)
+        var buffer = [UInt8](repeating: 0, count: 1024 * 1024)
+        while true {
+            let count = try buffer.withUnsafeMutableBytes { rawBuffer in
+                try source.read(into: rawBuffer)
+            }
+            if count == 0 {
+                break
+            }
+            try destination.writeAll(buffer.prefix(count))
+        }
+    }
+
+    private static func readAll(_ fd: FileDescriptor) throws -> Data {
+        var data = Data()
+        var buffer = [UInt8](repeating: 0, count: 1024 * 1024)
+        while true {
+            let count = try buffer.withUnsafeMutableBytes { rawBuffer in
+                try fd.read(into: rawBuffer)
+            }
+            if count == 0 {
+                break
+            }
+            data.append(contentsOf: buffer.prefix(count))
+        }
+        return data
+    }
+
+    private static func layerMediaType(for header: Data) -> String {
+        if header.count >= 2, header[header.startIndex] == 0x1f, header[header.index(after: header.startIndex)] == 0x8b {
             return Self.ociGzipLayerMediaType
         }
         return Self.ociLayerMediaType
     }
 
-    private static func digest(_ url: URL) throws -> Blob {
-        let handle = try FileHandle(forReadingFrom: url)
-        defer {
-            try? handle.close()
-        }
-
+    private static func digest(_ fd: FileDescriptor) throws -> (blob: Blob, header: Data) {
         var hasher = SHA256()
         var size = 0
+        var header = Data()
+        var buffer = [UInt8](repeating: 0, count: 1024 * 1024)
         while true {
-            let data = handle.readData(ofLength: 1024 * 1024)
-            if data.isEmpty {
+            let count = try buffer.withUnsafeMutableBytes { rawBuffer in
+                try fd.read(into: rawBuffer)
+            }
+            if count == 0 {
                 break
             }
-            size += data.count
-            hasher.update(data: data)
+            let bytes = Data(buffer.prefix(count))
+            if header.count < 2 {
+                header.append(bytes.prefix(2 - header.count))
+            }
+            size += count
+            hasher.update(data: bytes)
         }
-
-        let digestValue = hasher.finalize().map { String(format: "%02x", $0) }.joined()
-        return Blob(digest: "sha256:\(digestValue)", digestValue: digestValue, size: size)
+        return (Self.blob(digestValue: Self.hex(hasher.finalize()), size: size), header)
     }
 
     private static func digest(_ data: Data) -> Blob {
-        let digestValue = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
-        return Blob(digest: "sha256:\(digestValue)", digestValue: digestValue, size: data.count)
+        Self.blob(digestValue: Self.hex(SHA256.hash(data: data)), size: data.count)
+    }
+
+    private static func blob(digestValue: String, size: Int) -> Blob {
+        Blob(digest: "sha256:\(digestValue)", digestValue: digestValue, size: size)
+    }
+
+    private static func hex(_ digest: SHA256.Digest) -> String {
+        digest.map { String(format: "%02x", $0) }.joined()
+    }
+
+    private static func escapingMember(_ member: String) -> ContainerizationError {
+        ContainerizationError(.invalidArgument, message: "docker archive member escapes image directory: \(member)")
     }
 
     private static func encode<T: Encodable>(_ value: T) throws -> Data {

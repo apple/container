@@ -89,6 +89,27 @@ struct DockerArchiveConverterTests {
         }
     }
 
+    @Test func rejectsDockerArchiveSymlinkedMemberEscapingImageDirectory() throws {
+        let directory = try Self.makeDockerArchive(repoTags: ["example.com/test/image:latest"], layers: ["layer.tar"])
+        defer {
+            try? FileManager.default.removeItem(at: directory)
+        }
+
+        let outsideName = "outside-\(UUID().uuidString)"
+        let outside = directory.deletingLastPathComponent().appendingPathComponent(outsideName)
+        try Data("outside layer".utf8).write(to: outside)
+        defer {
+            try? FileManager.default.removeItem(at: outside)
+        }
+        try FileManager.default.createSymbolicLink(atPath: directory.appendingPathComponent("layer.tar").path, withDestinationPath: "../\(outsideName)")
+
+        #expect {
+            try DockerArchiveConverter.convertIfNeeded(at: directory)
+        } throws: { error in
+            String(describing: error).contains("docker archive member escapes image directory: layer.tar")
+        }
+    }
+
     @Test func leavesExistingOciLayoutUntouched() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
