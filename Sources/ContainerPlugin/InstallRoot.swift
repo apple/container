@@ -16,19 +16,34 @@
 
 import ContainerVersion
 import Foundation
+import SystemPackage
 
 /// Provides the application installation root path.
 public struct InstallRoot {
+    /// The environment variable that if set, determines the root directory for installed application.
+    /// Otherwise, the system computes the install path as the parent of the directory containing the
+    /// application binary (for example, "/usr/local/bin/container" -> "/usr/local").
     public static let environmentName = "CONTAINER_INSTALL_ROOT"
 
-    public static let defaultURL = CommandLine.executablePathUrl
-        .deletingLastPathComponent()
-        .appendingPathComponent("..")
-        .standardized
+    /// The default root directory used when the environment variable is not set.
+    ///
+    /// Computed as the grandparent of ``CommandLine/executablePath``
+    /// (for example, `/usr/local/bin/container` → `/usr/local`).
+    /// Lexically normalized but not canonical, as symlinks in the executable path are not resolved.
+    public static let defaultPath = CommandLine.executablePath
+        .removingLastComponent()
+        .removingLastComponent()
 
-    private static let envPath = ProcessInfo.processInfo.environment[Self.environmentName]
+    /// The resolved root directory path, always lexically normalized.
+    ///
+    /// If the environment variable is set to an absolute path, that path is used directly.
+    /// If it is set to a relative path, the path is resolved against the working directory.
+    /// Otherwise, ``defaultPath`` is used.
+    public static let path = FilePath(FileManager.default.currentDirectoryPath).resolve(
+        ProcessInfo.processInfo.environment[environmentName],
+        defaultPath: defaultPath
+    )
 
-    public static let url = envPath.map { URL(fileURLWithPath: $0) } ?? defaultURL
-
-    public static let path = url.path(percentEncoded: false)
+    /// The pathname to the root directory
+    public static let pathname = path.string
 }

@@ -1,0 +1,11 @@
+abstract = "Container machine management API plugin"
+author = "Apple"
+
+[servicesConfig]
+loadAtBoot = true
+runAtLoad = false
+defaultArguments = []
+
+[[servicesConfig.services]]
+type = "core"
+description = "Provide an XPC interface to interact with the container machine API server."

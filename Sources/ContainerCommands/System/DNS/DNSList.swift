@@ -16,6 +16,8 @@
 
 import ArgumentParser
 import ContainerAPIClient
+import ContainerResource
+import DNSServer
 import Foundation
 
 extension Application {
@@ -42,7 +44,7 @@ extension Application {
             let domains = resolver.listDomains()
 
             try Output.render(
-                json: domains,
+                payload: domains.map { $0.pqdn },
                 display: domains.map { PrintableDomain($0) },
                 format: format, quiet: quiet
             )
@@ -51,9 +53,9 @@ extension Application {
 }
 
 private struct PrintableDomain: ListDisplayable {
-    let domain: String
+    let domain: DNSName
 
-    init(_ domain: String) {
+    init(_ domain: DNSName) {
         self.domain = domain
     }
 
@@ -62,10 +64,10 @@ private struct PrintableDomain: ListDisplayable {
     }
 
     var tableRow: [String] {
-        [domain]
+        [domain.pqdn]
     }
 
     var quietValue: String {
-        domain
+        domain.pqdn
     }
 }

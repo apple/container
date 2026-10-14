@@ -43,7 +43,7 @@ extension Application {
         public init() {}
 
         public func run() async throws {
-            if format == .json || noStream {
+            if format != .table || noStream {
                 // Static mode - get stats once and exit
                 try await runStatic()
             } else {
@@ -102,13 +102,9 @@ extension Application {
 
             let statsData = try await Self.collectStats(client: client, for: containersToShow)
 
-            if format == .json {
-                let jsonStats = statsData.map { $0.stats2 }
-                try Output.emit(Output.renderJSON(jsonStats))
-                return
+            try Output.render(payload: statsData.map { $0.stats2 }, format: format) {
+                Self.statsTable(statsData)
             }
-
-            Self.printStatsTable(statsData)
         }
 
         private static func runStreaming(containerIds: [String]) async throws {
@@ -129,7 +125,7 @@ extension Application {
 
             clearScreen()
             // Show header right away.
-            printStatsTable([])
+            print(statsTable([]))
 
             while true {
                 do {
@@ -144,7 +140,7 @@ extension Application {
 
                     // Clear screen and reprint
                     clearScreen()
-                    printStatsTable(statsData)
+                    print(statsTable(statsData))
 
                     if statsData.isEmpty {
                         try await Task.sleep(for: .seconds(2))
@@ -235,7 +231,7 @@ extension Application {
             }
         }
 
-        private static func printStatsTable(_ statsData: [StatsSnapshot]) {
+        private static func statsTable(_ statsData: [StatsSnapshot]) -> String {
             let headerRow = ["Container ID", "Cpu %", "Memory Usage", "Net Rx/Tx", "Block I/O", "Pids"]
             let notAvailable = "--"
             var rows = [headerRow]
@@ -276,8 +272,7 @@ extension Application {
             }
 
             // Always print header, even if no containers
-            let formatter = TableOutput(rows: rows)
-            print(formatter.format())
+            return TableOutput(rows: rows).format()
         }
 
         private static func clearScreen() {

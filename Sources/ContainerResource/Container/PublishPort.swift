@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerizationError
 import ContainerizationExtras
 
 /// The network protocols available for port forwarding.
@@ -54,12 +55,20 @@ public struct PublishPort: Sendable, Codable {
     public let count: UInt16
 
     /// Creates a new port forwarding specification.
-    public init(hostAddress: IPAddress, hostPort: UInt16, containerPort: UInt16, proto: PublishProtocol, count: UInt16) {
+    public init(
+        hostAddress: IPAddress,
+        hostPort: UInt16,
+        containerPort: UInt16,
+        proto: PublishProtocol,
+        count: UInt16
+    ) throws {
         self.hostAddress = hostAddress
         self.hostPort = hostPort
         self.containerPort = containerPort
         self.proto = proto
         self.count = count
+        try validatePortRange(port: hostPort, count: count)
+        try validatePortRange(port: containerPort, count: count)
     }
 
     /// Create a configuration from the supplied Decoder, initializing missing
@@ -72,6 +81,14 @@ public struct PublishPort: Sendable, Codable {
         containerPort = try container.decode(UInt16.self, forKey: .containerPort)
         proto = try container.decode(PublishProtocol.self, forKey: .proto)
         count = try container.decodeIfPresent(UInt16.self, forKey: .count) ?? 1
+        try validatePortRange(port: hostPort, count: count)
+        try validatePortRange(port: containerPort, count: count)
+    }
+
+    private func validatePortRange(port: UInt16, count: UInt16) throws {
+        guard count > 0, UInt16.max - port >= count - 1 else {
+            throw ContainerizationError(.invalidArgument, message: "invalid port and count: \(port), \(count)")
+        }
     }
 }
 
@@ -79,8 +96,8 @@ extension [PublishPort] {
     public func hasOverlaps() -> Bool {
         var hostPorts = Set<String>()
         for publishPort in self {
-            for index in publishPort.hostPort..<(publishPort.hostPort + publishPort.count) {
-                let hostPortKey = "\(index)/\(publishPort.proto.rawValue)"
+            for offset in 0..<publishPort.count {
+                let hostPortKey = "\(publishPort.hostPort + offset)/\(publishPort.proto.rawValue)"
                 guard !hostPorts.contains(hostPortKey) else {
                     return true
                 }

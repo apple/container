@@ -18,11 +18,19 @@ import Foundation
 
 /// Filters for listing containers.
 public struct ContainerListFilters: Sendable, Codable {
+    public static func exclude(_ str: String) -> String {
+        "^(?!\(str)$)"
+    }
+
     /// Filter by container IDs. If non-empty, only containers with matching IDs are returned.
     public var ids: [String]
     /// Filter by container status.
     public var status: RuntimeStatus?
-    /// Filter by labels. All specified labels must match.
+    /// Filter by labels. All specified labels must match. Values are treated as regular expressions
+    /// matched against the container's label value. If a container does not have the specified key,
+    /// the value is treated as an empty string. This means a positive pattern (e.g. ``^b$``) will
+    /// exclude containers without the label, while a negation pattern (e.g. ``^(?!b$)``) will
+    /// include them.
     public var labels: [String: String]
 
     /// No filters applied. Will return all containers.
@@ -36,5 +44,12 @@ public struct ContainerListFilters: Sendable, Codable {
         self.ids = ids
         self.status = status
         self.labels = labels
+    }
+}
+
+extension ContainerListFilters {
+    public func withoutMachines() -> ContainerListFilters {
+        let labels = self.labels.merging([ResourceLabelKeys.plugin: Self.exclude("machine")]) { _, new in new }
+        return ContainerListFilters(ids: self.ids, status: self.status, labels: labels)
     }
 }

@@ -19,6 +19,11 @@ import Foundation
 import GRPCCore
 import NIO
 
+/// Handles the stdio stage of the build protocol.
+///
+/// Relays builder stdout/stderr from the shim to the client terminal.
+/// Build output (layer download progress, `RUN` command output, etc.) flows
+/// through this handler and is written directly to the configured file handle.
 actor BuildStdio: BuildPipelineHandler {
     public let quiet: Bool
     public let handle: FileHandle

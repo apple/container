@@ -59,7 +59,8 @@ extension Application {
 
             let containers: [String]
             if all {
-                containers = try await client.list().compactMap { c in
+                let filters = ContainerListFilters().withoutMachines()
+                containers = try await client.list(filters: filters).compactMap { c in
                     // Skip running containers when using --all without --force
                     if c.status == .running && !force {
                         return nil

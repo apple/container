@@ -28,10 +28,7 @@ extension Application {
             commandName: "property",
             abstract: "Manage system property values",
             subcommands: [
-                PropertyClear.self,
-                PropertyGet.self,
-                PropertyList.self,
-                PropertySet.self,
+                PropertyList.self
             ]
         )
 

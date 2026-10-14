@@ -14,15 +14,13 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerPersistence
 import ContainerizationError
-import Foundation
 import Testing
 
 @testable import ContainerAPIClient
 
 struct RequestSchemeTests {
-    static let defaultDnsDomain = DefaultsStore.get(key: .defaultDNSDomain)
+    static let defaultDnsDomain = "test"
 
     internal struct TestArg {
         let scheme: String
@@ -33,30 +31,28 @@ struct RequestSchemeTests {
     @Test(arguments: [
         TestArg(scheme: "http", host: "myregistry.io", expected: .http),
         TestArg(scheme: "https", host: "myregistry.io", expected: .https),
-        TestArg(scheme: "auto", host: "myregistry.io", expected: .https),
         TestArg(scheme: "https", host: "localhost", expected: .https),
         TestArg(scheme: "http", host: "localhost", expected: .http),
-        TestArg(scheme: "auto", host: "localhost", expected: .http),
         TestArg(scheme: "http", host: "127.0.0.1", expected: .http),
         TestArg(scheme: "https", host: "127.0.0.1", expected: .https),
-        TestArg(scheme: "auto", host: "127.0.0.1", expected: .http),
         TestArg(scheme: "https", host: "10.3.4.1", expected: .https),
-        TestArg(scheme: "auto", host: "10.3.4.1", expected: .http),
-        TestArg(scheme: "auto", host: "some-dns-name.io.\(Self.defaultDnsDomain)", expected: .http),
-        TestArg(scheme: "auto", host: "some-dns-name.io", expected: .https),
-        TestArg(scheme: "auto", host: "172.32.0.1", expected: .https),
-        TestArg(scheme: "auto", host: "172.22.23.61", expected: .http),
     ])
 
     func testIsConnectionSecure(arg: TestArg) throws {
-        let requestScheme = RequestScheme(rawValue: arg.scheme)!
-        #expect(try requestScheme.schemeFor(host: arg.host) == arg.expected)
+        let requestScheme = try RequestScheme(arg.scheme)
+        #expect(try requestScheme.schemeFor(host: arg.host, internalDnsDomain: Self.defaultDnsDomain) == arg.expected)
     }
 
-    func testEmptyHostThrowsError() throws {
+    @Test func testEmptyHostThrowsError() throws {
         #expect(throws: (any Error).self) {
-            let requestScheme = RequestScheme(rawValue: "https")!
-            _ = try requestScheme.schemeFor(host: "")
+            let requestScheme = try RequestScheme("https")
+            _ = try requestScheme.schemeFor(host: "", internalDnsDomain: Self.defaultDnsDomain)
+        }
+    }
+
+    @Test func testUnsupportedSchemeThrowsError() throws {
+        #expect(throws: (any Error).self) {
+            _ = try RequestScheme("auto")
         }
     }
 }

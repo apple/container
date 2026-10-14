@@ -54,6 +54,9 @@ public struct ContainersHarness: Sendable {
                 message: "id cannot be empty"
             )
         }
+        guard ManagedContainer.nameValid(id) else {
+            throw ContainerizationError(.invalidArgument, message: "container ID \(id) is not a valid container ID")
+        }
         let stdio = message.stdio()
 
         let data = message.dataNoCopy(key: .dynamicEnv)
@@ -193,11 +196,15 @@ public struct ContainersHarness: Sendable {
             options = try JSONDecoder().decode(ContainerCreateOptions.self, from: odata)
         }
         let config = try JSONDecoder().decode(ContainerConfiguration.self, from: data)
+        guard ManagedContainer.nameValid(config.id) else {
+            throw ContainerizationError(.invalidArgument, message: "container ID \(config.id) is not a valid container ID")
+        }
         let kernel = try JSONDecoder().decode(Kernel.self, from: kdata)
 
         let initImage = message.string(key: .initImage)
+        let runtimeData = message.dataNoCopy(key: .runtimeData)
 
-        try await service.create(configuration: config, kernel: kernel, options: options, initImage: initImage)
+        try await service.create(configuration: config, kernel: kernel, options: options, initImage: initImage, runtimeData: runtimeData)
         return message.reply()
     }
 
@@ -261,6 +268,9 @@ public struct ContainersHarness: Sendable {
         guard let id else {
             throw ContainerizationError(.invalidArgument, message: "id cannot be empty")
         }
+        guard ManagedContainer.nameValid(id) else {
+            throw ContainerizationError(.invalidArgument, message: "container ID \(id) is not a valid container ID")
+        }
         let forceDelete = message.bool(key: .forceDelete)
         try await service.delete(id: id, force: forceDelete)
         return message.reply()
@@ -270,6 +280,9 @@ public struct ContainersHarness: Sendable {
     public func diskUsage(_ message: XPCMessage) async throws -> XPCMessage {
         guard let containerId = message.string(key: .id) else {
             throw ContainerizationError(.invalidArgument, message: "id cannot be empty")
+        }
+        guard ManagedContainer.nameValid(containerId) else {
+            throw ContainerizationError(.invalidArgument, message: "container ID \(containerId) is not a valid container ID")
         }
 
         let size = try await service.containerDiskUsage(id: containerId)
@@ -288,10 +301,67 @@ public struct ContainersHarness: Sendable {
                 message: "id cannot be empty"
             )
         }
+        guard ManagedContainer.nameValid(id) else {
+            throw ContainerizationError(.invalidArgument, message: "container ID \(id) is not a valid container ID")
+        }
         let fds = try await service.logs(id: id)
         let reply = message.reply()
         try reply.set(key: .logs, value: fds)
         return reply
+    }
+
+    @Sendable
+    public func copyIn(_ message: XPCMessage) async throws -> XPCMessage {
+        guard let id = message.string(key: .id) else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "id cannot be empty"
+            )
+        }
+        guard let sourcePath = message.string(key: .sourcePath) else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "source path cannot be empty"
+            )
+        }
+        guard let destinationPath = message.string(key: .destinationPath) else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "destination path cannot be empty"
+            )
+        }
+        let mode = UInt32(message.uint64(key: .fileMode))
+        let createParents = message.bool(key: .createParents)
+
+        try await service.copyIn(id: id, source: sourcePath, destination: destinationPath, mode: mode, createParents: createParents)
+        return message.reply()
+    }
+
+    @Sendable
+    public func copyOut(_ message: XPCMessage) async throws -> XPCMessage {
+        guard let id = message.string(key: .id) else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "id cannot be empty"
+            )
+        }
+        guard let sourcePath = message.string(key: .sourcePath) else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "source path cannot be empty"
+            )
+        }
+        guard let destinationPath = message.string(key: .destinationPath) else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "destination path cannot be empty"
+            )
+        }
+
+        let createParents = message.bool(key: .createParents)
+
+        try await service.copyOut(id: id, source: sourcePath, destination: destinationPath, createParents: createParents)
+        return message.reply()
     }
 
     @Sendable
@@ -319,6 +389,9 @@ public struct ContainersHarness: Sendable {
                 message: "id cannot be empty"
             )
         }
+        guard ManagedContainer.nameValid(id) else {
+            throw ContainerizationError(.invalidArgument, message: "container ID \(id) is not a valid container ID")
+        }
         let archive = message.string(key: .archive)
         guard let archive else {
             throw ContainerizationError(
@@ -329,6 +402,20 @@ public struct ContainersHarness: Sendable {
         let archiveUrl = URL(fileURLWithPath: archive)
 
         try await service.exportRootfs(id: id, archive: archiveUrl)
+        return message.reply()
+    }
+
+    @Sendable
+    public func clean(_ message: XPCMessage) async throws -> XPCMessage {
+        let id = message.string(key: .id)
+        guard let id else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "id cannot be empty"
+            )
+        }
+
+        try await service.clean(id: id)
         return message.reply()
     }
 }

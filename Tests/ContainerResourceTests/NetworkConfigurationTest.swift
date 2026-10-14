@@ -21,14 +21,12 @@ import Testing
 @testable import ContainerResource
 
 struct NetworkConfigurationTest {
-    let defaultNetworkPluginInfo = NetworkPluginInfo(plugin: "container-network-vmnet")
-
     @Test func testValidationOkDefaults() throws {
         let id = "foo"
         _ = try NetworkConfiguration(
-            id: id,
+            name: id,
             mode: .nat,
-            pluginInfo: defaultNetworkPluginInfo
+            plugin: "container-network-vmnet"
         )
     }
 
@@ -45,11 +43,11 @@ struct NetworkConfigurationTest {
                 "baz": String(repeating: "0", count: 4096 - "baz".count - "=".count),
             ])
             _ = try NetworkConfiguration(
-                id: id,
+                name: id,
                 mode: .nat,
                 ipv4Subnet: ipv4Subnet,
                 labels: labels,
-                pluginInfo: defaultNetworkPluginInfo
+                plugin: "container-network-vmnet"
             )
         }
     }
@@ -69,16 +67,16 @@ struct NetworkConfigurationTest {
             ])
             #expect {
                 _ = try NetworkConfiguration(
-                    id: id,
+                    name: id,
                     mode: .nat,
                     ipv4Subnet: ipv4Subnet,
                     labels: labels,
-                    pluginInfo: defaultNetworkPluginInfo
+                    plugin: "container-network-vmnet"
                 )
             } throws: { error in
                 guard let err = error as? ContainerizationError else { return false }
                 #expect(err.code == .invalidArgument)
-                #expect(err.message.starts(with: "invalid network ID"))
+                #expect(err.message.starts(with: "invalid network name"))
                 return true
             }
         }

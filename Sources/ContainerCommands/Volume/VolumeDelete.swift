@@ -39,9 +39,21 @@ extension Application.VolumeCommand {
 
         public init() {}
 
+        public func validate() throws {
+            if names.count == 0 && !all {
+                throw ContainerizationError(.invalidArgument, message: "no volumes specified and --all not supplied")
+            }
+            if names.count > 0 && all {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "explicitly supplied volume name(s) conflict with the --all flag"
+                )
+            }
+        }
+
         public func run() async throws {
             let uniqueVolumeNames = Set<String>(names)
-            let volumes: [Volume]
+            let volumes: [VolumeConfiguration]
 
             if all {
                 volumes = try await ClientVolume.list()
@@ -69,7 +81,7 @@ extension Application.VolumeCommand {
 
             var failed = [String]()
             let _log = log
-            try await withThrowingTaskGroup(of: Volume?.self) { group in
+            try await withThrowingTaskGroup(of: VolumeConfiguration?.self) { group in
                 for volume in volumes {
                     group.addTask {
                         do {

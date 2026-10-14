@@ -41,45 +41,8 @@ extension Application.VolumeCommand {
 
         public func run() async throws {
             let volumes = try await ClientVolume.list()
-
-            if format == .json {
-                try Output.emit(Output.renderJSON(volumes))
-                return
-            }
-
-            // Sort by creation time (newest first) for table display only,
-            // matching the original behavior where JSON and quiet emit unsorted.
-            let items = quiet ? volumes : volumes.sorted { $0.createdAt > $1.createdAt }
-            Output.emit(Output.renderList(items.map { PrintableVolume($0) }, quiet: quiet))
+            let volumeResources = volumes.map { VolumeResource(configuration: $0) }
+            try Output.render(payload: volumeResources, display: volumeResources, format: format, quiet: quiet)
         }
-    }
-}
-
-private struct PrintableVolume: ListDisplayable {
-    let name: String
-    let volumeType: String
-    let driver: String
-    let optionsString: String
-
-    init(_ volume: Volume) {
-        self.name = volume.name
-        self.volumeType = volume.isAnonymous ? "anonymous" : "named"
-        self.driver = volume.driver
-        self.optionsString =
-            volume.options.isEmpty
-            ? ""
-            : volume.options.sorted(by: { $0.key < $1.key }).map { "\($0.key)=\($0.value)" }.joined(separator: ",")
-    }
-
-    static var tableHeader: [String] {
-        ["NAME", "TYPE", "DRIVER", "OPTIONS"]
-    }
-
-    var tableRow: [String] {
-        [name, volumeType, driver, optionsString]
-    }
-
-    var quietValue: String {
-        name
     }
 }

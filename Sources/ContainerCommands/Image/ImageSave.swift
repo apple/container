@@ -16,11 +16,15 @@
 
 import ArgumentParser
 import ContainerAPIClient
+import ContainerPersistence
+import ContainerPlugin
 import ContainerResource
 import Containerization
 import ContainerizationError
 import ContainerizationOCI
+import ContainerizationOS
 import Foundation
+import SystemPackage
 import TerminalProgress
 
 extension Application {
@@ -45,9 +49,9 @@ extension Application {
         @Option(
             name: .shortAndLong, help: "Pathname for the saved image", completion: .file(),
             transform: { str in
-                URL(fileURLWithPath: str, relativeTo: .currentDirectory()).absoluteURL.path(percentEncoded: false)
+                FilePathOps.absolutePath(FilePath(str))
             })
-        var output: String?
+        var output: FilePath?
 
         @Option(
             help: "Platform for the saved image (format: os/arch[/variant], takes precedence over --os and --arch) [environment: CONTAINER_DEFAULT_PLATFORM]"
@@ -60,6 +64,7 @@ extension Application {
         @Argument var references: [String]
 
         public func run() async throws {
+            let containerSystemConfig: ContainerSystemConfig = try await ClientHealthCheck.loadContainerSystemConfig()
             let p = try DefaultPlatform.resolve(platform: platform, os: os, arch: arch, log: log)
 
             let progressConfig = try ProgressConfig(
@@ -74,9 +79,9 @@ extension Application {
             var images: [ImageDescription] = []
             for reference in references {
                 do {
-                    images.append(try await ClientImage.get(reference: reference).description)
+                    images.append(try await ClientImage.get(reference: reference, containerSystemConfig: containerSystemConfig).description)
                 } catch {
-                    print("failed to get image for reference \(reference): \(error)")
+                    log.error("failed to get image for reference \(reference): \(error)")
                 }
             }
 
@@ -92,9 +97,17 @@ extension Application {
                     } catch {
                         var available: [String] = []
                         if let index = try? await image.index() {
-                            available = index.manifests
-                                .compactMap { $0.platform?.description }
-                                .filter { $0 != "unknown/unknown" }
+                            for desc in index.manifests {
+                                guard let platform = desc.platform, platform.description != "unknown/unknown" else {
+                                    continue
+                                }
+                                // The index can list platforms whose content is not in the store, for example
+                                // after a pull or a load of a single platform. Only report those that can be saved.
+                                guard (try? await image.manifest(for: platform)) != nil, !available.contains(platform.description) else {
+                                    continue
+                                }
+                                available.append(platform.description)
+                            }
                         }
                         let availableStr = available.isEmpty ? "none" : available.joined(separator: ", ")
                         throw ContainerizationError(
@@ -106,7 +119,9 @@ extension Application {
             }
 
             // Write to stdout; otherwise write to the output file
-            if output == nil {
+            if let output {
+                try await ClientImage.save(references: references, out: output.string, platform: p, containerSystemConfig: containerSystemConfig)
+            } else {
                 let tempFile = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).tar")
                 defer {
                     try? FileManager.default.removeItem(at: tempFile)
@@ -116,7 +131,7 @@ extension Application {
                     throw ContainerizationError(.internalError, message: "unable to create temporary file")
                 }
 
-                try await ClientImage.save(references: references, out: tempFile.path(), platform: p)
+                try await ClientImage.save(references: references, out: tempFile.path(), platform: p, containerSystemConfig: containerSystemConfig)
 
                 guard let fileHandle = try? FileHandle(forReadingFrom: tempFile) else {
                     throw ContainerizationError(.internalError, message: "unable to open temporary file for reading")
@@ -129,13 +144,19 @@ extension Application {
                     FileHandle.standardOutput.write(chunk)
                 }
                 try fileHandle.close()
-            } else {
-                try await ClientImage.save(references: references, out: output!, platform: p)
             }
 
             progress.finish()
             for reference in references {
-                print(reference)
+                if output == nil {
+                    // stdout is carrying the OCI archive in this branch, so the
+                    // saved-reference list goes to stderr via the logger. Printing
+                    // it to stdout appends non-archive bytes after the tar EOF and
+                    // corrupts the stream for redirection and pipelines (#1801).
+                    log.info("\(reference)")
+                } else {
+                    print(reference)
+                }
             }
         }
     }

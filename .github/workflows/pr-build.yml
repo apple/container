@@ -44,6 +44,8 @@ jobs:
     uses: ./.github/workflows/common.yml
     with:
       release: false
+      coverage: true
+      pr_number: ${{ github.event.pull_request.number }}
     secrets: inherit
     permissions:
       contents: read

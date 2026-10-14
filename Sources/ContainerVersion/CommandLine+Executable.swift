@@ -15,9 +15,14 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
+import SystemPackage
 
 extension CommandLine {
-    public static var executablePathUrl: URL {
+    /// The path of the running executable.
+    ///
+    /// Obtained via `_NSGetExecutablePath`, which returns an absolute, lexically normalized path
+    /// (no `.` or `..` components). Symlinks are not resolved, so the path is not canonical.
+    public static var executablePath: FilePath {
         /// _NSGetExecutablePath with a zero-length buffer returns the needed buffer length
         var bufferSize: Int32 = 0
         var buffer = [CChar](repeating: 0, count: Int(bufferSize))
@@ -31,6 +36,6 @@ extension CommandLine {
 
         /// Return the path with the executable file component removed the last component and
         let executablePath = String(cString: &buffer)
-        return URL(filePath: executablePath)
+        return FilePath(executablePath)
     }
 }

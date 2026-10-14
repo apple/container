@@ -52,8 +52,12 @@ extension Application {
             let stdin = self.processFlags.interactive
             let tty = self.processFlags.tty
 
+            guard let executable = arguments.first else {
+                throw ContainerizationError(.invalidArgument, message: "no command specified for exec")
+            }
+
             var config = container.configuration.initProcess
-            config.executable = arguments.first!
+            config.executable = executable
             config.arguments = [String](self.arguments.dropFirst())
             config.terminal = tty
             config.environment.append(
@@ -96,8 +100,9 @@ extension Application {
 
                 if !self.processFlags.tty {
                     var handler = SignalThreshold(threshold: 3, signals: [SIGINT, SIGTERM])
+                    let log = self.log
                     handler.start {
-                        print("Received 3 SIGINT/SIGTERM's, forcefully exiting.")
+                        log.warning("Received 3 SIGINT/SIGTERM's, forcefully exiting.")
                         Darwin.exit(1)
                     }
                 }
