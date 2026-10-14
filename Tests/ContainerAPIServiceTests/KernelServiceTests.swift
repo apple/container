@@ -136,6 +136,47 @@ struct KernelServiceTests {
         }
     }
 
+    @Test func forcedReplaceInstallsTheNewKernel() async throws {
+        try await withTempDir { tempDir in
+            let service = try KernelService(
+                log: Logger(label: "com.apple.container.test.kernel-service"),
+                appRoot: tempDir.appendingPathComponent("app"))
+            let source = tempDir.appendingPathComponent("vmlinux")
+            try Data("v1".utf8).write(to: source)
+            try await service.installKernel(kernelFile: source, platform: .linuxArm, force: false)
+
+            try Data("v2".utf8).write(to: source)
+            try await service.installKernel(kernelFile: source, platform: .linuxArm, force: true)
+
+            let kernel = try await service.getDefaultKernel(platform: .linuxArm)
+            #expect(try Data(contentsOf: kernel.path) == Data("v2".utf8))
+            let installed = try FileManager.default.contentsOfDirectory(atPath: tempDir.appendingPathComponent("app/kernels").path)
+            #expect(installed.sorted() == ["default.kernel-arm64", "vmlinux"])
+        }
+    }
+
+    @Test func forcedReplaceKeepsTheInstalledKernelWhenTheCopyFails() async throws {
+        try await withTempDir { tempDir in
+            let service = try KernelService(
+                log: Logger(label: "com.apple.container.test.kernel-service"),
+                appRoot: tempDir.appendingPathComponent("app"))
+            let source = tempDir.appendingPathComponent("vmlinux")
+            try Data("v1".utf8).write(to: source)
+            try await service.installKernel(kernelFile: source, platform: .linuxArm, force: false)
+
+            // Same file name as the installed kernel, but nothing to copy from.
+            let missing = tempDir.appendingPathComponent("missing/vmlinux")
+            await #expect(throws: (any Error).self) {
+                try await service.installKernel(kernelFile: missing, platform: .linuxArm, force: true)
+            }
+
+            let kernel = try await service.getDefaultKernel(platform: .linuxArm)
+            #expect(try Data(contentsOf: kernel.path) == Data("v1".utf8))
+            let installed = try FileManager.default.contentsOfDirectory(atPath: tempDir.appendingPathComponent("app/kernels").path)
+            #expect(installed.sorted() == ["default.kernel-arm64", "vmlinux"])
+        }
+    }
+
     private static func writeTar(at tarFile: URL, path: String, data: Data) throws -> URL {
         let archiver = try ArchiveWriter(format: .paxRestricted, filter: .none, file: tarFile)
         let entry = WriteEntry()
