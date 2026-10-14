@@ -58,6 +58,33 @@ struct AttachmentAllocatorTest {
         #expect(lookedUpAddress == allocatedAddress)
     }
 
+    @Test func testLookupAllocatedHostnameWithTrailingDot() async throws {
+        let allocator = try AttachmentAllocator(lower: 100, size: 10)
+
+        let allocatedAddress = try await allocator.allocate(hostname: "test-host")
+        let lookedUpAddress = try await allocator.lookup(hostname: "test-host.")
+
+        #expect(lookedUpAddress == allocatedAddress)
+    }
+
+    @Test func testHostnameLookupIsCaseInsensitive() async throws {
+        let allocator = try AttachmentAllocator(lower: 100, size: 10)
+
+        let allocatedAddress = try await allocator.allocate(hostname: "Test-Host.")
+        let lookedUpAddress = try await allocator.lookup(hostname: "test-host")
+
+        #expect(lookedUpAddress == allocatedAddress)
+    }
+
+    @Test func testAllocateEquivalentHostnames() async throws {
+        let allocator = try AttachmentAllocator(lower: 100, size: 10)
+
+        let address1 = try await allocator.allocate(hostname: "test-host")
+        let address2 = try await allocator.allocate(hostname: "TEST-HOST.")
+
+        #expect(address1 == address2)
+    }
+
     @Test func testLookupNonExistentHostname() async throws {
         let allocator = try AttachmentAllocator(lower: 100, size: 10)
 
@@ -75,6 +102,18 @@ struct AttachmentAllocatorTest {
         #expect(deallocatedAddress == allocatedAddress)
 
         // After deallocation, lookup should return nil
+        let lookedUpAddress = try await allocator.lookup(hostname: "test-host")
+        #expect(lookedUpAddress == nil)
+    }
+
+    @Test func testDeallocateAllocatedHostnameWithEquivalentName() async throws {
+        let allocator = try AttachmentAllocator(lower: 100, size: 10)
+
+        let allocatedAddress = try await allocator.allocate(hostname: "test-host")
+        let deallocatedAddress = try await allocator.deallocate(hostname: "TEST-HOST.")
+
+        #expect(deallocatedAddress == allocatedAddress)
+
         let lookedUpAddress = try await allocator.lookup(hostname: "test-host")
         #expect(lookedUpAddress == nil)
     }
