@@ -21,6 +21,7 @@ import ContainerizationError
 import ContainerizationExtras
 import ContainerizationOCI
 import ContainerizationOS
+import Darwin
 import Foundation
 import SystemPackage
 
@@ -819,7 +820,7 @@ public struct Parser {
     // Parse a single `--publish-socket`` argument into a `PublishSocket`.
     public static func publishSocket(_ socketText: String) throws -> PublishSocket {
         // Split by colon to two parts: [host_path, container_path]
-        let parts = socketText.split(separator: ":")
+        let parts = socketText.split(separator: ":", omittingEmptySubsequences: false)
 
         switch parts.count {
         case 2:
@@ -839,19 +840,72 @@ public struct Parser {
             let absoluteHostPath = FilePathOps.absolutePath(FilePath(hostPath))
 
             if FileManager.default.fileExists(atPath: absoluteHostPath.string) {
+                let attrs: [FileAttributeKey: Any]
                 do {
-                    let attrs = try FileManager.default.attributesOfItem(atPath: absoluteHostPath.string)
-                    if let fileType = attrs[.type] as? FileAttributeType, fileType == .typeSocket {
+                    attrs = try FileManager.default.attributesOfItem(atPath: absoluteHostPath.string)
+                } catch {
+                    if FileManager.default.fileExists(atPath: absoluteHostPath.string) {
+                        throw ContainerizationError(
+                            .invalidArgument,
+                            message: "host path \(absoluteHostPath) already exists and cannot be inspected: \(error)")
+                    }
+                    attrs = [:]
+                }
+
+                if let fileType = attrs[.type] as? FileAttributeType {
+                    guard fileType == .typeSocket else {
+                        throw ContainerizationError(
+                            .invalidArgument,
+                            message:
+                                "host path \(absoluteHostPath) already exists and is not a socket; refusing to overwrite")
+                    }
+
+                    let pathString = absoluteHostPath.string
+                    let maxSunPathLen = MemoryLayout.size(ofValue: sockaddr_un().sun_path)
+                    guard pathString.utf8.count + 1 <= maxSunPathLen else {
+                        throw ContainerizationError(
+                            .invalidArgument,
+                            message: "host socket path is too long: \(absoluteHostPath)")
+                    }
+
+                    // Probe the socket with a stream connection matching container runtime socket
+                    // forwarders. If active or non-stream, it safely throws rather than being overwritten.
+                    let probeFd = socket(AF_UNIX, SOCK_STREAM, 0)
+                    guard probeFd >= 0 else {
                         throw ContainerizationError(
                             .invalidArgument,
                             message: "host socket \(absoluteHostPath) already exists and may be in use")
                     }
-                    // If it exists but is not a socket, we can remove it and create socket
-                    try FileManager.default.removeItem(atPath: absoluteHostPath.string)
-                } catch let error as ContainerizationError {
-                    throw error
-                } catch {
-                    // For other file system errors, continue with creation
+                    defer { Darwin.close(probeFd) }
+
+                    var addr = sockaddr_un()
+                    addr.sun_family = sa_family_t(AF_UNIX)
+                    withUnsafeMutableBytes(of: &addr.sun_path) { bytes in
+                        pathString.withCString { cStr in
+                            bytes.copyMemory(from: UnsafeRawBufferPointer(start: cStr, count: pathString.utf8.count + 1))
+                        }
+                    }
+
+                    let connectResult = withUnsafePointer(to: addr) { ptr in
+                        ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockaddrPtr in
+                            Darwin.connect(probeFd, sockaddrPtr, socklen_t(MemoryLayout<sockaddr_un>.size))
+                        }
+                    }
+                    let savedErrno = errno
+
+                    if connectResult == 0 {
+                        throw ContainerizationError(
+                            .invalidArgument,
+                            message: "host socket \(absoluteHostPath) already exists and may be in use")
+                    }
+
+                    guard savedErrno == ECONNREFUSED else {
+                        throw ContainerizationError(
+                            .invalidArgument,
+                            message: "host socket \(absoluteHostPath) already exists and may be in use")
+                    }
+
+                    try FileManager.default.removeItem(atPath: pathString)
                 }
             }
 

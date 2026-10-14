@@ -17,6 +17,7 @@
 import Containerization
 import ContainerizationError
 import ContainerizationExtras
+import Darwin
 import Foundation
 import SystemPackage
 import Testing
@@ -1789,5 +1790,235 @@ struct ParserTest {
             }
             return error.description.contains("invalid group") && error.description.contains("must be numeric")
         }
+    }
+
+    // MARK: - Publish Socket Tests
+
+    @Test
+    func testPublishSocketNonExistentPath() throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("test-sock-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let socketPath = tempDir.appendingPathComponent("app.sock").path
+        let result = try Parser.publishSocket("\(socketPath):/var/run/app.sock")
+
+        #expect(result.hostPath.string == socketPath)
+        #expect(result.containerPath.string == "/var/run/app.sock")
+    }
+
+    @Test
+    func testPublishSocketRegularFileThrowsAndPreservesFile() throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("test-sock-file-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let filePath = tempDir.appendingPathComponent("config.txt").path
+        let testContent = "critical user data"
+        try testContent.write(toFile: filePath, atomically: true, encoding: .utf8)
+
+        #expect {
+            _ = try Parser.publishSocket("\(filePath):/var/run/app.sock")
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("is not a socket; refusing to overwrite")
+        }
+
+        #expect(FileManager.default.fileExists(atPath: filePath))
+        let remainingContent = try String(contentsOfFile: filePath, encoding: .utf8)
+        #expect(remainingContent == testContent)
+    }
+
+    @Test
+    func testPublishSocketDirectoryThrowsAndPreservesDirectory() throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("test-sock-dir-\(UUID().uuidString)")
+        let subDir = tempDir.appendingPathComponent("my-dir")
+        try FileManager.default.createDirectory(at: subDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        #expect {
+            _ = try Parser.publishSocket("\(subDir.path):/var/run/app.sock")
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("is not a socket; refusing to overwrite")
+        }
+
+        #expect(FileManager.default.fileExists(atPath: subDir.path))
+    }
+
+    @Test
+    func testPublishSocketActiveSocketThrows() throws {
+        let shortId = String(UUID().uuidString.prefix(8))
+        let socketPath = "/tmp/test-active-\(shortId).sock"
+        defer { try? FileManager.default.removeItem(atPath: socketPath) }
+
+        let serverFd = socket(AF_UNIX, SOCK_STREAM, 0)
+        guard serverFd >= 0 else {
+            Issue.record("Failed to create socket")
+            return
+        }
+        defer { Darwin.close(serverFd) }
+
+        var addr = sockaddr_un()
+        addr.sun_family = sa_family_t(AF_UNIX)
+        withUnsafeMutableBytes(of: &addr.sun_path) { bytes in
+            socketPath.withCString { cStr in
+                bytes.copyMemory(from: UnsafeRawBufferPointer(start: cStr, count: socketPath.utf8.count + 1))
+            }
+        }
+
+        let bindResult = withUnsafePointer(to: addr) { ptr in
+            ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockaddrPtr in
+                Darwin.bind(serverFd, sockaddrPtr, socklen_t(MemoryLayout<sockaddr_un>.size))
+            }
+        }
+        guard bindResult == 0 else {
+            Issue.record("Failed to bind socket")
+            return
+        }
+
+        guard Darwin.listen(serverFd, 5) == 0 else {
+            Issue.record("Failed to listen on socket")
+            return
+        }
+
+        #expect {
+            _ = try Parser.publishSocket("\(socketPath):/var/run/app.sock")
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("already exists and may be in use")
+        }
+
+        #expect(FileManager.default.fileExists(atPath: socketPath))
+    }
+
+    @Test
+    func testPublishSocketStaleSocketRemovedAndSucceeds() throws {
+        let shortId = String(UUID().uuidString.prefix(8))
+        let socketPath = "/tmp/test-stale-\(shortId).sock"
+        defer { try? FileManager.default.removeItem(atPath: socketPath) }
+
+        let serverFd = socket(AF_UNIX, SOCK_STREAM, 0)
+        guard serverFd >= 0 else {
+            Issue.record("Failed to create socket")
+            return
+        }
+
+        var addr = sockaddr_un()
+        addr.sun_family = sa_family_t(AF_UNIX)
+        withUnsafeMutableBytes(of: &addr.sun_path) { bytes in
+            socketPath.withCString { cStr in
+                bytes.copyMemory(from: UnsafeRawBufferPointer(start: cStr, count: socketPath.utf8.count + 1))
+            }
+        }
+
+        let bindResult = withUnsafePointer(to: addr) { ptr in
+            ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockaddrPtr in
+                Darwin.bind(serverFd, sockaddrPtr, socklen_t(MemoryLayout<sockaddr_un>.size))
+            }
+        }
+        guard bindResult == 0 else {
+            Darwin.close(serverFd)
+            Issue.record("Failed to bind socket")
+            return
+        }
+
+        Darwin.close(serverFd)
+        #expect(FileManager.default.fileExists(atPath: socketPath))
+
+        let result = try Parser.publishSocket("\(socketPath):/var/run/app.sock")
+        #expect(result.hostPath.string == socketPath)
+        #expect(result.containerPath.string == "/var/run/app.sock")
+        #expect(!FileManager.default.fileExists(atPath: socketPath))
+    }
+
+    @Test
+    func testPublishSocketEmptyHostPathThrows() throws {
+        #expect {
+            _ = try Parser.publishSocket(":/var/run/app.sock")
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("host socket path cannot be empty")
+        }
+    }
+
+    @Test
+    func testPublishSocketEmptyContainerPathThrows() throws {
+        #expect {
+            _ = try Parser.publishSocket("/tmp/app.sock:")
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("container socket path cannot be empty")
+        }
+    }
+
+    @Test
+    func testPublishSocketInvalidFormatThrows() throws {
+        #expect {
+            _ = try Parser.publishSocket("/tmp/app.sock")
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("invalid publish-socket format")
+        }
+    }
+
+    @Test
+    func testPublishSocketsMultiple() throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("test-sockets-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let sock1 = tempDir.appendingPathComponent("s1.sock").path
+        let sock2 = tempDir.appendingPathComponent("s2.sock").path
+
+        let results = try Parser.publishSockets([
+            "\(sock1):/var/run/s1.sock",
+            "\(sock2):/var/run/s2.sock",
+        ])
+
+        #expect(results.count == 2)
+        #expect(results[0].hostPath.string == sock1)
+        #expect(results[0].containerPath.string == "/var/run/s1.sock")
+        #expect(results[1].hostPath.string == sock2)
+        #expect(results[1].containerPath.string == "/var/run/s2.sock")
+    }
+
+    @Test
+    func testPublishSocketSymlinkToRegularFileThrowsAndPreservesTarget() throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("test-sock-symlink-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let targetFile = tempDir.appendingPathComponent("target.txt").path
+        let symlinkPath = tempDir.appendingPathComponent("symlink.sock").path
+        let testContent = "data to preserve"
+        try testContent.write(toFile: targetFile, atomically: true, encoding: .utf8)
+        try FileManager.default.createSymbolicLink(atPath: symlinkPath, withDestinationPath: targetFile)
+
+        #expect {
+            _ = try Parser.publishSocket("\(symlinkPath):/var/run/app.sock")
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("is not a socket; refusing to overwrite")
+        }
+
+        #expect(FileManager.default.fileExists(atPath: targetFile))
+        #expect(FileManager.default.fileExists(atPath: symlinkPath))
+        let remainingContent = try String(contentsOfFile: targetFile, encoding: .utf8)
+        #expect(remainingContent == testContent)
     }
 }
