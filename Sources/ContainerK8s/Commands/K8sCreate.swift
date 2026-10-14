@@ -130,6 +130,7 @@ public struct K8sCreate: AsyncParsableCommand {
             try await K8sHelper.prepareNode(nodeID: name, client: client, log: log)
             try await K8sHelper.bootstrapControlPlane(
                 nodeID: name, nodeImage: nodeImage, apiServerSANs: sans, advertiseAddress: vmIP,
+                controlPlaneEndpoint: K8sHelper.bootstrapControlPlaneEndpoint(workerCount: workers),
                 schedulable: provisioner.roles.contains(StandardRoles.worker),
                 cniManifestPath: cni,
                 client: client, log: log)

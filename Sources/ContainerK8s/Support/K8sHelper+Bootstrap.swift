@@ -35,9 +35,14 @@ extension K8sHelper {
 
     static func bootstrapControlPlane(
         nodeID: String, nodeImage: String, apiServerSANs: [String], advertiseAddress: String,
+        controlPlaneEndpoint: String? = nil,
         schedulable: Bool, cniManifestPath: String? = nil, client: ContainerClient, log: Logger
     ) async throws {
-        let configYAML = try initConfigYAML(nodeImage: nodeImage, advertiseAddress: advertiseAddress, certSANs: apiServerSANs)
+        let configYAML = try initConfigYAML(
+            nodeImage: nodeImage,
+            advertiseAddress: advertiseAddress,
+            certSANs: apiServerSANs,
+            controlPlaneEndpoint: controlPlaneEndpoint)
         var r = try await execCapture(
             containerId: nodeID, executable: "/bin/sh",
             arguments: ["-c", "cat > /etc/kubernetes/kubeadm-config.yaml <<'EOF'\n\(configYAML)\nEOF"],
@@ -151,8 +156,14 @@ extension K8sHelper {
         """
     }
 
-    private static func initConfigYAML(nodeImage: String, advertiseAddress: String, certSANs: [String]) throws -> String {
+    static func initConfigYAML(
+        nodeImage: String,
+        advertiseAddress: String,
+        certSANs: [String],
+        controlPlaneEndpoint: String? = nil
+    ) throws -> String {
         let sans = certSANs.map { "  - \($0)" }.joined(separator: "\n")
+        let controlPlaneEndpointLine = controlPlaneEndpoint.map { "controlPlaneEndpoint: \($0)\n" } ?? ""
         return """
             apiVersion: kubeadm.k8s.io/v1beta4
             kind: InitConfiguration
@@ -164,7 +175,7 @@ extension K8sHelper {
             ---
             apiVersion: kubeadm.k8s.io/v1beta4
             kind: ClusterConfiguration
-            kubernetesVersion: \(try kubernetesVersion(nodeImage: nodeImage))
+            \(controlPlaneEndpointLine)kubernetesVersion: \(try kubernetesVersion(nodeImage: nodeImage))
             networking:
               podSubnet: \(podSubnet)
             apiServer:
