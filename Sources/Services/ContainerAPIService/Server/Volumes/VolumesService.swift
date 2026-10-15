@@ -195,11 +195,14 @@ public actor VolumesService {
             )
         }
 
-        return try await lock.withLock { _ in
+        // Take a consistent snapshot under the locks, then release them. Sizing
+        // the volumes takes as long as they are large, and must not block
+        // unrelated volume or container operations.
+        let (allVolumes, inUseSet) = try await lock.withLock { _ in
             let allVolumes = try await self.store.list()
 
             // Atomically get active volumes with container list
-            return try await self.containersService.withContainerList(logMetadata: ["acquirer": "\(#function)"]) { containers in
+            let inUseSet = try await self.containersService.withContainerList(logMetadata: ["acquirer": "\(#function)"]) { containers in
                 var inUseSet = Set<String>()
 
                 // Find all mounted volumes
@@ -211,23 +214,34 @@ public actor VolumesService {
                     }
                 }
 
-                var totalSize: UInt64 = 0
-                var reclaimableSize: UInt64 = 0
+                return inUseSet
+            }
 
-                // Calculate sizes
-                for volume in allVolumes {
-                    let volumePath = self.volumePath(for: volume.name)
-                    let volumeSize = FileManager.default.allocatedSize(of: URL(fileURLWithPath: volumePath))
-                    totalSize += volumeSize
+            return (allVolumes, inUseSet)
+        }
 
-                    if !inUseSet.contains(volume.name) {
-                        reclaimableSize += volumeSize
-                    }
-                }
+        return await self.diskUsage(of: allVolumes, inUse: inUseSet)
+    }
 
-                return (allVolumes.count, inUseSet.count, totalSize, reclaimableSize)
+    /// Sum the on-disk size of the given volumes.
+    ///
+    /// `nonisolated` so the filesystem walk runs off the actor's executor
+    /// instead of stalling every other request to this service.
+    private nonisolated func diskUsage(of volumes: [VolumeConfiguration], inUse: Set<String>) async -> (Int, Int, UInt64, UInt64) {
+        var totalSize: UInt64 = 0
+        var reclaimableSize: UInt64 = 0
+
+        for volume in volumes {
+            let volumePath = self.volumePath(for: volume.name)
+            let volumeSize = FileManager.default.allocatedSize(of: URL(fileURLWithPath: volumePath))
+            totalSize += volumeSize
+
+            if !inUse.contains(volume.name) {
+                reclaimableSize += volumeSize
             }
         }
+
+        return (volumes.count, inUse.count, totalSize, reclaimableSize)
     }
 
     private func parseSize(_ sizeString: String) throws -> UInt64 {

@@ -22,6 +22,8 @@ public class Globber {
     let input: URL
     var results: Set<URL> = .init()
 
+    private var compiledGlobs: [String: NSRegularExpression] = [:]
+
     public init(_ input: URL) {
         self.input = input
     }
@@ -129,6 +131,16 @@ public class Globber {
     }
 
     func glob(_ input: String, _ pattern: String) throws -> Bool {
+        let regex = try compiledGlob(for: pattern)
+        let range = NSRange(input.startIndex..., in: input)
+        return regex.firstMatch(in: input, options: [], range: range) != nil
+    }
+
+    private func compiledGlob(for pattern: String) throws -> NSRegularExpression {
+        if let cached = compiledGlobs[pattern] {
+            return cached
+        }
+
         let regexPattern =
             "^"
             + NSRegularExpression.escapedPattern(for: pattern)
@@ -140,7 +152,9 @@ public class Globber {
 
         // validate the regex pattern created
         let _ = try Regex(regexPattern)
-        return input.range(of: regexPattern, options: .regularExpression) != nil
+        let regex = try NSRegularExpression(pattern: regexPattern)
+        compiledGlobs[pattern] = regex
+        return regex
     }
 }
 
