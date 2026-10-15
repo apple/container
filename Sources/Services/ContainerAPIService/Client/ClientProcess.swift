@@ -36,7 +36,7 @@ public protocol ClientProcess: Sendable {
     func resize(_ size: Terminal.Size) async throws
     /// Send a signal to the process `id`.
     /// Kill does not wait for the process to exit, it only delivers the signal.
-    func kill(_ signal: Int32) async throws
+    func kill(_ signal: String) async throws
     ///  Wait for the process `id` to complete and return its exit code.
     /// This method blocks until the process exits and the code is obtained.
     func wait() async throws -> Int32
@@ -76,11 +76,11 @@ struct ClientProcessImpl: ClientProcess, Sendable {
     }
 
     /// Send a signal to the process.
-    public func kill(_ signal: Int32) async throws {
+    public func kill(_ signal: String) async throws {
         let request = XPCMessage(route: .containerKill)
         request.set(key: .id, value: containerId)
         request.set(key: .processIdentifier, value: id)
-        request.set(key: .signal, value: Int64(signal))
+        request.set(key: .signal, value: signal)
 
         try await xpcClient.send(request)
     }
