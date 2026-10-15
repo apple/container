@@ -29,49 +29,23 @@ extension Application.VolumeCommand {
         public var logOptions: Flags.Logging
 
         public func run() async throws {
-            let allVolumes = try await ClientVolume.list()
+            let result = try await ClientVolume.prune()
 
-            // Find all volumes not used by any container
-            let client = ContainerClient()
-            let containers = try await client.list()
-            var volumesInUse = Set<String>()
-            for container in containers {
-                for mount in container.configuration.mounts {
-                    if mount.isVolume, let volumeName = mount.volumeName {
-                        volumesInUse.insert(volumeName)
-                    }
-                }
+            for failure in result.failed {
+                log.error(
+                    "failed to prune volume",
+                    metadata: [
+                        "id": "\(failure.id)",
+                        "error": "\(failure.error)",
+                    ])
             }
 
-            let volumesToPrune = allVolumes.filter { volume in
-                !volumesInUse.contains(volume.name)
-            }
-
-            var prunedVolumes = [String]()
-            var totalSize: UInt64 = 0
-
-            for volume in volumesToPrune {
-                do {
-                    let actualSize = try await ClientVolume.volumeDiskUsage(name: volume.name)
-                    totalSize += actualSize
-                    try await ClientVolume.delete(name: volume.name)
-                    prunedVolumes.append(volume.name)
-                } catch {
-                    log.error(
-                        "failed to prune volume",
-                        metadata: [
-                            "id": "\(volume.name)",
-                            "error": "\(error)",
-                        ])
-                }
-            }
-
-            for name in prunedVolumes {
+            for name in result.pruned {
                 print(name)
             }
 
             let formatter = ByteCountFormatter()
-            let freed = formatter.string(fromByteCount: Int64(totalSize))
+            let freed = formatter.string(fromByteCount: Int64(result.reclaimedBytes))
             log.info("Reclaimed \(freed) in disk space")
         }
     }
