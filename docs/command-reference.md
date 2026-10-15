@@ -1636,7 +1636,7 @@ Creates and starts a local Kubernetes cluster and optional worker nodes. Pulls t
 **Usage**
 
 ```bash
-container k8s create [--name <name>] [--node-image <image>] [--cni <path>] [--workers <n>] [--rm] [<resource options>] [--debug]
+container k8s create [--name <name>] [--node-image <image>] [--cni <path>] [--workers <n>] [--rm] [--publish <spec> ...] [<resource options>] [--debug]
 ```
 
 **Options**
@@ -1646,6 +1646,15 @@ container k8s create [--name <name>] [--node-image <image>] [--cni <path>] [--wo
 *   `--cni <path>`: Optional path to a CNI manifest to apply, or `NONE` (case-insensitive) to skip installing a CNI. If not provided, the bundled kindnet CNI is used. With `NONE`, the command returns without waiting for nodes to become `Ready`, since that requires a CNI; apply your own afterward with `kubectl apply`.
 *   `--workers <n>`: Number of worker nodes to create (default: `0`, meaning the control-plane node also acts as a worker)
 *   `--rm`: Remove the cluster container after it stops
+*   `--publish, -p <spec>`: Publish a port from the cluster node to the host (format: `[host-ip:]host-port:container-port[/protocol]`). Repeatable; useful for reaching NodePort services from the host.
+
+The API server's own host port is allocated from `6445` upwards, skipping ports you publish, so `--publish 6445:30080` simply pushes the API server to `6446`. A host port held by a running container, cluster or otherwise, is rejected at create time, naming the container that holds it:
+
+```
+Error: host port 6445/tcp is already published by running k8s cluster 'dev' for its Kubernetes API server; choose a different host port
+```
+
+A port published only by a *stopped* container is free to take, since nothing is listening on it. Creation proceeds with a warning, because that container can no longer start while the new cluster holds the port.
 
 **Resource Options**
 
@@ -1680,6 +1689,9 @@ container k8s create --cni NONE
 
 # create a cluster with a control plane and 3 worker nodes
 container k8s create --name my-cluster --workers 3
+
+# create a cluster with NodePort services published to host ports 80 and 443
+container k8s create --publish 80:30080 --publish 443:30443
 ```
 
 ### `container k8s delete (rm)`
@@ -1715,6 +1727,13 @@ Lists all Kubernetes clusters with their status and node image.
 
 ```bash
 container k8s list [--debug]
+```
+
+The `PORTS` column lists every published port as `[host-ip:]host-port->container-port[/protocol]`, comma separated, with the API server's port first. The host IP appears only when the listener is bound to one, the protocol only when it is not TCP, and contiguous ranges are collapsed:
+
+```
+PORTS
+6445->6443,127.0.0.1:80->30080,8125->30125/udp,9000-9002->31000-31002
 ```
 
 **Examples**
