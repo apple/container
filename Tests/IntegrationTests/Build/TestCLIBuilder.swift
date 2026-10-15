@@ -1001,6 +1001,24 @@ struct TestCLIBuilder {
         }
     }
 
+    @Test func testImageRmAfterRetagFails() async throws {
+        try await ContainerFixture.with { f in
+            let dir = try f.createTempDir()
+            try f.createContext(dir: dir, dockerfile: "FROM scratch")
+            let image = "scratch:\(UUID().uuidString)"
+            let newImage = "scratch-new:\(UUID().uuidString)"
+
+            try f.build(tag: image, contextDir: dir)
+            try f.assertImageBuilt(image)
+
+            try f.doImageTag(image, newName: newImage)
+            try f.doRemoveImages([image])
+
+            let result = try f.run(["image", "rm", image])
+            #expect(result.status != 0, "expected removing an already-removed image to fail")
+        }
+    }
+
     /// Regression test: the context *root* itself (not an entry inside it) is a
     /// symlink to a sibling directory, e.g. `context -> real-context`. The build
     /// must resolve the symlink and use the real directory's contents.
