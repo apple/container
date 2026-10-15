@@ -53,7 +53,7 @@ public struct K8sDelete: AsyncParsableCommand {
             do {
                 try? await client.stop(id: workerName)
                 try await client.delete(id: workerName)
-            } catch let error as ContainerizationError where error.code == .notFound {
+            } catch let error as ContainerizationError where error.code == .notFound || (error.cause as? ContainerizationError)?.code == .notFound {
                 log.debug("worker container not found, skipping delete", metadata: ["name": "\(workerName)"])
             } catch {
                 log.error("failed to delete worker container", metadata: ["name": "\(workerName)", "error": "\(error)"])
@@ -64,7 +64,7 @@ public struct K8sDelete: AsyncParsableCommand {
         do {
             try? await client.stop(id: name)
             try await client.delete(id: name)
-        } catch let error as ContainerizationError where error.code == .notFound {
+        } catch let error as ContainerizationError where error.code == .notFound || (error.cause as? ContainerizationError)?.code == .notFound {
             log.debug("cluster container not found, skipping delete", metadata: ["name": "\(name)"])
         } catch {
             log.error("failed to delete cluster container", metadata: ["name": "\(name)", "error": "\(error)"])
