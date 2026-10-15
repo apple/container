@@ -42,11 +42,6 @@ extension Int {
     }
 
     func formattedNumber() -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        guard let formattedNumber = formatter.string(from: NSNumber(value: self)) else {
-            return ""
-        }
-        return formattedNumber
+        self.formatted(.number)
     }
 }

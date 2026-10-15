@@ -81,10 +81,10 @@ final public class BuildConfig: Codable, Sendable {
     public static let defaultRosetta = true
     public static let defaultCPUs = 2
     public static let defaultMemory = try! MemorySize("2048MB")
-    public static var defaultImage: String {
+    public static let defaultImage: String = {
         let tag = String(cString: get_container_builder_shim_version())
         return "ghcr.io/apple/container-builder-shim/builder:\(tag)"
-    }
+    }()
 
     public let rosetta: Bool
     public let cpus: Int
@@ -145,12 +145,12 @@ final public class DNSConfig: Codable, Sendable {
 }
 
 final public class VminitConfig: Codable, Sendable {
-    public static var defaultImage: String {
+    public static let defaultImage: String = {
         let tag = String(cString: get_swift_containerization_version())
         return tag == "latest"
             ? "vminit:latest"
             : "ghcr.io/apple/containerization/vminit:\(tag)"
-    }
+    }()
 
     public let image: String
 
