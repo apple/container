@@ -156,13 +156,18 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
         )
         flock(portLock, LOCK_UN)
 
-        let io = try ProcessIO.create(tty: false, interactive: false, detach: true)
-        defer { try? io.close() }
-        let process = try await client.bootstrap(id: name, stdio: io.stdio)
-        try await process.start()
-        try io.closeAfterStart()
+        do {
+            let io = try ProcessIO.create(tty: false, interactive: false, detach: true)
+            defer { try? io.close() }
+            let process = try await client.bootstrap(id: name, stdio: io.stdio)
+            try await process.start()
+            try io.closeAfterStart()
 
-        try await K8sHelper.waitForNodeBooted(containerId: name, client: client, log: log)
+            try await K8sHelper.waitForNodeBooted(containerId: name, client: client, log: log)
+        } catch {
+            try? await teardown(name: name, log: log)
+            throw error
+        }
     }
 
     public func address(name: String, log: Logger) async throws -> String {
