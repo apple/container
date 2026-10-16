@@ -100,7 +100,18 @@ By default, `container cluster create` creates a single node that acts as both c
 container cluster create --name my-cluster --workers 3
 ```
 
-When `--workers` is greater than `0`, the control-plane node is tainted so pods only schedule onto worker nodes, matching typical multi-node cluster behavior. Worker nodes share the same `--node-image`, `--cpus`, and `--memory` settings as the control plane, and are named `<cluster-name>-worker-<n>`.
+When `--workers` is greater than `0`, the control-plane node is tainted so pods only schedule onto worker nodes, matching typical multi-node cluster behavior. Worker nodes share the control plane's `--node-image` and are named `<cluster-name>-worker-<n>`.
+
+With workers, `--cpus` and `--memory` size the control-plane node only (2 CPUs and 2GB by default, whatever the size of your host). Workers that you don't size get the same defaults as a single-node cluster (1/4 of your host's CPUs and memory, minimum 2 CPUs and 2GB), however many you create.
+
+To size workers yourself, pass a group of workers with `--workers count=<n>,cpus=<n>,memory=<size>`. Any value you leave out gets the default above, and `count` defaults to `1`. Repeat the option to create groups of differently sized workers:
+
+```bash
+# 2 workers with 4 CPUs and 8GB, plus 1 smaller worker
+container cluster create --name my-cluster \
+  --workers count=2,cpus=4,memory=8g \
+  --workers count=1,cpus=2,memory=4g
+```
 
 ### Access clusters with kubectl
 

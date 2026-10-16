@@ -1636,7 +1636,7 @@ Creates and starts a local Kubernetes cluster and optional worker nodes. Pulls t
 **Usage**
 
 ```bash
-container cluster create [--name <name>] [--node-image <image>] [--cni <path>] [--workers <n>] [--shared-image-store] [--rm] [<resource options>] [--debug]
+container cluster create [--name <name>] [--node-image <image>] [--cni <path>] [--workers <n | count=<n>,cpus=<n>,memory=<size>>]... [--shared-image-store] [--rm] [<resource options>] [--debug]
 ```
 
 **Options**
@@ -1645,13 +1645,16 @@ container cluster create [--name <name>] [--node-image <image>] [--cni <path>] [
 *   `--node-image <image>`: Node image reference (default: `docker.io/kindest/node:v1.35.5`)
 *   `--cni <path>`: Optional path to a CNI manifest to apply, or `NONE` (case-insensitive) to skip installing a CNI. If not provided, the bundled kindnet CNI is used. With `NONE`, the command returns without waiting for nodes to become `Ready`, since that requires a CNI; apply your own afterward with `kubectl apply`.
 *   `--workers <n>`: Number of worker nodes to create (default: `0`, meaning the control-plane node also acts as a worker)
+*   `--workers count=<n>,cpus=<n>,memory=<size>`: A group of `count` identical workers (default `1`) with the given CPUs and memory. Repeat the option to create groups of differently sized workers. Any value left out gets the single-node default (1/4 of host CPUs and memory, minimum 2 CPUs and 2g). Workers are numbered across groups as `<name>-worker-<n>`.
 *   `--shared-image-store`: Let nodes pull images from the local image store (default: off). See [Container cluster](cluster.md).
 *   `--rm`: Remove the cluster container after it stops
 
 **Resource Options**
 
-*   `--cpus <cpus>`: Number of virtual CPUs (default: 1/4 of host CPUs, minimum 2)
-*   `--memory <memory>`: Memory allocation (default: 1/4 of host memory, minimum 2g)
+*   `--cpus <cpus>`: Number of virtual CPUs for the control-plane node (default: 1/4 of host CPUs, minimum 2; with workers, 2)
+*   `--memory <memory>`: Memory allocation for the control-plane node (default: 1/4 of host memory, minimum 2g; with workers, 2g)
+
+With workers, the control-plane node defaults to 2 CPUs and 2g and `--cpus` and `--memory` apply to it only. A worker value that is not given defaults to the same as a single node, however many workers there are. A value given in a `--workers` group applies to that group only.
 
 **Registry Options**
 
@@ -1681,6 +1684,10 @@ container cluster create --cni NONE
 
 # create a cluster with a control plane and 3 worker nodes
 container cluster create --name my-cluster --workers 3
+
+# create a cluster with a small control plane and two groups of differently sized workers
+container cluster create --name my-cluster --cpus 2 --memory 4g \
+  --workers count=2,cpus=4,memory=8g --workers count=1,cpus=2,memory=4g
 
 # create a cluster whose nodes can pull images from the local image store
 container cluster create --shared-image-store
