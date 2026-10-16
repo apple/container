@@ -16,6 +16,7 @@
 
 import ContainerizationError
 import ContainerizationExtras
+import Foundation
 import Testing
 
 @testable import ContainerResource
@@ -79,6 +80,88 @@ struct NetworkConfigurationTest {
                 #expect(err.message.starts(with: "invalid network name"))
                 return true
             }
+        }
+    }
+
+    // MARK: - NetworkConfigurationFile tests
+
+    @Test func testConfigFileDecodeMinimal() throws {
+        let json = """
+            {"mode": "nat"}
+            """
+        let data = json.data(using: .utf8)!
+        let configFile = try JSONDecoder().decode(NetworkConfigurationFile.self, from: data)
+        #expect(configFile.mode == .nat)
+        #expect(configFile.ipv4Subnet == nil)
+        #expect(configFile.ipv6Subnet == nil)
+        #expect(configFile.labels == nil)
+        #expect(configFile.plugin == nil)
+        #expect(configFile.options == nil)
+
+        let config = try configFile.toNetworkConfiguration(id: "test-net")
+        #expect(config.id == "test-net")
+        #expect(config.mode == .nat)
+        #expect(config.ipv4Subnet == nil)
+        #expect(config.ipv6Subnet == nil)
+        #expect(config.labels.dictionary == [:])
+        #expect(config.plugin == "container-network-vmnet")
+        #expect(config.options == [:])
+    }
+
+    @Test func testConfigFileDecodeComplete() throws {
+        let json = """
+            {
+                "mode": "hostOnly",
+                "ipv4Subnet": "192.168.64.0/24",
+                "ipv6Subnet": "fd00::/64",
+                "labels": {"env": "production"},
+                "plugin": "my-plugin",
+                "options": {"variant": "shared"}
+            }
+            """
+        let data = json.data(using: .utf8)!
+        let configFile = try JSONDecoder().decode(NetworkConfigurationFile.self, from: data)
+        #expect(configFile.mode == .hostOnly)
+        #expect(configFile.ipv4Subnet == "192.168.64.0/24")
+        #expect(configFile.ipv6Subnet == "fd00::/64")
+        #expect(configFile.labels == ["env": "production"])
+        #expect(configFile.plugin == "my-plugin")
+        #expect(configFile.options?["variant"] == "shared")
+
+        let config = try configFile.toNetworkConfiguration(id: "full-net")
+        #expect(config.id == "full-net")
+        #expect(config.mode == .hostOnly)
+        #expect(config.ipv4Subnet != nil)
+        #expect(config.ipv6Subnet != nil)
+        #expect(config.labels.dictionary == ["env": "production"])
+        #expect(config.plugin == "my-plugin")
+        #expect(config.options["variant"] == "shared")
+    }
+
+    @Test func testConfigFileInvalidSubnet() throws {
+        let json = """
+            {"mode": "nat", "ipv4Subnet": "not-a-cidr"}
+            """
+        let data = json.data(using: .utf8)!
+        let configFile = try JSONDecoder().decode(NetworkConfigurationFile.self, from: data)
+        #expect(throws: (any Error).self) {
+            _ = try configFile.toNetworkConfiguration(id: "test-net")
+        }
+    }
+
+    @Test func testConfigFileInvalidId() throws {
+        let json = """
+            {"mode": "nat"}
+            """
+        let data = json.data(using: .utf8)!
+        let configFile = try JSONDecoder().decode(NetworkConfigurationFile.self, from: data)
+        #expect {
+            _ = try configFile.toNetworkConfiguration(id: "INVALID-ID")
+        } throws: { error in
+            guard let err = error as? ContainerizationError else { return false }
+            #expect(err.code == .invalidArgument)
+            #expect(err.message.starts(with: "invalid network name"))
+            return true
         }
     }
 
