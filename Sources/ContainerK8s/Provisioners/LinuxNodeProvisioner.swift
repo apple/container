@@ -16,8 +16,11 @@
 
 import ContainerAPIClient
 import ContainerPersistence
+import ContainerPlugin
 import ContainerResource
 import ContainerizationError
+import Darwin
+import Foundation
 import Logging
 
 /// A `NodeProvisioner` that runs a k8s node as a Linux container on the same host.
@@ -71,6 +74,11 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
         try await K8sHelper.ensureImage(nodeImage: resolvedImage, log: log, containerSystemConfig: containerSystemConfig)
 
         let isControlPlane = roles.contains(StandardRoles.controlPlane)
+        let stateRoot = try PluginStateRoot(plugin: K8sHelper.pluginName).path
+        try FileManager.default.createDirectory(atPath: stateRoot.string, withIntermediateDirectories: true)
+        let portLock = open(stateRoot.appending("port.lock").string, O_CREAT | O_RDONLY, 0o600)
+        defer { close(portLock) }
+        if isControlPlane && fqdn == nil { flock(portLock, LOCK_EX) }
         let publishPorts = isControlPlane && fqdn == nil ? [try await K8sHelper.clusterPort()] : []
 
         let management = Flags.Management(
@@ -146,6 +154,7 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
             kernel: kernel,
             initImage: initfs
         )
+        flock(portLock, LOCK_UN)
 
         let io = try ProcessIO.create(tty: false, interactive: false, detach: true)
         defer { try? io.close() }
