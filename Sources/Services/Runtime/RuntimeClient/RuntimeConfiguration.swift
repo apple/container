@@ -25,12 +25,14 @@ public struct RuntimeConfiguration: Codable, Sendable {
     public let path: URL
     // TODO: Remove runtime-specific fields (initialFilesystem, kernel, containerRootFilesystem).
     // These should be encoded into the opaque `runtimeData` field by the CLI.
-    public let initialFilesystem: Filesystem
+    public var initialFilesystem: Filesystem
     public let kernel: Kernel
     public let containerConfiguration: ContainerConfiguration?
     public let containerRootFilesystem: Filesystem?
     public let options: ContainerCreateOptions?
     public let runtimeData: Data?
+    /// The custom init image the container was created with, nil for the default one.
+    public let initImage: String?
 
     public init(
         path: URL,
@@ -39,7 +41,8 @@ public struct RuntimeConfiguration: Codable, Sendable {
         containerConfiguration: ContainerConfiguration? = nil,
         containerRootFilesystem: Filesystem? = nil,
         options: ContainerCreateOptions? = nil,
-        runtimeData: Data? = nil
+        runtimeData: Data? = nil,
+        initImage: String? = nil
     ) {
         self.path = path
         self.initialFilesystem = initialFilesystem
@@ -48,6 +51,7 @@ public struct RuntimeConfiguration: Codable, Sendable {
         self.containerRootFilesystem = containerRootFilesystem
         self.options = options
         self.runtimeData = runtimeData
+        self.initImage = initImage
     }
 
     public var runtimeConfigurationPath: URL {
