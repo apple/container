@@ -51,6 +51,23 @@ public struct XPCMessage: Sendable {
 }
 
 extension XPCMessage {
+    private static let errorCodesByDescription: [String: ContainerizationError.Code] = {
+        let codes: [ContainerizationError.Code] = [
+            .unknown,
+            .invalidArgument,
+            .internalError,
+            .exists,
+            .notFound,
+            .cancelled,
+            .invalidState,
+            .empty,
+            .timeout,
+            .unsupported,
+            .interrupted,
+        ]
+        return Dictionary(uniqueKeysWithValues: codes.map { ($0.description, $0) })
+    }()
+
     public static func == (lhs: XPCMessage, rhs: xpc_object_t) -> Bool {
         xpc_equal(lhs.underlying, rhs)
     }
@@ -78,14 +95,17 @@ extension XPCMessage {
     public func error() throws {
         let data = data(key: Self.errorKey)
         if let data {
-            guard let item = try? JSONDecoder().decode(ContainerXPCError.self, from: data) else {
+            guard
+                let item = try? JSONDecoder().decode(ContainerXPCError.self, from: data),
+                let code = Self.errorCodesByDescription[item.code]
+            else {
                 throw ContainerizationError(
                     .internalError,
                     message: "received a malformed error payload from the XPC peer"
                 )
             }
 
-            throw ContainerizationError(item.code, message: item.message)
+            throw ContainerizationError(code, message: item.message)
         }
     }
 
