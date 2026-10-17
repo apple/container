@@ -16,6 +16,7 @@
 
 import ArgumentParser
 import ContainerAPIClient
+import ContainerResource
 import Foundation
 
 extension Application.VolumeCommand {
@@ -52,6 +53,15 @@ extension Application.VolumeCommand {
             // If --size is specified, add it to driver options
             if let size = size {
                 parsedDriverOpts["size"] = size
+            }
+
+            // The server validates the options too, but checking here fails fast with a CLI error.
+            if driver == "smb" || driver == "nfs" {
+                do {
+                    try MountOptionValidator.validate(parsedDriverOpts)
+                } catch let violation as MountOptionValidator.Violation {
+                    throw ValidationError(violation.description)
+                }
             }
 
             let volume = try await ClientVolume.create(

@@ -1152,6 +1152,17 @@ public actor RuntimeService {
         }
 
         for mount in config.mounts {
+            // The stored configuration is not trusted to be what the API server accepted,
+            // since the file can be damaged or edited, so check the mount options again.
+            do {
+                try mount.validateMountOptions()
+            } catch let violation as MountOptionValidator.Violation {
+                throw ContainerizationError(
+                    .invalidState,
+                    message: "the stored configuration of container \(config.id) has invalid mount options for \(mount.destination): \(violation)"
+                )
+            }
+
             if try mount.isSocket() {
                 let attrs = try? FileManager.default.attributesOfItem(atPath: mount.source)
                 let permissions = (attrs?[.posixPermissions] as? NSNumber)

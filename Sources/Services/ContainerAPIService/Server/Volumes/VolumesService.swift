@@ -286,6 +286,31 @@ public actor VolumesService {
         return EXT4.JournalConfig(size: size, defaultMode: mode)
     }
 
+    /// Validates the driver options of an `smb` or `nfs` volume.
+    ///
+    /// - Parameters:
+    ///   - driverOpts: The options passed with `--opt key=value`.
+    ///   - driver: The driver name, used in error messages.
+    ///   - shareExample: An example `share` value for the driver, used in error messages.
+    /// - Returns: The non-empty `share` option.
+    /// - Throws: `VolumeError.invalidOption` if `share` is missing or empty, if `size` is present,
+    ///   or if the share or any option is not syntactically valid.
+    static func validateNetworkDriverOptions(_ driverOpts: [String: String], driver: String, shareExample: String) throws -> String {
+        guard let share = driverOpts[MountOptionValidator.shareKey], !share.isEmpty else {
+            throw VolumeError.invalidOption("\(driver) driver requires --opt share=\(shareExample)")
+        }
+        if driverOpts["size"] != nil {
+            throw VolumeError.invalidOption("size option is not supported for \(driver) driver")
+        }
+        do {
+            // Checks the share as a mount source and the remaining options as mount options.
+            try MountOptionValidator.validate(driverOpts)
+        } catch let violation as MountOptionValidator.Violation {
+            throw VolumeError.invalidOption(violation.description)
+        }
+        return share
+    }
+
     private func createVolumeImage(for name: String, sizeInBytes: UInt64 = VolumeStorage.defaultVolumeSizeBytes, journal: EXT4.JournalConfig? = nil) throws {
         let blockPath = blockPath(for: name)
 
@@ -328,12 +353,7 @@ public actor VolumesService {
         let volume: VolumeConfiguration
         switch driver {
         case "smb":
-            guard let share = driverOpts["share"], !share.isEmpty else {
-                throw VolumeError.storageError("smb driver requires --opt share=//server/share")
-            }
-            if driverOpts["size"] != nil {
-                throw VolumeError.storageError("size option is not supported for smb driver")
-            }
+            let share = try Self.validateNetworkDriverOptions(driverOpts, driver: driver, shareExample: "//server/share")
             volume = VolumeConfiguration(
                 name: name,
                 driver: "smb",
@@ -344,12 +364,7 @@ public actor VolumesService {
                 sizeInBytes: nil
             )
         case "nfs":
-            guard let share = driverOpts["share"], !share.isEmpty else {
-                throw VolumeError.storageError("nfs driver requires --opt share=server:/export/path")
-            }
-            if driverOpts["size"] != nil {
-                throw VolumeError.storageError("size option is not supported for nfs driver")
-            }
+            let share = try Self.validateNetworkDriverOptions(driverOpts, driver: driver, shareExample: "server:/export/path")
             volume = VolumeConfiguration(
                 name: name,
                 driver: "nfs",
@@ -362,7 +377,7 @@ public actor VolumesService {
         case "local":
             try createVolumeDirectory(for: name)
 
-            // Parse size from driver options (default 512GB)
+            // Parse size from driver options, or use the system default value
             let sizeInBytes: UInt64
             if let sizeString = driverOpts["size"] {
                 sizeInBytes = try parseSize(sizeString)

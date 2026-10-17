@@ -318,6 +318,19 @@ public actor ContainersService {
                 )
             }
 
+            // Volumes are validated when they are created, but a client can also attach an SMB
+            // or NFS filesystem directly, so check the mount options here as well.
+            for mount in configuration.mounts {
+                do {
+                    try mount.validateMountOptions()
+                } catch let violation as MountOptionValidator.Violation {
+                    throw ContainerizationError(
+                        .invalidArgument,
+                        message: "invalid mount options for \(mount.destination): \(violation)"
+                    )
+                }
+            }
+
             let path = self.containerRoot.appendingPathComponent(configuration.id)
             let systemPlatform = kernel.platform
 

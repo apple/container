@@ -120,7 +120,7 @@ container run -it --rm --mount type=volume,source=foo,target=/mnt/foo alpine sh
 
 ## Mount an SMB share in a container
 
-You can mount an SMB/CIFS network share directly inside a container using the `smb` volume driver. The share is mounted natively by the Linux guest via CIFS — no host-side mount is required.
+You can mount an SMB/CIFS network share directly inside a container using the `smb` volume driver. The Linux guest mounts the SMB/CIFS share natively — no host-side mount is required.
 
 First, create a named volume pointing at your SMB share:
 
@@ -155,7 +155,7 @@ container volume delete myshare
 
 ## Mount an NFS export in a container
 
-You can mount an NFS export directly inside a container using the `nfs` volume driver. The share is mounted natively by the Linux guest — no host-side mount is required.
+You can mount an NFS export directly inside a container using the `nfs` volume driver. The Linux guest mounts the NFS export natively — no host-side mount is required.
 
 First, create a named volume pointing at your NFS export:
 

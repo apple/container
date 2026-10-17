@@ -161,6 +161,67 @@ struct VolumesServiceTests {
         }
     }
 
+    @Test(
+        "VolumesService rejects SMB and NFS volumes with syntactically invalid options",
+        arguments: [
+            ("smb", "//server/share"),
+            ("nfs", "nas.local:/exports/data"),
+        ]
+    )
+    func testRejectsInvalidMountOptions(_ driver: String, _ share: String) async throws {
+        try await TemporaryStorage.withTempDir { appRoot in
+            let service = try await makeVolumesService(appRoot: appRoot)
+
+            // A comma in a value could inject additional mount options.
+            await #expect(throws: VolumeError.self) {
+                _ = try await service.create(
+                    name: "vol1",
+                    driver: driver,
+                    driverOpts: ["share": share, "username": "user,uid=0"]
+                )
+            }
+
+            // A key that does not start with a letter.
+            await #expect(throws: VolumeError.self) {
+                _ = try await service.create(
+                    name: "vol2",
+                    driver: driver,
+                    driverOpts: ["share": share, "1bad": "value"]
+                )
+            }
+
+            // A control character in the share.
+            await #expect(throws: VolumeError.self) {
+                _ = try await service.create(
+                    name: "vol3",
+                    driver: driver,
+                    driverOpts: ["share": share + "\n"]
+                )
+            }
+
+            // Nothing was persisted.
+            let volumes = try await service.list()
+            #expect(volumes.isEmpty)
+        }
+    }
+
+    @Test(
+        "VolumesService accepts shares that contain spaces",
+        arguments: [
+            ("smb", "//server/My Share"),
+            ("nfs", "nas.local:/exports/my data"),
+        ]
+    )
+    func testAcceptsShareWithSpaces(_ driver: String, _ share: String) async throws {
+        try await TemporaryStorage.withTempDir { appRoot in
+            let service = try await makeVolumesService(appRoot: appRoot)
+
+            let created = try await service.create(name: "vol1", driver: driver, driverOpts: ["share": share])
+            #expect(created.source == share)
+            #expect(created.options["share"] == share)
+        }
+    }
+
     @Test("VolumesService rejects unsupported volume driver")
     func testRejectsUnsupportedDriver() async throws {
         try await TemporaryStorage.withTempDir { appRoot in

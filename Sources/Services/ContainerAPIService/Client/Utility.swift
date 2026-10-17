@@ -176,7 +176,8 @@ public struct Utility {
             case .volume(let parsed):
                 let volume = try await getOrCreateVolume(parsed: parsed, log: log)
                 let volumeMount: Filesystem
-                if volume.driver == "smb" {
+                switch volume.driver {
+                case "smb":
                     volumeMount = Filesystem.smb(
                         name: parsed.name,
                         share: volume.source,
@@ -184,7 +185,7 @@ public struct Utility {
                         destination: parsed.destination,
                         options: parsed.options
                     )
-                } else if volume.driver == "nfs" {
+                case "nfs":
                     volumeMount = Filesystem.nfs(
                         name: parsed.name,
                         share: volume.source,
@@ -192,13 +193,18 @@ public struct Utility {
                         destination: parsed.destination,
                         options: parsed.options
                     )
-                } else {
+                case "local":
                     volumeMount = Filesystem.volume(
                         name: parsed.name,
                         format: volume.format,
                         source: volume.source,
                         destination: parsed.destination,
                         options: parsed.options
+                    )
+                default:
+                    throw ContainerizationError(
+                        .invalidArgument,
+                        message: "volume '\(parsed.name)' uses unsupported driver '\(volume.driver)'"
                     )
                 }
                 resolvedMounts.append(volumeMount)

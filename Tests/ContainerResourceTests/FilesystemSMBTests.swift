@@ -149,4 +149,49 @@ struct FilesystemSMBTests {
 
         #expect(fs.resolvedMountOptions == ["domain=corp", "guest", "password=secret", "username=admin", "ro", "noatime"])
     }
+
+    @Test("validateMountOptions checks the share as a source, the options as options, and ignores other types")
+    func testValidateMountOptions() throws {
+        let validSMB = Filesystem.smb(
+            share: "//server/My Share",
+            mountOptions: ["share": "//server/My Share", "username": "user", "password": "secret"],
+            destination: "/data",
+            options: []
+        )
+        try validSMB.validateMountOptions()
+
+        let injectedSMB = Filesystem.smb(
+            share: "//server/share",
+            mountOptions: ["username": "user,uid=0"],
+            destination: "/data",
+            options: []
+        )
+        #expect(throws: MountOptionValidator.Violation.self) {
+            try injectedSMB.validateMountOptions()
+        }
+
+        let controlCharacterShare = Filesystem.smb(
+            share: "//server/share\u{0}",
+            mountOptions: [:],
+            destination: "/data",
+            options: []
+        )
+        #expect(throws: MountOptionValidator.Violation.self) {
+            try controlCharacterShare.validateMountOptions()
+        }
+
+        let injectedNFS = Filesystem.nfs(
+            share: "nas.local:/exports/data",
+            mountOptions: ["vers": "4,nolock"],
+            destination: "/data",
+            options: []
+        )
+        #expect(throws: MountOptionValidator.Violation.self) {
+            try injectedNFS.validateMountOptions()
+        }
+
+        // Other filesystem types have no driver options and always pass.
+        try Filesystem.virtiofs(source: "/host/path", destination: "/data", options: []).validateMountOptions()
+        try Filesystem.tmpfs(destination: "/tmp", options: []).validateMountOptions()
+    }
 }

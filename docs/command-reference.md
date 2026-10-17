@@ -951,39 +951,59 @@ container volume create [--driver <driver>] [--label <label> ...] [--opt <opt> .
     *   `nolock`: Disable NLM file locking — use if the server does not support the lock manager
     *   Any additional options are passed as mount options (e.g. `timeo=600`, `retrans=2`)
 
+For the `smb` and `nfs` drivers, option keys must start with a letter and contain only letters, digits, `_`, or `-`, and option values must not contain commas, whitespace, or control characters. The `share` value is the mount source rather than a mount option, so it may contain spaces and commas but not control characters.
+
 **Examples**
 
+Create a local volume:
+
 ```bash
-# Create a local volume
 container volume create mydata
+```
 
-# Create a local volume with a specific size
+Create a local volume with a specific size:
+
+```bash
 container volume create -s 10G mydata
+```
 
-# create a volume with ordered journaling
+Create a volume with ordered journaling:
+
+```bash
 container volume create --opt journal=ordered myvolume
+```
 
-# create a volume with writeback journaling and a 64 MiB journal
+Create a volume with writeback journaling and a 64 MiB journal:
+
+```bash
 container volume create --opt journal=writeback:64m myvolume
+```
 
-# create a volume with full data journaling and an explicit volume size
+Create a volume with full data journaling and an explicit volume size:
+
+```bash
 container volume create --opt journal=journal --opt size=10g myvolume
+```
 
-# Create an SMB volume
+Create an SMB volume:
+
+```bash
 container volume create --driver smb \
   --opt share=//fileserver/share \
   --opt username=user \
   --opt password=secret \
   myshare
+```
 
-# Create an NFS volume
+Create an NFS volume:
+
+```bash
 container volume create --driver nfs \
   --opt share=nas.local:/exports/data \
   --opt addr=nas.local \
   --opt vers=3 \
   --opt proto=tcp \
   myexport
-
 ```
 
 **Anonymous Volumes**

@@ -206,11 +206,28 @@ public struct Filesystem: Sendable, Codable {
     package var resolvedMountOptions: MountOptions {
         switch type {
         case .smb(_, _, let mountOptions), .nfs(_, _, let mountOptions):
-            return mountOptions.filter { $0.key != "share" }
+            return mountOptions.filter { $0.key != MountOptionValidator.shareKey }
                 .sorted { $0.key < $1.key }
                 .map { $0.value.isEmpty ? $0.key : "\($0.key)=\($0.value)" } + self.options
         default:
             return self.options
+        }
+    }
+
+    /// Checks that the share and driver mount options of an SMB or NFS filesystem are syntactically valid.
+    ///
+    /// The share is checked as a mount source and the remaining options as the values that are joined
+    /// into the mount options string, matching how `resolvedMountOptions` treats them. Other filesystem
+    /// types carry no driver mount options and always pass.
+    ///
+    /// - Throws: `MountOptionValidator.Violation` for the first value that breaks a rule.
+    package func validateMountOptions() throws {
+        switch type {
+        case .smb(_, let share, let mountOptions), .nfs(_, let share, let mountOptions):
+            try MountOptionValidator.validateShare(share)
+            try MountOptionValidator.validate(mountOptions)
+        default:
+            break
         }
     }
 
