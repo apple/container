@@ -601,7 +601,7 @@ Pulls an image from a registry. Supports specifying a platform and controlling p
 **Usage**
 
 ```bash
-container image pull [--scheme <scheme>] [--progress <type>] [--max-concurrent-downloads <max-concurrent-downloads>] [--arch <arch>] [--os <os>] [--platform <platform>] [--debug] <reference>
+container image pull [--scheme <scheme>] [--progress <type>] [--max-concurrent-downloads <max-concurrent-downloads>] [--arch <arch>] [--os <os>] [--platform <platform>] [--all-platforms] [--debug] <reference>
 ```
 
 **Arguments**
@@ -616,6 +616,7 @@ container image pull [--scheme <scheme>] [--progress <type>] [--max-concurrent-d
 *   `-a, --arch <arch>`: Limit the pull to the specified architecture
 *   `--os <os>`: Limit the pull to the specified OS
 *   `--platform <platform>`: Limit the pull to the specified platform (format: os/arch[/variant], takes precedence over --os and --arch)
+*   `--all-platforms`: Unpack all platforms (default unpacks host platform only to save disk space)
 
 ### `container image push`
 

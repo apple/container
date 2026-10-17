@@ -54,6 +54,12 @@ extension Application {
         )
         var platform: String?
 
+        @Flag(
+            name: .long,
+            help: "Unpack all platforms (default unpacks host platform only to save disk space)"
+        )
+        var allPlatforms = false
+
         @OptionGroup
         public var logOptions: Flags.Logging
 
@@ -61,11 +67,12 @@ extension Application {
 
         public init() {}
 
-        public init(platform: String? = nil, scheme: String = "auto", reference: String) {
+        public init(platform: String? = nil, scheme: String = "auto", reference: String, allPlatforms: Bool = false) {
             self.logOptions = Flags.Logging()
             self.registry = Flags.Registry(scheme: scheme)
             self.platform = platform
             self.reference = reference
+            self.allPlatforms = allPlatforms
         }
 
         public func run() async throws {
@@ -102,7 +109,15 @@ extension Application {
             progress.set(description: "Unpacking image")
             progress.set(itemsName: "entries")
             let unpackTask = await taskManager.startTask()
-            try await image.unpack(platform: p, progressUpdate: ProgressTaskCoordinator.handler(for: unpackTask, from: progress.handler))
+            let unpackPlatform: ContainerizationOCI.Platform?
+            if allPlatforms {
+                unpackPlatform = p
+            } else if let p {
+                unpackPlatform = p
+            } else {
+                unpackPlatform = try ContainerizationOCI.Platform(from: "linux/\(Arch.hostArchitecture().rawValue)")
+            }
+            try await image.unpack(platform: unpackPlatform, progressUpdate: ProgressTaskCoordinator.handler(for: unpackTask, from: progress.handler))
             await taskManager.finish()
             progress.finish()
         }
