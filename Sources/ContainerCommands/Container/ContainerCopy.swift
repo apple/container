@@ -41,6 +41,20 @@ extension Application {
             }
         }
 
+        /// Refuse a host path whose named entry is a symbolic link, so a copy
+        /// cannot be redirected outside the directory the user named.
+        /// Trailing `.` components are dropped first, so `link/.` is refused too.
+        static func rejectSymbolicLink(_ path: FilePath, named name: String) throws {
+            var path = path
+            while path.lastComponent?.kind == .currentDirectory {
+                path.removeLastComponent()
+            }
+            let attributes = try? FileManager.default.attributesOfItem(atPath: path.string)
+            if attributes?[.type] as? FileAttributeType == .typeSymbolicLink {
+                throw ContainerizationError(.invalidArgument, message: "path is a symbolic link: \(name)")
+            }
+        }
+
         public init() {}
 
         public static let configuration = CommandConfiguration(
@@ -66,6 +80,7 @@ extension Application {
             case (.container(let id, let path), .local(let localPath)):
                 let srcPath = FilePath(path)
                 let destPath = FilePath(URL(fileURLWithPath: localPath, relativeTo: .currentDirectory()).absoluteURL.path(percentEncoded: false))
+                try Self.rejectSymbolicLink(destPath, named: localPath)
                 var isDirectory: ObjCBool = false
                 let exists = FileManager.default.fileExists(atPath: destPath.string, isDirectory: &isDirectory)
 
@@ -75,6 +90,7 @@ extension Application {
                         throw ContainerizationError(.invalidArgument, message: "source path has no last component: \(path)")
                     }
                     finalDestPath = destPath.appending(lastComponent)
+                    try Self.rejectSymbolicLink(finalDestPath, named: finalDestPath.string)
                     try await client.copyOut(id: id, source: path, destination: finalDestPath.string)
                 } else if localPath.hasSuffix("/") {
                     try await client.copyOut(id: id, source: path, destination: destPath.string)
@@ -99,6 +115,7 @@ extension Application {
                     throw ContainerizationError(.invalidArgument, message: "source path has no last component: \(localPath)")
                 }
 
+                try Self.rejectSymbolicLink(srcPath, named: localPath)
                 guard FileManager.default.fileExists(atPath: srcPath.string, isDirectory: &isDirectory) else {
                     throw ContainerizationError(.notFound, message: "source path does not exist: \(localPath)")
                 }
