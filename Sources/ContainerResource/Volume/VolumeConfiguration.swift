@@ -113,6 +113,7 @@ public enum VolumeError: Error, LocalizedError {
     case volumeInUse(String)
     case invalidVolumeName(String)
     case driverNotSupported(String)
+    case invalidOption(String)
     case storageError(String)
 
     public var errorDescription: String? {
@@ -127,6 +128,8 @@ public enum VolumeError: Error, LocalizedError {
             return "invalid volume name '\(name)'"
         case .driverNotSupported(let driver):
             return "volume driver '\(driver)' is not supported"
+        case .invalidOption(let message):
+            return "invalid volume option: \(message)"
         case .storageError(let message):
             return "storage error: \(message)"
         }

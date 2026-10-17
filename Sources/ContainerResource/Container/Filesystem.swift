@@ -58,6 +58,8 @@ public struct Filesystem: Sendable, Codable {
 
         case block(format: String, cache: CacheMode, sync: SyncMode)
         case volume(name: String, format: String, cache: CacheMode, sync: SyncMode)
+        case smb(name: String? = nil, share: String, mountOptions: [String: String])
+        case nfs(name: String? = nil, share: String, mountOptions: [String: String])
         case virtiofs
         case tmpfs
     }
@@ -115,6 +117,30 @@ public struct Filesystem: Sendable, Codable {
         )
     }
 
+    /// An SMB share mounted directly inside the guest via CIFS.
+    public static func smb(
+        name: String? = nil, share: String, mountOptions: [String: String], destination: String, options: MountOptions
+    ) -> Filesystem {
+        .init(
+            type: .smb(name: name, share: share, mountOptions: mountOptions),
+            source: share,
+            destination: destination,
+            options: options
+        )
+    }
+
+    /// An NFS share mounted directly inside the guest.
+    public static func nfs(
+        name: String? = nil, share: String, mountOptions: [String: String], destination: String, options: MountOptions
+    ) -> Filesystem {
+        .init(
+            type: .nfs(name: name, share: share, mountOptions: mountOptions),
+            source: share,
+            destination: destination,
+            options: options
+        )
+    }
+
     /// A vritiofs backed filesystem providing a directory.
     public static func virtiofs(source: String, destination: String, options: MountOptions) -> Filesystem {
         .init(
@@ -134,6 +160,22 @@ public struct Filesystem: Sendable, Codable {
         )
     }
 
+    /// Returns true if the Filesystem is an SMB volume.
+    public var isSMB: Bool {
+        switch type {
+        case .smb(_, _, _): true
+        default: false
+        }
+    }
+
+    /// Returns true if the Filesystem is an NFS volume.
+    public var isNFS: Bool {
+        switch type {
+        case .nfs(_, _, _): true
+        default: false
+        }
+    }
+
     /// Returns true if the Filesystem is backed by a block device.
     public var isBlock: Bool {
         switch type {
@@ -145,18 +187,78 @@ public struct Filesystem: Sendable, Codable {
 
     /// Returns true if the Filesystem is a named volume.
     public var isVolume: Bool {
-        switch type {
-        case .volume(_, _, _, _): true
-        default: false
-        }
+        volumeName != nil
     }
 
     /// Returns the volume name if this is a volume filesystem, nil otherwise.
     public var volumeName: String? {
         switch type {
         case .volume(let name, _, _, _): name
+        case .smb(let name, _, _): name
+        case .nfs(let name, _, _): name
         default: nil
         }
+    }
+
+    /// Returns the combined mount options for this filesystem, merging any
+    /// driver-specific mount options (excluding `share`) in deterministic key order
+    /// with the general mount options.
+    package var resolvedMountOptions: MountOptions {
+        switch type {
+        case .smb(_, _, let mountOptions), .nfs(_, _, let mountOptions):
+            return mountOptions.filter { $0.key != MountOptionValidator.shareKey }
+                .sorted { $0.key < $1.key }
+                .map { $0.value.isEmpty ? $0.key : "\($0.key)=\($0.value)" } + self.options
+        default:
+            return self.options
+        }
+    }
+
+    /// Checks that the share and driver mount options of an SMB or NFS filesystem are syntactically valid.
+    ///
+    /// The share is checked as a mount source and the remaining options as the values that are joined
+    /// into the mount options string, matching how `resolvedMountOptions` treats them. Other filesystem
+    /// types carry no driver mount options and always pass.
+    ///
+    /// - Throws: `MountOptionValidator.Violation` for the first value that breaks a rule.
+    package func validateMountOptions() throws {
+        switch type {
+        case .smb(_, let share, let mountOptions), .nfs(_, let share, let mountOptions):
+            try MountOptionValidator.validateShare(share)
+            try MountOptionValidator.validate(mountOptions)
+        default:
+            break
+        }
+    }
+
+    /// Checks that an SMB or NFS filesystem carries no secret in its mount options.
+    ///
+    /// Stored configurations must never hold a password; for SMB it lives in the credential store and
+    /// is added to the mount options in memory at bootstrap, and NFS has no password option at all.
+    /// Other filesystem types always pass.
+    ///
+    /// - Throws: `MountOptionValidator.Violation` naming the offending key.
+    package func validateNoSecretOptions() throws {
+        switch type {
+        case .smb(_, _, let mountOptions), .nfs(_, _, let mountOptions):
+            try MountOptionValidator.validateNoSecrets(mountOptions)
+        default:
+            break
+        }
+    }
+
+    /// Returns a copy of an SMB filesystem with the password added to its mount options.
+    ///
+    /// This is used at bootstrap to combine the stored, secret-free configuration with the password
+    /// read from the credential store. Other filesystem types are returned unchanged.
+    package func addingSMBPassword(_ password: String) -> Filesystem {
+        guard case .smb(let name, let share, var mountOptions) = type else {
+            return self
+        }
+        mountOptions[MountOptionValidator.passwordKey] = password
+        var copy = self
+        copy.type = .smb(name: name, share: share, mountOptions: mountOptions)
+        return copy
     }
 
     /// Returns true if the Filesystem is backed by a in-memory mount type.
