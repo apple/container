@@ -272,11 +272,12 @@ actor BuildFSSync: BuildPipelineHandler {
             destination: tarURL,
             writerConfiguration: writerCfg
         ) { url in
-            guard let rel = try? url.relativeChildPath(to: contextDir) else {
+            let resolvedURL = url.resolvingSymlinksInPath()
+            guard let rel = try? resolvedURL.relativeChildPath(to: self.contextDir) else {
                 return nil
             }
 
-            guard let parent = try? url.deletingLastPathComponent().relativeChildPath(to: self.contextDir) else {
+            guard let parent = try? resolvedURL.deletingLastPathComponent().relativeChildPath(to: self.contextDir) else {
                 return nil
             }
 
