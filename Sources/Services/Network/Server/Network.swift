@@ -36,4 +36,11 @@ public protocol Network: Sendable {
 
     /// Start the network.
     func start() async throws
+
+    /// Release any host resources the network holds, before the helper exits.
+    func stop() async
+}
+
+extension Network {
+    public func stop() async {}
 }
