@@ -170,7 +170,7 @@ extension ClientImage {
         var found: [ClientImage] = []
         for name in names {
             do {
-                guard let img = try Self._search(reference: name, in: all, containerSystemConfig: containerSystemConfig) else {
+                guard let img = try Self.match(reference: name, in: all, containerSystemConfig: containerSystemConfig) else {
                     errors.append(name)
                     continue
                 }
@@ -184,7 +184,7 @@ extension ClientImage {
 
     public static func get(reference: String, containerSystemConfig: ContainerSystemConfig) async throws -> ClientImage {
         let all = try await self.list()
-        guard let found = try self._search(reference: reference, in: all, containerSystemConfig: containerSystemConfig) else {
+        guard let found = try self.match(reference: reference, in: all, containerSystemConfig: containerSystemConfig) else {
             throw ContainerizationError(.notFound, message: "image with reference \(reference)")
         }
         return found
@@ -217,7 +217,15 @@ extension ClientImage {
         return 0
     }
 
-    private static func _search(reference: String, in all: [ClientImage], containerSystemConfig: ContainerSystemConfig) throws -> ClientImage? {
+    static func match(reference: String, in all: [ClientImage], containerSystemConfig: ContainerSystemConfig) throws -> ClientImage? {
+        if let image = all.first(where: { $0.reference == reference }) {
+            return image
+        }
+
+        if let image = Self.matchDigestPrefix(reference, in: all) {
+            return image
+        }
+
         let locallyBuiltImage = try {
             // Check if we have an image whose index descriptor contains the image name
             // as an annotation. Prefer this in all cases, since these are locally built images.
@@ -235,13 +243,78 @@ extension ClientImage {
         if let locallyBuiltImage {
             return locallyBuiltImage
         }
-        // If we don't find a match, try matching `ImageDescription.name` against the given
-        // input string, while also checking against its normalized form.
-        // Return the first match.
-        let normalizedReference = try Self.normalizeReference(reference, containerSystemConfig: containerSystemConfig)
-        return all.first(where: { image in
-            image.reference == reference || image.reference == normalizedReference
-        })
+
+        if let normalizedReference = try? Self.normalizeReference(reference, containerSystemConfig: containerSystemConfig),
+            let image = all.first(where: { $0.reference == normalizedReference })
+        {
+            return image
+        }
+
+        return try Self.matchDisplayName(reference, in: all, containerSystemConfig: containerSystemConfig)
+    }
+
+    private static func matchDigestPrefix(_ reference: String, in all: [ClientImage]) -> ClientImage? {
+        guard let digestPrefix = Self.digestPrefix(from: reference) else {
+            return nil
+        }
+        return Self.uniqueMatch(in: all) { image in
+            Self.digestIdentifier(from: image.digest).hasPrefix(digestPrefix)
+        }
+    }
+
+    private static func digestPrefix(from reference: String) -> String? {
+        let prefix: String
+        if reference.hasPrefix("sha256:") {
+            prefix = String(reference.dropFirst("sha256:".count))
+        } else {
+            guard !reference.contains(":") && !reference.contains("/") && !reference.contains("@") else {
+                return nil
+            }
+            prefix = reference
+        }
+        guard prefix.count >= 12, prefix.allSatisfy(\.isHexDigit) else {
+            return nil
+        }
+        return prefix.lowercased()
+    }
+
+    private static func digestIdentifier(from digest: String) -> String {
+        guard let separator = digest.firstIndex(of: ":") else {
+            return digest.lowercased()
+        }
+        return digest[digest.index(after: separator)...].lowercased()
+    }
+
+    private static func matchDisplayName(_ reference: String, in all: [ClientImage], containerSystemConfig: ContainerSystemConfig) throws -> ClientImage? {
+        let requestedReference = try Reference.parse(reference)
+        guard requestedReference.tag == nil && requestedReference.digest == nil else {
+            return nil
+        }
+
+        return try Self.uniqueMatch(in: all) { image in
+            let storedReference = try Reference.parse(image.reference)
+            if storedReference.name == requestedReference.name {
+                return true
+            }
+
+            let displayReference = try Self.denormalizeReference(image.reference, containerSystemConfig: containerSystemConfig)
+            let parsedDisplayReference = try Reference.parse(displayReference)
+            return parsedDisplayReference.name == requestedReference.name
+        }
+    }
+
+    private static func uniqueMatch(in images: [ClientImage], where predicate: (ClientImage) throws -> Bool) rethrows -> ClientImage? {
+        var match: ClientImage?
+        for image in images {
+            guard try predicate(image) else {
+                continue
+            }
+            if match != nil {
+                return nil
+            }
+            match = image
+        }
+        return match
     }
 
     public static func pull(
