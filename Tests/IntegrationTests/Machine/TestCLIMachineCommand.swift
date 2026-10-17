@@ -33,6 +33,31 @@ struct TestCLIMachineCommand {
         }
     }
 
+    @Test func testCreateWithMounts() async throws {
+        try await ContainerFixture.with { f in
+            let name = "\(f.testID)-machine"
+            f.addCleanup { f.cleanupMachine(name) }
+
+            let source = URL(fileURLWithPath: f.testDir.string).standardizedFileURL.path
+            try f.doMachineCreate(
+                name: name,
+                image: machineImage,
+                extraArgs: [
+                    "--mount", "\(source):/mnt/read-write:rw",
+                    "--mount", "\(source):/mnt/read-only:ro",
+                ])
+
+            let snapshot = try f.doMachineInspect(name: name)
+            #expect(snapshot.mounts.count == 2)
+            #expect(snapshot.mounts[0].source == source)
+            #expect(snapshot.mounts[0].destination == "/mnt/read-write")
+            #expect(snapshot.mounts[0].readOnly == false)
+            #expect(snapshot.mounts[1].source == source)
+            #expect(snapshot.mounts[1].destination == "/mnt/read-only")
+            #expect(snapshot.mounts[1].readOnly == true)
+        }
+    }
+
     @Test func testCreateRejectsDots() async throws {
         try await ContainerFixture.with { f in
             let result = try f.runMachine(["create", "--name", "my.bad.name", machineImage])
