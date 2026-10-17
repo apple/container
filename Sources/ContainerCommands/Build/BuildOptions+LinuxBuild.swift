@@ -99,6 +99,9 @@ extension BuildOptions {
             progress.set(description: "Dialing builder")
 
             let dnsNameservers = self.dns.nameservers
+            let dnsDomain = self.dns.domain
+            let dnsSearchDomains = self.dns.searchDomains
+            let dnsOptions = self.dns.options
 
             // Ensure the builder is started (or restarted) with the correct SSH configuration
             // before attempting to dial. This handles the case where the builder is already
@@ -109,16 +112,20 @@ extension BuildOptions {
                 log: log,
                 ssh: ssh == "default",
                 dnsNameservers: dnsNameservers,
+                dnsDomain: dnsDomain,
+                dnsSearchDomains: dnsSearchDomains,
+                dnsOptions: dnsOptions,
                 progressUpdate: progress.handler,
                 containerSystemConfig: containerSystemConfig,
             )
 
-            let builder: Builder? = try await withThrowingTaskGroup(of: Builder.self) { [vsockPort, cpus, memory, dnsNameservers, ssh] group in
+            let builder: Builder? = try await withThrowingTaskGroup(of: Builder.self) {
+                [vsockPort, cpus, memory, dnsNameservers, dnsDomain, dnsSearchDomains, dnsOptions, ssh] group in
                 defer {
                     group.cancelAll()
                 }
 
-                group.addTask { [vsockPort, cpus, memory, log, dnsNameservers, ssh] in
+                group.addTask { [vsockPort, cpus, memory, log, dnsNameservers, dnsDomain, dnsSearchDomains, dnsOptions, ssh] in
                     let client = ContainerClient()
                     while true {
                         do {
@@ -142,6 +149,9 @@ extension BuildOptions {
                                 log: log,
                                 ssh: ssh == "default",
                                 dnsNameservers: dnsNameservers,
+                                dnsDomain: dnsDomain,
+                                dnsSearchDomains: dnsSearchDomains,
+                                dnsOptions: dnsOptions,
                                 progressUpdate: progress.handler,
                                 containerSystemConfig: containerSystemConfig,
                             )
