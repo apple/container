@@ -923,7 +923,7 @@ container volume create [--driver <driver>] [--label <label> ...] [--opt <opt> .
 
 **Options**
 
-*   `--driver <driver>`: Volume driver to use (default: `local`)
+*   `--driver <driver>`: Volume driver to use: `local`, `smb`, or `nfs` (default: `local`). The `smb` and `nfs` drivers are experimental and their options may change.
 *   `--label <label>`: Set metadata for a volume
 *   `--opt <opt>`: Set driver specific options (format: key=value)
 *   `-s <s>`: Size of the volume in bytes, with optional K, M, G, T, or P suffix (local driver only). Takes precedence over `--opt size=` if both are specified.
@@ -938,12 +938,12 @@ container volume create [--driver <driver>] [--label <label> ...] [--opt <opt> .
         *   `journal` — journals both metadata and data (safest, highest write amplification)
 
         An optional `:<size>` suffix sets the journal size (same unit suffixes as `size`). If omitted, the kernel selects a default journal size.
-*   `smb`: Mounts an SMB/CIFS network share directly inside the guest. No block image is created. Requires `--opt share=//server/share`. Supported options:
+*   `smb` *(experimental)*: Mounts an SMB/CIFS network share directly inside the guest. No block image is created. Requires `--opt share=//server/share`. Supported options:
     *   `share=//server/share` *(required)*: UNC path to the SMB share
     *   `username=<user>`: SMB username
-    *   `password=<pass>`: SMB password
+    *   `password=<pass>`: SMB password. Requires `username`. The password is stored in the macOS keychain rather than with the volume, so `volume inspect` and `volume list` never show it, and it is removed when the volume is deleted. It may not contain commas or whitespace.
     *   `domain=<domain>`: SMB domain or workgroup
-*   `nfs`: Mounts an NFS export directly inside the guest. No block image is created. Requires `--opt share=server:/export/path`. Supported options:
+*   `nfs` *(experimental)*: Mounts an NFS export directly inside the guest. No block image is created. Requires `--opt share=server:/export/path`. Supported options:
     *   `share=server:/export/path` *(required)*: NFS server and export path
     *   `addr=<server-ip>` *(recommended)*: Explicit server IP address — required by the kernel's NFS client when mounting without a userspace helper
     *   `vers=<version>`: NFS protocol version (e.g. `4`, `3`; default negotiated)

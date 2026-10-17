@@ -58,6 +58,7 @@ public actor ContainersService {
     private let runtimePlugins: [Plugin]
     private let exitMonitor: ExitMonitor
     private let containerSystemConfig: ContainerSystemConfig
+    private let credentialStore: VolumeCredentialStore
 
     private let lock: AsyncLock
     private var containers: [String: ContainerState]
@@ -70,7 +71,8 @@ public actor ContainersService {
         pluginLoader: PluginLoader,
         containerSystemConfig: ContainerSystemConfig,
         log: Logger,
-        debugHelpers: Bool = false
+        debugHelpers: Bool = false,
+        credentialStore: VolumeCredentialStore = KeychainVolumeCredentialStore()
     ) throws {
         let containerRoot = appRoot.appendingPathComponent("containers")
         try FileManager.default.createDirectory(at: containerRoot, withIntermediateDirectories: true)
@@ -79,6 +81,7 @@ public actor ContainersService {
         self.containerRoot = containerRoot
         self.pluginLoader = pluginLoader
         self.containerSystemConfig = containerSystemConfig
+        self.credentialStore = credentialStore
         self.log = log
         self.debugHelpers = debugHelpers
         self.runtimePlugins = pluginLoader.findPlugins().filter { $0.hasType(.runtime) }
@@ -319,10 +322,12 @@ public actor ContainersService {
             }
 
             // Volumes are validated when they are created, but a client can also attach an SMB
-            // or NFS filesystem directly, so check the mount options here as well.
+            // or NFS filesystem directly, so check the mount options here as well. An SMB password
+            // is never accepted here; it belongs in the credential store, keyed by volume name.
             for mount in configuration.mounts {
                 do {
                     try mount.validateMountOptions()
+                    try mount.validateNoSecretOptions()
                 } catch let violation as MountOptionValidator.Violation {
                     throw ContainerizationError(
                         .invalidArgument,
@@ -427,6 +432,10 @@ public actor ContainersService {
                 networkBootstrapInfos.append(NetworkBootstrapInfo(plugin: plugin))
             }
 
+            // Resolve SMB passwords here, where the credential store is, and hand them to the
+            // runtime for this bootstrap only. They are never written to the bundle or logged.
+            let mountCredentials = try self.resolveMountCredentials(for: config)
+
             do {
                 try Self.registerService(
                     plugin: self.runtimePlugins.first { $0.name == config.runtimeHandler }!,
@@ -441,7 +450,12 @@ public actor ContainersService {
                     id: id,
                     runtime: runtime
                 )
-                try await runtimeClient.bootstrap(stdio: stdio, networkBootstrapInfos: networkBootstrapInfos, dynamicEnv: dynamicEnv)
+                try await runtimeClient.bootstrap(
+                    stdio: stdio,
+                    networkBootstrapInfos: networkBootstrapInfos,
+                    dynamicEnv: dynamicEnv,
+                    mountCredentials: mountCredentials
+                )
 
                 try await self.exitMonitor.registerProcess(
                     id: id,
@@ -461,6 +475,33 @@ public actor ContainersService {
                 throw error
             }
         }
+    }
+
+    /// Returns the SMB passwords for the volumes a container mounts, keyed by volume name.
+    ///
+    /// A volume without a stored credential is left out, so the share is mounted without a
+    /// password (for example, a guest share). Any other failure to read the credential store
+    /// fails the bootstrap, since starting the container would otherwise fail later with a
+    /// less useful permission error from the guest.
+    private nonisolated func resolveMountCredentials(for config: ContainerConfiguration) throws -> [String: String] {
+        var credentials = [String: String]()
+        for mount in config.mounts {
+            guard mount.isSMB, let name = mount.volumeName, credentials[name] == nil else {
+                continue
+            }
+            do {
+                if let credential = try self.credentialStore.lookup(volume: name) {
+                    credentials[name] = credential.password
+                }
+            } catch {
+                throw ContainerizationError(
+                    .internalError,
+                    message: "failed to read the credential for volume \(name) from the keychain",
+                    cause: error
+                )
+            }
+        }
+        return credentials
     }
 
     /// Create a new process in the container.

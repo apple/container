@@ -194,4 +194,73 @@ struct FilesystemSMBTests {
         try Filesystem.virtiofs(source: "/host/path", destination: "/data", options: []).validateMountOptions()
         try Filesystem.tmpfs(destination: "/tmp", options: []).validateMountOptions()
     }
+
+    @Test("validateNoSecretOptions rejects a password on SMB and NFS filesystems and ignores other types")
+    func testValidateNoSecretOptions() throws {
+        let withPassword = Filesystem.smb(
+            share: "//server/share",
+            mountOptions: ["username": "user", "password": "secret"],
+            destination: "/data",
+            options: []
+        )
+        #expect(throws: MountOptionValidator.Violation.self) {
+            try withPassword.validateNoSecretOptions()
+        }
+
+        let withoutPassword = Filesystem.smb(
+            share: "//server/share",
+            mountOptions: ["username": "user", "domain": "corp"],
+            destination: "/data",
+            options: []
+        )
+        try withoutPassword.validateNoSecretOptions()
+
+        // NFS has no password option, so a secret there could only be stored in plain text.
+        let nfs = Filesystem.nfs(
+            share: "nas.local:/exports/data",
+            mountOptions: ["password": "irrelevant"],
+            destination: "/data",
+            options: []
+        )
+        #expect(throws: MountOptionValidator.Violation.self) {
+            try nfs.validateNoSecretOptions()
+        }
+        try Filesystem.tmpfs(destination: "/tmp", options: []).validateNoSecretOptions()
+    }
+
+    @Test("addingSMBPassword adds the password to an SMB mount without touching anything else")
+    func testAddingSMBPassword() {
+        let original = Filesystem.smb(
+            name: "myshare",
+            share: "//server/share",
+            mountOptions: ["share": "//server/share", "username": "user", "domain": "corp"],
+            destination: "/data",
+            options: ["ro"]
+        )
+
+        let withPassword = original.addingSMBPassword("hunter2")
+
+        guard case .smb(let name, let share, let opts) = withPassword.type else {
+            Issue.record("Expected .smb FSType")
+            return
+        }
+        #expect(name == "myshare")
+        #expect(share == "//server/share")
+        #expect(opts["password"] == "hunter2")
+        #expect(opts["username"] == "user")
+        #expect(opts["domain"] == "corp")
+        #expect(withPassword.source == original.source)
+        #expect(withPassword.destination == original.destination)
+        #expect(withPassword.options == original.options)
+        #expect(withPassword.resolvedMountOptions == ["domain=corp", "password=hunter2", "username=user", "ro"])
+
+        // The original is unchanged and non-SMB filesystems are returned as-is.
+        guard case .smb(_, _, let originalOpts) = original.type else {
+            Issue.record("Expected .smb FSType")
+            return
+        }
+        #expect(originalOpts["password"] == nil)
+        let tmpfs = Filesystem.tmpfs(destination: "/tmp", options: [])
+        #expect(tmpfs.addingSMBPassword("x").type == tmpfs.type)
+    }
 }

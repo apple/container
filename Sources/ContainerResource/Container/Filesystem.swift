@@ -231,6 +231,36 @@ public struct Filesystem: Sendable, Codable {
         }
     }
 
+    /// Checks that an SMB or NFS filesystem carries no secret in its mount options.
+    ///
+    /// Stored configurations must never hold a password; for SMB it lives in the credential store and
+    /// is added to the mount options in memory at bootstrap, and NFS has no password option at all.
+    /// Other filesystem types always pass.
+    ///
+    /// - Throws: `MountOptionValidator.Violation` naming the offending key.
+    package func validateNoSecretOptions() throws {
+        switch type {
+        case .smb(_, _, let mountOptions), .nfs(_, _, let mountOptions):
+            try MountOptionValidator.validateNoSecrets(mountOptions)
+        default:
+            break
+        }
+    }
+
+    /// Returns a copy of an SMB filesystem with the password added to its mount options.
+    ///
+    /// This is used at bootstrap to combine the stored, secret-free configuration with the password
+    /// read from the credential store. Other filesystem types are returned unchanged.
+    package func addingSMBPassword(_ password: String) -> Filesystem {
+        guard case .smb(let name, let share, var mountOptions) = type else {
+            return self
+        }
+        mountOptions[MountOptionValidator.passwordKey] = password
+        var copy = self
+        copy.type = .smb(name: name, share: share, mountOptions: mountOptions)
+        return copy
+    }
+
     /// Returns true if the Filesystem is backed by a in-memory mount type.
     public var isTmpfs: Bool {
         switch type {

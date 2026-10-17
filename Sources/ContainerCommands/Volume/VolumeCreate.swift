@@ -26,7 +26,7 @@ extension Application.VolumeCommand {
             abstract: "Create a new volume"
         )
 
-        @Option(name: .customLong("driver"), help: "Volume driver (default: local)")
+        @Option(name: .customLong("driver"), help: "Volume driver: local, smb, or nfs (default: local; smb and nfs are experimental)")
         var driver: String = "local"
 
         @Option(name: .customLong("label"), help: "Set metadata for a volume")

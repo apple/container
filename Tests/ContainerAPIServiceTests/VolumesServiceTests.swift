@@ -29,7 +29,10 @@ import Testing
 struct VolumesServiceTests {
     private let log = Logger(label: "test")
 
-    private func makeVolumesService(appRoot: FilePath) async throws -> VolumesService {
+    private func makeVolumesService(
+        appRoot: FilePath,
+        credentialStore: VolumeCredentialStore = InMemoryVolumeCredentialStore()
+    ) async throws -> VolumesService {
         let appRootURL = URL(fileURLWithPath: appRoot.string)
         let pluginLoader = try PluginLoader(
             appRoot: appRootURL,
@@ -42,12 +45,14 @@ struct VolumesServiceTests {
             appRoot: appRootURL,
             pluginLoader: pluginLoader,
             containerSystemConfig: ContainerSystemConfig(),
-            log: log
+            log: log,
+            credentialStore: credentialStore
         )
         return try await VolumesService(
             resourceRoot: appRoot.appending("volumes"),
             containersService: containersService,
-            log: log
+            log: log,
+            credentialStore: credentialStore
         )
     }
 
@@ -230,6 +235,123 @@ struct VolumesServiceTests {
             await #expect(throws: VolumeError.self) {
                 _ = try await service.create(name: "vol1", driver: "ceph", driverOpts: [:])
             }
+        }
+    }
+
+    // MARK: - SMB credentials
+
+    @Test("VolumesService keeps the SMB password in the credential store, not in the volume")
+    func testSMBPasswordIsStoredInCredentialStore() async throws {
+        try await TemporaryStorage.withTempDir { appRoot in
+            let credentialStore = InMemoryVolumeCredentialStore()
+            let service = try await makeVolumesService(appRoot: appRoot, credentialStore: credentialStore)
+
+            let created = try await service.create(
+                name: "myshare",
+                driver: "smb",
+                driverOpts: [
+                    "share": "//server/share",
+                    "username": "alice",
+                    "password": "hunter2",
+                    "domain": "CORP",
+                ]
+            )
+
+            // The returned, persisted, and inspected configurations all omit the password.
+            #expect(created.options["password"] == nil)
+            #expect(created.options["username"] == "alice")
+            #expect(created.options["domain"] == "CORP")
+            let inspected = try await service.inspect("myshare")
+            #expect(inspected.options["password"] == nil)
+            let onDisk = try String(contentsOfFile: appRoot.appending("volumes/myshare/entity.json").string, encoding: .utf8)
+            #expect(!onDisk.contains("hunter2"))
+
+            // The credential store holds it, keyed by volume name.
+            #expect(try credentialStore.lookup(volume: "myshare") == VolumeCredential(username: "alice", password: "hunter2"))
+
+            // Deleting the volume removes the credential.
+            try await service.delete(name: "myshare")
+            #expect(try credentialStore.lookup(volume: "myshare") == nil)
+            #expect(credentialStore.count == 0)
+        }
+    }
+
+    @Test("VolumesService does not store a credential for an SMB volume without a password")
+    func testSMBWithoutPasswordStoresNoCredential() async throws {
+        try await TemporaryStorage.withTempDir { appRoot in
+            let credentialStore = InMemoryVolumeCredentialStore()
+            let service = try await makeVolumesService(appRoot: appRoot, credentialStore: credentialStore)
+
+            _ = try await service.create(name: "guest", driver: "smb", driverOpts: ["share": "//server/public", "guest": ""])
+            #expect(credentialStore.count == 0)
+
+            // Deleting is still fine when there is nothing to remove.
+            try await service.delete(name: "guest")
+        }
+    }
+
+    @Test("VolumesService rejects an SMB password without a username")
+    func testSMBPasswordRequiresUsername() async throws {
+        try await TemporaryStorage.withTempDir { appRoot in
+            let credentialStore = InMemoryVolumeCredentialStore()
+            let service = try await makeVolumesService(appRoot: appRoot, credentialStore: credentialStore)
+
+            await #expect(throws: VolumeError.self) {
+                _ = try await service.create(name: "vol1", driver: "smb", driverOpts: ["share": "//server/share", "password": "hunter2"])
+            }
+            #expect(credentialStore.count == 0)
+            #expect(try await service.list().isEmpty)
+        }
+    }
+
+    @Test(
+        "VolumesService rejects SMB secret keys other than password",
+        arguments: ["pass", "credentials", "cred"]
+    )
+    func testSMBRejectsOtherSecretKeys(_ key: String) async throws {
+        try await TemporaryStorage.withTempDir { appRoot in
+            let credentialStore = InMemoryVolumeCredentialStore()
+            let service = try await makeVolumesService(appRoot: appRoot, credentialStore: credentialStore)
+
+            await #expect(throws: VolumeError.self) {
+                _ = try await service.create(name: "vol1", driver: "smb", driverOpts: ["share": "//server/share", "username": "u", key: "x"])
+            }
+            #expect(credentialStore.count == 0)
+            #expect(try await service.list().isEmpty)
+        }
+    }
+
+    @Test(
+        "VolumesService rejects secret keys for NFS volumes, which have no password option",
+        arguments: ["password", "pass", "credentials", "cred"]
+    )
+    func testNFSRejectsSecretKeys(_ key: String) async throws {
+        try await TemporaryStorage.withTempDir { appRoot in
+            let credentialStore = InMemoryVolumeCredentialStore()
+            let service = try await makeVolumesService(appRoot: appRoot, credentialStore: credentialStore)
+
+            await #expect(throws: VolumeError.self) {
+                _ = try await service.create(name: "vol1", driver: "nfs", driverOpts: ["share": "nas.local:/exports/data", key: "x"])
+            }
+            #expect(credentialStore.count == 0)
+            #expect(try await service.list().isEmpty)
+        }
+    }
+
+    @Test("VolumesService does not create the volume if the credential cannot be stored")
+    func testSMBCreateFailsClosedWhenCredentialStoreFails() async throws {
+        try await TemporaryStorage.withTempDir { appRoot in
+            let credentialStore = InMemoryVolumeCredentialStore(failSave: true)
+            let service = try await makeVolumesService(appRoot: appRoot, credentialStore: credentialStore)
+
+            await #expect(throws: VolumeError.self) {
+                _ = try await service.create(
+                    name: "vol1",
+                    driver: "smb",
+                    driverOpts: ["share": "//server/share", "username": "alice", "password": "hunter2"]
+                )
+            }
+            #expect(try await service.list().isEmpty)
         }
     }
 }

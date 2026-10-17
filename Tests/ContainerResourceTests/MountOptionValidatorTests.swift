@@ -157,4 +157,26 @@ struct MountOptionValidatorTests {
             Issue.record("Unexpected error: \(error)")
         }
     }
+
+    @Test(
+        "validateNoSecrets rejects every cifs key that carries or points at a secret",
+        arguments: ["password", "pass", "credentials", "cred"]
+    )
+    func rejectsSecretKeys(_ key: String) {
+        do {
+            try MountOptionValidator.validateNoSecrets(["username": "alice", key: "x"])
+            Issue.record("Expected a violation")
+        } catch let violation as MountOptionValidator.Violation {
+            #expect(violation.description.contains("\"\(key)\""))
+            #expect(!violation.description.contains("x\""))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
+    @Test("validateNoSecrets accepts options without a secret")
+    func acceptsOptionsWithoutSecrets() throws {
+        try MountOptionValidator.validateNoSecrets([:])
+        try MountOptionValidator.validateNoSecrets(["share": "//server/share", "username": "alice", "domain": "CORP", "guest": ""])
+    }
 }

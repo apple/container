@@ -120,6 +120,9 @@ container run -it --rm --mount type=volume,source=foo,target=/mnt/foo alpine sh
 
 ## Mount an SMB share in a container
 
+> [!NOTE]
+> The `smb` and `nfs` volume drivers are experimental. Their options may change in a future release.
+
 You can mount an SMB/CIFS network share directly inside a container using the `smb` volume driver. The Linux guest mounts the SMB/CIFS share natively — no host-side mount is required.
 
 First, create a named volume pointing at your SMB share:
@@ -131,6 +134,8 @@ container volume create --driver smb \
   --opt password=secret \
   myshare
 ```
+
+The password is stored in your macOS keychain under the volume name, not in the volume itself, so `container volume inspect` and `container volume list` never show it. The API server reads it from the keychain each time a container that mounts the volume starts, and removes it when you delete the volume. A password requires a `username`; omit both to mount a share that allows guest access. The password may not contain commas or whitespace.
 
 Then use it with `-v` exactly like a local volume:
 
@@ -326,7 +331,7 @@ container run --rm --tmpfs /tmpfsmount1:size=64M,mode=1777 alpine sh
 | `size` | for example `10g` | `local` | Size of the volume's filesystem image, fixed at creation time. |
 | `journal` | `ordered` (default), `writeback`, `journal`, each optionally as `<mode>:<size>` | `local` | The `ext4` journal mode, and optionally the journal size — for example `writeback:64m`. |
 | `share` | `//server/share` (`smb`) or `server:/export/path` (`nfs`) | `smb`, `nfs` | Network share or export path to mount inside the guest (required). |
-| `username`, `password`, `domain` | string | `smb` | SMB authentication credentials and domain/workgroup. |
+| `username`, `password`, `domain` | string | `smb` | SMB authentication credentials and domain/workgroup. The password is kept in the macOS keychain, not in the volume. |
 | `addr`, `vers`, `proto`, `nolock` | mount option value | `nfs` | NFS client mount options passed to the guest kernel mount. |
 
 

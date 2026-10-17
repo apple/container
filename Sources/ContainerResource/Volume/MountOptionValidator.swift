@@ -36,6 +36,16 @@ package enum MountOptionValidator {
     /// The most characters a share may have.
     package static let shareLengthMax = 4096
 
+    /// The option key under which an SMB password is given to `container volume create`.
+    package static let passwordKey = "password"
+
+    /// The SMB mount option keys that carry or point at a secret.
+    ///
+    /// `pass` is an alias of `password`, and `credentials`/`cred` name a file of credentials. None of
+    /// them may appear in a stored volume or container configuration; the password is kept in the
+    /// credential store instead and added to the mount options only at bootstrap.
+    package static let secretKeys: Set<String> = [passwordKey, "pass", "credentials", "cred"]
+
     /// A rule that an option breaks. The description says which option and why.
     ///
     /// The description never includes the value, since a value may be a credential.
@@ -62,6 +72,18 @@ package enum MountOptionValidator {
         let sharePattern = #/^[^\p{Cc}]{1,4096}$/#
         guard share.wholeMatch(of: sharePattern) != nil else {
             throw Violation("invalid share: must not contain control characters, with at most \(Self.shareLengthMax) characters")
+        }
+    }
+
+    /// Checks that `options` carries no secret.
+    ///
+    /// - Parameter options: The mount options of an SMB or NFS filesystem.
+    /// - Throws: `Violation` naming the first secret key found, in key order.
+    package static func validateNoSecrets(_ options: [String: String]) throws {
+        if let key = options.keys.sorted().first(where: Self.secretKeys.contains) {
+            throw Violation(
+                "mount option \"\(key)\" is not allowed here; give the password to `container volume create --driver smb` so it is kept in the keychain, or delete and recreate the volume if it was created by an earlier build"
+            )
         }
     }
 

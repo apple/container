@@ -29,6 +29,7 @@ import SystemPackage
 public actor VolumesService {
     private let resourceRoot: FilePath
     private let store: ContainerPersistence.FilesystemEntityStore<VolumeConfiguration>
+    private let credentialStore: VolumeCredentialStore
     private let log: Logger
     private let lock = AsyncLock()
     private let containersService: ContainersService
@@ -37,10 +38,16 @@ public actor VolumesService {
     private static let entityFile = "entity.json"
     private static let blockFile = "volume.img"
 
-    public init(resourceRoot: FilePath, containersService: ContainersService, log: Logger) async throws {
+    public init(
+        resourceRoot: FilePath,
+        containersService: ContainersService,
+        log: Logger,
+        credentialStore: VolumeCredentialStore = KeychainVolumeCredentialStore()
+    ) async throws {
         try FileManager.default.createDirectory(atPath: resourceRoot.string, withIntermediateDirectories: true)
         self.resourceRoot = resourceRoot
         self.store = try FilesystemEntityStore<VolumeConfiguration>(path: resourceRoot, type: "volumes", log: log)
+        self.credentialStore = credentialStore
         self.containersService = containersService
         self.log = log
 
@@ -351,20 +358,27 @@ public actor VolumesService {
         }
 
         let volume: VolumeConfiguration
+        var credential: VolumeCredential?
         switch driver {
         case "smb":
             let share = try Self.validateNetworkDriverOptions(driverOpts, driver: driver, shareExample: "//server/share")
+            var options = driverOpts
+            credential = try Self.extractSMBCredential(from: &options)
             volume = VolumeConfiguration(
                 name: name,
                 driver: "smb",
                 format: "cifs",
                 source: share,
                 labels: labels,
-                options: driverOpts,
+                options: options,
                 sizeInBytes: nil
             )
         case "nfs":
             let share = try Self.validateNetworkDriverOptions(driverOpts, driver: driver, shareExample: "server:/export/path")
+            // NFS has no password option, so a secret here could only end up stored in plain text.
+            if let key = driverOpts.keys.sorted().first(where: MountOptionValidator.secretKeys.contains) {
+                throw VolumeError.invalidOption("nfs driver does not support option '\(key)'")
+            }
             volume = VolumeConfiguration(
                 name: name,
                 driver: "nfs",
@@ -401,7 +415,24 @@ public actor VolumesService {
         default:
             throw VolumeError.driverNotSupported(driver)
         }
-        try await store.create(volume)
+
+        // Store the secret before the volume so a volume never exists without its credential.
+        // If the volume cannot then be stored, remove the credential again.
+        if let credential {
+            do {
+                try credentialStore.save(volume: name, credential: credential)
+            } catch {
+                throw VolumeError.storageError("failed to store the password for volume '\(name)' in the keychain: \(error)")
+            }
+        }
+        do {
+            try await store.create(volume)
+        } catch {
+            if credential != nil {
+                try? credentialStore.delete(volume: name)
+            }
+            throw error
+        }
 
         log.info(
             "created volume",
@@ -409,8 +440,32 @@ public actor VolumesService {
                 "name": "\(name)",
                 "driver": "\(driver)",
                 "isAnonymous": "\(volume.isAnonymous)",
+                "hasCredential": "\(credential != nil)",
             ])
         return volume
+    }
+
+    /// Removes the SMB password from `options` and returns it with its username as a credential.
+    ///
+    /// Only `password` is accepted as the key for the secret. The other keys that cifs treats as a
+    /// password or a credentials file are rejected so a secret cannot slip into the stored options
+    /// under another name.
+    ///
+    /// - Returns: The credential, or nil if no password was given.
+    /// - Throws: `VolumeError.invalidOption` if a password is given without a username, or if a
+    ///   secret key other than `password` is present.
+    static func extractSMBCredential(from options: inout [String: String]) throws -> VolumeCredential? {
+        let otherSecretKeys = MountOptionValidator.secretKeys.subtracting([MountOptionValidator.passwordKey])
+        if let key = options.keys.sorted().first(where: otherSecretKeys.contains) {
+            throw VolumeError.invalidOption("smb option '\(key)' is not supported; use --opt \(MountOptionValidator.passwordKey)=<password>")
+        }
+        guard let password = options.removeValue(forKey: MountOptionValidator.passwordKey) else {
+            return nil
+        }
+        guard let username = options["username"], !username.isEmpty else {
+            throw VolumeError.invalidOption("smb driver requires --opt username=<user> when a password is given")
+        }
+        return VolumeCredential(username: username, password: password)
     }
 
     private func _delete(name: String) async throws {
@@ -420,7 +475,7 @@ public actor VolumesService {
 
         // Check if volume exists by trying to list and finding it
         let existingVolumes = try await store.list()
-        guard existingVolumes.contains(where: { $0.name == name }) else {
+        guard let volume = existingVolumes.first(where: { $0.name == name }) else {
             throw VolumeError.volumeNotFound(name)
         }
 
@@ -436,6 +491,20 @@ public actor VolumesService {
 
             try await self.store.delete(name)
             try self.removeVolumeDirectory(for: name)
+        }
+
+        // The credential is removed last so a failure to delete the volume never leaves a volume
+        // without its credential. A failure here is logged rather than thrown, since the volume is
+        // already gone and the next create under the same name replaces the item anyway.
+        if volume.driver == "smb" {
+            do {
+                try credentialStore.delete(volume: name)
+            } catch {
+                log.warning(
+                    "failed to remove the credential for a deleted volume from the keychain",
+                    metadata: ["name": "\(name)", "error": "\(error)"]
+                )
+            }
         }
 
         log.info("deleted volume", metadata: ["name": "\(name)"])
