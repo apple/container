@@ -84,7 +84,7 @@ public enum ConfigurationLoader {
     ///
     /// Providers are consulted in the order given — values from earlier files override
     /// later ones. The default order is user config (`<appRoot>/config/config.toml`)
-    /// > system config (`<installRoot>/etc/container/config/config.toml`).
+    /// > system config (`<installRoot>/etc/container/config.toml`).
     ///
     /// An empty `configurationFiles` array falls back to `defaultConfigFiles()`.
     ///
