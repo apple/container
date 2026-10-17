@@ -114,6 +114,10 @@ data, these images grow; when a container process deletes a file, the freed bloc
 aren't automatically returned to the host filesystem, so image size doesn't shrink on
 its own.
 
+Image snapshots and container root filesystems are excluded from Time Machine.
+Both are large sparse files that can be recreated by pulling the image or creating
+the container again. Named volume data under `volumes/` stays in backups.
+
 Check overall usage with:
 
 ```bash

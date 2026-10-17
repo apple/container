@@ -74,6 +74,7 @@ public actor ContainersService {
     ) throws {
         let containerRoot = appRoot.appendingPathComponent("containers")
         try FileManager.default.createDirectory(at: containerRoot, withIntermediateDirectories: true)
+        try PathUtils.excludeFromBackup(containerRoot)
         self.exitMonitor = ExitMonitor(log: log)
         self.lock = AsyncLock(log: log)
         self.containerRoot = containerRoot
