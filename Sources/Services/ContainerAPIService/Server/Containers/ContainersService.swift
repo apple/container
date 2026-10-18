@@ -1005,8 +1005,7 @@ public actor ContainersService {
         self.log.info("shutting down runtime service", metadata: ["id": "\(id)"])
 
         let path = self.containerRoot.appendingPathComponent(id)
-        let bundle = ContainerResource.Bundle(path: path)
-        let config = try bundle.configuration
+        let (config, _) = try Self.getContainerConfiguration(at: path)
         let label = Self.fullLaunchdServiceLabel(
             runtimeName: config.runtimeHandler,
             instanceId: id
@@ -1134,8 +1133,9 @@ public actor ContainersService {
 
     private func getContainerCreationOptions(id: String) throws -> ContainerCreateOptions {
         let path = self.containerRoot.appendingPathComponent(id)
-        let bundle = ContainerResource.Bundle(path: path)
-        let options: ContainerCreateOptions = try bundle.load(filename: "options.json")
+        guard let options = try Self.getContainerConfiguration(at: path).1 else {
+            throw ContainerizationError(.notFound, message: "container \(id) has no creation options")
+        }
         return options
     }
 
