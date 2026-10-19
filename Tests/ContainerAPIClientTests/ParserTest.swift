@@ -945,6 +945,57 @@ struct ParserTest {
     }
 
     @Test
+    func testParseNetworkWithoutAliasesHasNone() throws {
+        let result = try Parser.network("backend")
+        #expect(result.aliases.isEmpty)
+    }
+
+    @Test
+    func testParseNetworkWithAliases() throws {
+        let result = try Parser.network("backend,alias=api.example.test,alias=.example.test")
+        #expect(result.name == "backend")
+        #expect(result.aliases == ["api.example.test", ".example.test"])
+    }
+
+    @Test
+    func testParseNetworkAliasesAreNormalized() throws {
+        let result = try Parser.network("backend,alias=API.Example.TEST.,alias=.Example.Test.")
+        #expect(result.aliases == ["api.example.test", ".example.test"])
+    }
+
+    @Test
+    func testParseNetworkAliasesWithOtherProperties() throws {
+        let result = try Parser.network("backend,mac=02:42:ac:11:00:02,alias=a.test,mtu=1500,alias=.a.test")
+        #expect(result.macAddress == "02:42:ac:11:00:02")
+        #expect(result.mtu == 1500)
+        #expect(result.aliases == ["a.test", ".a.test"])
+    }
+
+    @Test(arguments: ["backend,alias=", "backend,alias=.", "backend,alias=a..test", "backend,alias=exa mple.test"])
+    func testParseNetworkInvalidAlias(spec: String) throws {
+        #expect {
+            _ = try Parser.network(spec)
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("invalid alias")
+        }
+    }
+
+    @Test
+    func testParseNetworkAliasWithAsteriskSuggestsLeadingDot() throws {
+        #expect {
+            _ = try Parser.network("backend,alias=*.example.test")
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("invalid alias") && error.description.contains("leading dot")
+        }
+    }
+
+    @Test
     func testParseNetworkInvalidPropertyFormat() throws {
         #expect {
             _ = try Parser.network("backend,invalidproperty")

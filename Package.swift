@@ -22,8 +22,8 @@ import PackageDescription
 
 let releaseVersion = ProcessInfo.processInfo.environment["RELEASE_VERSION"] ?? "0.0.0"
 let gitCommit = ProcessInfo.processInfo.environment["GIT_COMMIT"] ?? "unspecified"
-let builderShimVersion = "0.13.1"
-let scVersion = "0.49.0"
+let builderShimVersion = "0.13.2"
+let scVersion = "0.52.0"
 
 let package = Package(
     name: "container",
@@ -258,6 +258,7 @@ let package = Package(
                 "ContainerRuntimeClient",
                 "ContainerVersion",
                 "ContainerXPC",
+                "DNSServer",
                 "TerminalProgress",
             ],
             path: "Sources/Services/ContainerAPIService/Server"
@@ -266,8 +267,10 @@ let package = Package(
             name: "ContainerAPIServiceTests",
             dependencies: [
                 .product(name: "Containerization", package: "containerization"),
+                .product(name: "ContainerizationExtras", package: "containerization"),
                 "ContainerAPIService",
                 "ContainerAPIClient",
+                "ContainerNetworkClient",
                 "ContainerPersistence",
                 "ContainerPlugin",
                 "ContainerResource",
@@ -392,6 +395,7 @@ let package = Package(
                 "ContainerNetworkClient",
                 "ContainerResource",
                 "ContainerXPC",
+                "DNSServer",
             ],
             path: "Sources/Services/Network/Server"
         ),
@@ -399,7 +403,11 @@ let package = Package(
             name: "ContainerNetworkServerTests",
             dependencies: [
                 .product(name: "ContainerizationExtras", package: "containerization"),
+                "ContainerNetworkClient",
                 "ContainerNetworkServer",
+                "ContainerResource",
+                "ContainerXPC",
+                "DNSServer",
             ]
         ),
         .target(
@@ -639,6 +647,7 @@ let package = Package(
                 .product(name: "NIOPosix", package: "swift-nio"),
                 .product(name: "SystemPackage", package: "swift-system"),
                 .product(name: "TOML", package: "swift-toml"),
+                "ContainerAPIClient",
                 "ContainerLog",
                 "ContainerPersistence",
                 "ContainerPlugin",

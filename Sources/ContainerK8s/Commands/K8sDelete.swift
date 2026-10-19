@@ -30,7 +30,7 @@ public struct K8sDelete: AsyncParsableCommand {
         aliases: ["rm"]
     )
 
-    @Option(name: .long, help: "Cluster name (default: \(K8sHelper.defaultName))")
+    @Option(name: .long, help: "Cluster name")
     var name: String = K8sHelper.defaultName
 
     public func run() async throws {
@@ -39,7 +39,8 @@ public struct K8sDelete: AsyncParsableCommand {
 
         let client = ContainerClient()
 
-        if let container = try? await client.get(id: name) {
+        let clusterContainer = try? await client.get(id: name)
+        if let container = clusterContainer {
             guard container.configuration.labels[ResourceLabelKeys.plugin] == K8sHelper.pluginName else {
                 log.error("container is not a k8s cluster, refusing delete", metadata: ["name": "\(name)"])
                 throw ContainerizationError(.invalidArgument, message: "\(name) is not a k8s cluster")
@@ -53,7 +54,7 @@ public struct K8sDelete: AsyncParsableCommand {
             do {
                 try? await client.stop(id: workerName)
                 try await client.delete(id: workerName)
-            } catch let error as ContainerizationError where error.code == .notFound {
+            } catch let error as ContainerizationError where error.code == .notFound || (error.cause as? ContainerizationError)?.code == .notFound {
                 log.debug("worker container not found, skipping delete", metadata: ["name": "\(workerName)"])
             } catch {
                 log.error("failed to delete worker container", metadata: ["name": "\(workerName)", "error": "\(error)"])
@@ -64,14 +65,20 @@ public struct K8sDelete: AsyncParsableCommand {
         do {
             try? await client.stop(id: name)
             try await client.delete(id: name)
-        } catch let error as ContainerizationError where error.code == .notFound {
+        } catch let error as ContainerizationError where error.code == .notFound || (error.cause as? ContainerizationError)?.code == .notFound {
             log.debug("cluster container not found, skipping delete", metadata: ["name": "\(name)"])
         } catch {
             log.error("failed to delete cluster container", metadata: ["name": "\(name)", "error": "\(error)"])
             failures.append((name, error))
         }
 
-        try K8sHelper.removeConfig(containerId: name, log: log)
+        // Only touch the kubeconfig for a cluster we found. Otherwise the entries
+        // named `name` belong to someone else, so leave them alone.
+        if clusterContainer != nil || !workerNames.isEmpty {
+            try K8sHelper.removeConfig(containerId: name, log: log)
+        } else {
+            log.debug("no cluster container found, leaving kubeconfig untouched", metadata: ["name": "\(name)"])
+        }
 
         guard failures.isEmpty else {
             let details = failures.map { "\($0.name): \($0.error)" }.joined(separator: "; ")

@@ -21,6 +21,7 @@ import ContainerizationError
 import ContainerizationExtras
 import ContainerizationOCI
 import ContainerizationOS
+import DNSServer
 import Foundation
 import SystemPackage
 
@@ -882,17 +883,24 @@ public struct Parser {
         public let name: String
         public let macAddress: String?
         public let mtu: UInt32?
+        /// Additional DNS names for the attachment, each in the normalized form of a `DNSMatchRule`.
+        public let aliases: [String]
 
-        public init(name: String, macAddress: String? = nil, mtu: UInt32? = nil) {
+        public init(name: String, macAddress: String? = nil, mtu: UInt32? = nil, aliases: [String] = []) {
             self.name = name
             self.macAddress = macAddress
             self.mtu = mtu
+            self.aliases = aliases
         }
     }
 
     /// Parse network attachment with optional properties
-    /// Format: network_name[,mac=XX:XX:XX:XX:XX:XX][,mtu=VALUE]
-    /// Example: "backend,mac=02:42:ac:11:00:02,mtu=1500"
+    /// Format: network_name[,mac=XX:XX:XX:XX:XX:XX][,mtu=VALUE][,alias=NAME]...
+    ///
+    /// An alias is an exact name such as `api.example.test`, or a name with a leading dot such as
+    /// `.example.test` that matches every name below it. The `alias` property can be repeated.
+    ///
+    /// Example: "backend,mac=02:42:ac:11:00:02,mtu=1500,alias=api.example.test,alias=.example.test"
     public static func network(_ networkSpec: String) throws -> ParsedNetwork {
         guard !networkSpec.isEmpty else {
             throw ContainerizationError(.invalidArgument, message: "network specification cannot be empty")
@@ -911,6 +919,7 @@ public struct Parser {
 
         var macAddress: String?
         var mtu: UInt32?
+        var aliases = [String]()
 
         // Parse properties if any
         for part in parts.dropFirst() {
@@ -945,15 +954,24 @@ public struct Parser {
                     )
                 }
                 mtu = mtuValue
+            case "alias":
+                do {
+                    aliases.append(try DNSMatchRule(value).description)
+                } catch {
+                    throw ContainerizationError(
+                        .invalidArgument,
+                        message: "invalid alias '\(value)': \(error)"
+                    )
+                }
             default:
                 throw ContainerizationError(
                     .invalidArgument,
-                    message: "unknown network property '\(key)'. Available properties: mac, mtu"
+                    message: "unknown network property '\(key)'. Available properties: mac, mtu, alias"
                 )
             }
         }
 
-        return ParsedNetwork(name: networkName, macAddress: macAddress, mtu: mtu)
+        return ParsedNetwork(name: networkName, macAddress: macAddress, mtu: mtu, aliases: aliases)
     }
 
     // MARK: DNS

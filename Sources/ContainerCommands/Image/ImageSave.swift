@@ -97,9 +97,17 @@ extension Application {
                     } catch {
                         var available: [String] = []
                         if let index = try? await image.index() {
-                            available = index.manifests
-                                .compactMap { $0.platform?.description }
-                                .filter { $0 != "unknown/unknown" }
+                            for desc in index.manifests {
+                                guard let platform = desc.platform, platform.description != "unknown/unknown" else {
+                                    continue
+                                }
+                                // The index can list platforms whose content is not in the store, for example
+                                // after a pull or a load of a single platform. Only report those that can be saved.
+                                guard (try? await image.manifest(for: platform)) != nil, !available.contains(platform.description) else {
+                                    continue
+                                }
+                                available.append(platform.description)
+                            }
                         }
                         let availableStr = available.isEmpty ? "none" : available.joined(separator: ", ")
                         throw ContainerizationError(

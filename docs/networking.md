@@ -152,6 +152,51 @@ To verify the MAC address is set correctly, read the interface MAC directly from
 
 If you don't specify a MAC address, `container` will generate one for you. The generated address has a first nibble set to hexadecimal `f` (`fX:XX:XX:XX:XX:XX`) in case you want to minimize the very small chance of conflict between your MAC address and generated addresses. 
 
+## Give a container additional DNS names
+
+By default a container is reachable by one DNS name, built from its name and your DNS domain. Use the `alias` option of `--network` to give a container more names that resolve to the same address. This is useful when one container, such as a reverse proxy or an ingress gateway, answers for several names, or for every name under a domain.
+
+Aliases are served by the same DNS service as container names, so set up a DNS domain first, as described in [Set up DNS-based container names](#set-up-dns-based-container-names). The examples below assume the domain is `test`.
+
+An alias is either an exact name, or a name with a leading dot that matches every name below it. Repeat `alias` to add more than one:
+
+```bash
+container run -d --name gateway --network default,alias=api.test,alias=.gateway.test nginx:latest
+```
+
+This container is reachable as `gateway.test` by its name, as `api.test` by the exact alias, and as `web.gateway.test`, `a.b.gateway.test` and any other name below `gateway.test` by the subtree alias:
+
+```console
+% curl http://web.gateway.test
+```
+
+A name with a leading dot matches every name below it, at one or more labels, but not the name itself. `.gateway.test` matches `web.gateway.test` and `a.b.gateway.test`, and does not match `gateway.test`, which the container already has as its own name. Matching is by whole labels, so `evilgateway.test` does not match. Names are not case sensitive.
+
+Like container names, an alias that has no dot gets your default DNS domain. With the domain `test`, `alias=api` is `api.test` and `alias=.gateway` is `.gateway.test`, so the example above can also be written `--name gateway --network default,alias=api,alias=.gateway`. A name that contains a dot is used as written, so `alias=api.internal` is not given the domain. The names are stored with the domain added, so they stay the same if you later change the default domain.
+
+An alias that contains `*` is rejected. Use the leading-dot form instead, which also avoids quoting in the shell.
+
+### Rules for aliases
+
+* A name with a leading dot must be below a name that the same network attachment owns, which is its own hostname or one of its exact aliases. `gateway.test` with `.gateway.test` is allowed. `.apps.test` on a container that has no `apps.test` name is not.
+* An exact alias needs at least two labels, such as `api.test`, and the part after the leading dot of a subtree alias needs at least two labels too. A name with a single label is not under any domain, so macOS would never send queries for it to the container DNS service. When a default DNS domain is configured, a name without a dot gets the domain, as described above. When none is configured, `api` and `.test` are rejected.
+* Every exact name is unique across all containers, whether they are running or stopped. A new container cannot use an alias or a hostname that another container already has, and an alias cannot match another container's name.
+* A container can have at most 32 aliases for each network.
+* Aliases are fixed when the container is created.
+
+The exact name always wins over a subtree. If another container is named `db.gateway.test`, then `db.gateway.test` goes to that container, and the other names below `gateway.test` go to the gateway.
+
+### Things to know
+
+* A proxy that answers for every name under a domain receives the requested name in the `Host` header of each request. Treat that header as untrusted input.
+* macOS sends a query to the container DNS service only for domains you registered with `sudo container system dns create`. An alias outside those domains is not reachable from your Mac. A domain created with `--localhost` is answered by a different service that does not know about aliases, so aliases under it do not resolve.
+* To check an alias without changing your Mac's resolver configuration, query the DNS service directly:
+
+  ```console
+  % dig +short @127.0.0.1 -p 2053 web.gateway.test
+  192.168.64.5
+  ```
+
 ## Create and use a separate isolated network
 
 > [!NOTE]
