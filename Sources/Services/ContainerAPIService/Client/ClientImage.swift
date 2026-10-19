@@ -183,11 +183,18 @@ extension ClientImage {
     }
 
     public static func get(reference: String, containerSystemConfig: ContainerSystemConfig) async throws -> ClientImage {
-        let all = try await self.list()
-        guard let found = try self._search(reference: reference, in: all, containerSystemConfig: containerSystemConfig) else {
-            throw ContainerizationError(.notFound, message: "image with reference \(reference)")
+        guard let found = try await self.getOrNil(reference: reference, containerSystemConfig: containerSystemConfig) else {
+            let normalized = (try? self.normalizeReference(reference, containerSystemConfig: containerSystemConfig)) ?? reference
+            throw ContainerizationError(
+                .notFound,
+                message: "image \(reference) (\(normalized)) not found locally; you may wish to pull it with `container image pull \(reference)`"
+            )
         }
         return found
+    }
+
+    private static func getOrNil(reference: String, containerSystemConfig: ContainerSystemConfig) async throws -> ClientImage? {
+        try self._search(reference: reference, in: try await self.list(), containerSystemConfig: containerSystemConfig)
     }
 
     /// Returns the total size of an image in bytes.
@@ -282,6 +289,38 @@ extension ClientImage {
 
         await progressUpdateClient?.finish()
         return image
+    }
+
+    /// Returns the runnable platforms of an image without pulling layers.
+    public static func platforms(
+        reference: String,
+        scheme: RequestScheme = .https,
+        containerSystemConfig: ContainerSystemConfig
+    ) async throws -> [Platform] {
+        if let image = try await self.getOrNil(reference: reference, containerSystemConfig: containerSystemConfig) {
+            do {
+                return try await image.index().runnablePlatforms
+            } catch let error as ContainerizationError where error.isCode(.notFound) {
+                // Index blob missing locally; fall through to the XPC path.
+            }
+        }
+
+        let reference = try self.normalizeReference(reference, containerSystemConfig: containerSystemConfig)
+        guard let host = try Reference.parse(reference).domain else {
+            throw ContainerizationError(.invalidArgument, message: "could not extract host from reference \(reference)")
+        }
+
+        let insecure = try scheme.schemeFor(host: host, internalDnsDomain: containerSystemConfig.dns.domain) == .http
+
+        let request = newRequest(.imagePlatforms)
+        request.set(key: .imageReference, value: reference)
+        request.set(key: .insecureFlag, value: insecure)
+
+        let response = try await newXPCClient().send(request)
+        guard let data = response.dataNoCopy(key: .ociPlatforms) else {
+            throw ContainerizationError(.empty, message: "platforms not received")
+        }
+        return try JSONDecoder().decode([Platform].self, from: data)
     }
 
     public static func delete(reference: String, garbageCollect: Bool = false) async throws {

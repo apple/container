@@ -61,6 +61,20 @@ public struct ImagesServiceHarness: Sendable {
     }
 
     @Sendable
+    public func platforms(_ message: XPCMessage) async throws -> XPCMessage {
+        guard let ref = message.string(key: .imageReference) else {
+            throw ContainerizationError(.invalidArgument, message: "missing image reference")
+        }
+
+        let platforms = try await service.platforms(reference: ref, insecure: message.bool(key: .insecureFlag))
+        let data = try JSONEncoder().encode(platforms)
+
+        let reply = message.reply()
+        reply.set(key: .ociPlatforms, value: data)
+        return reply
+    }
+
+    @Sendable
     public func push(_ message: XPCMessage) async throws -> XPCMessage {
         let ref = message.string(key: .imageReference)
         guard let ref else {

@@ -21,6 +21,7 @@ import ContainerXPC
 public enum ImagesServiceXPCRoute: String {
     case imageList
     case imagePull
+    case imagePlatforms
     case imagePush
     case imageTag
     case imageBuild

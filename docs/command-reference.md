@@ -43,7 +43,7 @@ container run [<options>] <image> [<arguments> ...]
 
 **Management Options**
 
-*   `-a, --arch <arch>`: Set arch if image can target multiple architectures (default: arm64)
+*   `-a, --arch <arch>`: Set arch if image can target multiple architectures (default: from image, else host architecture)
 *   `--cap-add <cap>`: Add a Linux capability (e.g. `CAP_NET_RAW`, `NET_RAW`, or `ALL`)
 *   `--cap-drop <cap>`: Drop a Linux capability (e.g. `CAP_NET_RAW`, `NET_RAW`, or `ALL`)
 *   `--cidfile <cidfile>`: Write the container ID to the path provided
@@ -63,15 +63,15 @@ container run [<options>] <image> [<arguments> ...]
 *   `--name <name>`: Use the specified name as the container ID
 *   `--network <network>`: Attach the container to a network (format: `<name>[,mac=XX:XX:XX:XX:XX:XX][,mtu=VALUE][,alias=NAME]...`). Use `alias` to give the container additional DNS names; see [Give a container additional DNS names](networking.md#give-a-container-additional-dns-names)
 *   `--no-dns`: Do not configure DNS in the container
-*   `--os <os>`: Set OS if image can target multiple operating systems (default: linux)
+*   `--os <os>`: Set OS if image can target multiple operating systems (default: from image, else linux)
 *   `-p, --publish <spec>`: Publish a port from container to host (format: [host-ip:]host-port:container-port[/protocol])
-*   `--platform <platform>`: Platform for the image if it's multi-platform. This takes precedence over --os and --arch
+*   `--platform <platform>`: Platform for the image if it's multi-platform. This takes precedence over --os and --arch; CONTAINER_DEFAULT_PLATFORM sets the default
 *   `--publish-socket <spec>`: Publish a socket from container to host (format: host_path:container_path)
 *   `--read-only`: Mount the container's root filesystem as read-only
 *   `--read-only-path <path>`: **Experimental.** Mark a path inside the container read-only, in addition to the runtime defaults (or `NONE` to clear prior values and the defaults)
 *   `--rm, --remove`: Remove the container after it stops
 *   `--rosetta`: Enable Rosetta in the container
-*   `--runtime`: Set the runtime handler for the container (default: container-runtime-linux)
+*   `--runtime`: Set the runtime handler for the container (default: container-runtime-<os>)
 *   `--ssh`: Forward SSH agent socket to container
 *   `--shm-size <shm-size>`: Size of `/dev/shm` (e.g. 64M, 1G)
 *   `--tmpfs <tmpfs>`: Add a tmpfs mount to the container at the given path
@@ -211,7 +211,7 @@ container create [<options>] <image> [<arguments> ...]
 
 **Management Options**
 
-*   `-a, --arch <arch>`: Set arch if image can target multiple architectures (default: arm64)
+*   `-a, --arch <arch>`: Set arch if image can target multiple architectures (default: from image, else host architecture)
 *   `--cap-add <cap>`: Add a Linux capability (e.g. `CAP_NET_RAW`, `NET_RAW`, or `ALL`)
 *   `--cap-drop <cap>`: Drop a Linux capability (e.g. `CAP_NET_RAW`, `NET_RAW`, or `ALL`)
 *   `--cidfile <cidfile>`: Write the container ID to the path provided
@@ -231,15 +231,15 @@ container create [<options>] <image> [<arguments> ...]
 *   `--name <name>`: Use the specified name as the container ID
 *   `--network <network>`: Attach the container to a network (format: `<name>[,mac=XX:XX:XX:XX:XX:XX][,mtu=VALUE][,alias=NAME]...`). Use `alias` to give the container additional DNS names; see [Give a container additional DNS names](networking.md#give-a-container-additional-dns-names)
 *   `--no-dns`: Do not configure DNS in the container
-*   `--os <os>`: Set OS if image can target multiple operating systems (default: linux)
+*   `--os <os>`: Set OS if image can target multiple operating systems (default: from image, else linux)
 *   `-p, --publish <spec>`: Publish a port from container to host (format: [host-ip:]host-port:container-port[/protocol])
-*   `--platform <platform>`: Platform for the image if it's multi-platform. This takes precedence over --os and --arch
+*   `--platform <platform>`: Platform for the image if it's multi-platform. This takes precedence over --os and --arch; CONTAINER_DEFAULT_PLATFORM sets the default
 *   `--publish-socket <spec>`: Publish a socket from container to host (format: host_path:container_path)
 *   `--read-only`: Mount the container's root filesystem as read-only
 *   `--read-only-path <path>`: **Experimental.** Mark a path inside the container read-only, in addition to the runtime defaults (or `NONE` to clear prior values and the defaults)
 *   `--rm, --remove`: Remove the container after it stops
 *   `--rosetta`: Enable Rosetta in the container
-*   `--runtime`: Set the runtime handler for the container (default: container-runtime-linux)  
+*   `--runtime`: Set the runtime handler for the container (default: container-runtime-<os>)  
 *   `--ssh`: Forward SSH agent socket to container
 *   `--shm-size <shm-size>`: Size of `/dev/shm` (e.g. 64M, 1G)
 *   `--tmpfs <tmpfs>`: Add a tmpfs mount to the container at the given path
@@ -1126,8 +1126,8 @@ container machine create [<options>] <image>
 **Management Options**
 
 *   `-a, --arch <arch>`: Set arch if image can target multiple architectures (default: host architecture)
-*   `--os <os>`: Set OS if image can target multiple operating systems (default: linux)
-*   `--platform <platform>`: Platform for the image if it's multi-platform. This takes precedence over --os and --arch
+*   `--os <os>`: Set OS if image can target multiple operating systems
+*   `--platform <platform>`: Platform for the image if it's multi-platform. This takes precedence over --os and --arch; CONTAINER_DEFAULT_PLATFORM sets the default
 
 **User Options**
 

@@ -299,7 +299,7 @@ public actor ContainersService {
             guard self.runtimePlugins.first(where: { $0.name == configuration.runtimeHandler }) != nil else {
                 throw ContainerizationError(
                     .notFound,
-                    message: "unable to locate runtime plugin \(configuration.runtimeHandler)"
+                    message: "unable to locate runtime plugin \(configuration.runtimeHandler); pass --runtime to select one"
                 )
             }
 
