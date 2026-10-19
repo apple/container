@@ -182,6 +182,9 @@ actor BuildFSSync: BuildPipelineHandler {
     /// This is the primary data path for build-context transfer. BuildKit sends
     /// a `Walk` request whose `followpaths` field names the context paths needed
     /// for the current build step (e.g. the source of a `COPY` instruction).
+    /// If `followpaths` is omitted or empty (meaning the build step requires the
+    /// entire context, such as a step with a tmpfs mount), all files in the
+    /// context root are included.
     /// The host resolves those globs, builds an entry set, and passes it to
     /// `Archiver.compress` to produce the tar.
     ///
@@ -202,7 +205,7 @@ actor BuildFSSync: BuildPipelineHandler {
         let wantsTar = packet.mode() == "tar"
 
         var entries: [String: Set<DirEntry>] = [:]
-        let followPaths: [String] = packet.followPaths() ?? []
+        let followPaths: [String] = packet.followPaths().flatMap { $0.isEmpty ? nil : $0 } ?? ["."]
 
         let followPathsWalked = try walk(root: self.contextDir, includePatterns: followPaths)
         for url in followPathsWalked {
