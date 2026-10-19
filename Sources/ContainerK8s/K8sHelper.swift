@@ -160,6 +160,15 @@ public struct K8sHelper {
 
     // MARK: - Node enumeration
 
+    /// Container name of the `index`th (1-based) worker of `cluster`. `list` and `delete` find workers by this prefix.
+    static func workerName(cluster: String, index: Int) -> String {
+        "\(workerNamePrefix(cluster: cluster))\(index)"
+    }
+
+    static func workerNamePrefix(cluster: String) -> String {
+        "\(cluster)-worker-"
+    }
+
     /// Names of worker containers belonging to `clusterName`, sorted (e.g. `<clusterName>-worker-1`).
     /// Only dedicated workers are returned, never the control-plane container. With no workers
     /// (`--workers 0`) the control plane doubles as the worker node and this list is empty; with
@@ -176,7 +185,7 @@ public struct K8sHelper {
         snapshots
             .filter { $0.configuration.labels[ResourceLabelKeys.role] == workerRoleName }
             .map { $0.configuration.id }
-            .filter { $0.hasPrefix("\(clusterName)-worker-") }
+            .filter { $0.hasPrefix(workerNamePrefix(cluster: clusterName)) }
             .sorted()
     }
 
@@ -204,7 +213,7 @@ public struct K8sHelper {
             rows.append(K8sNodeResource(clusterName: clusterName, snapshot: cp))
             let cpWorkers =
                 workers
-                .filter { $0.configuration.id.hasPrefix("\(clusterName)-worker-") }
+                .filter { $0.configuration.id.hasPrefix(workerNamePrefix(cluster: clusterName)) }
                 .sorted { $0.configuration.id < $1.configuration.id }
             for w in cpWorkers {
                 rows.append(K8sNodeResource(clusterName: clusterName, snapshot: w))

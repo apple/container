@@ -22,12 +22,12 @@ public struct StandardRoles {
     public static let worker = "worker"
 }
 
-/// Manages the lifecycle of a cluster node (control plane or worker).
+/// Manages the lifecycle of a single cluster node (control plane or worker).
 ///
 /// Implement this protocol to provision nodes for a cluster created by `K8sCreate`.
 ///
-/// For a **control-plane** node, `K8sCreate` calls:
-/// 1. `provision` — start the machine before kubeadm init runs
+/// For a **control-plane** node, `ClusterBootstrapper` calls:
+/// 1. `provision` — start the node before kubeadm init runs
 /// 2. `address` — return the node IP, used as the advertise address and cert SAN
 /// 3. `teardown` — called on failure to clean up the node
 ///
@@ -36,35 +36,42 @@ public struct StandardRoles {
 /// 5. `waitForReady` — poll until the node is registered and Ready in the cluster, or
 ///    `waitForRegistered` when no CNI is installed (nodes stay NotReady without one)
 ///
-/// `K8sDelete` calls `teardown` before removing cluster containers.
-///
-/// If any provisioner step throws, `K8sCreate` tears down the cluster before re-throwing.
+/// If any step after `provision` throws, `ClusterBootstrapper` tears down the cluster before
+/// re-throwing. A `provision` that throws is not followed by `teardown`, so it must leave
+/// nothing behind itself.
 public protocol NodeProvisioner: Sendable {
+    /// The identifier of the node this provisioner manages. A worker's name must be
+    /// `K8sHelper.workerName(cluster:index:)`, which `list` and `delete` rely on.
+    var name: String { get }
+
     /// The roles this node will serve (e.g. `[StandardRoles.controlPlane]`).
     var roles: [String] { get }
 
-    /// Start the machine identified by `name` before cluster initialisation.
-    func provision(name: String, log: Logger) async throws
+    /// Start the node before cluster initialisation.
+    ///
+    /// If this throws, it must remove anything it created: the caller does not call
+    /// `teardown` for a node whose `provision` failed.
+    func provision(log: Logger) async throws
 
-    /// Return the IP address of the machine identified by `name`.
-    func address(name: String, log: Logger) async throws -> String
+    /// Return the IP address of the node.
+    func address(log: Logger) async throws -> String
 
     /// Join a worker node to the cluster using the supplied kubeadm credentials.
     ///
     /// - Parameters:
-    ///   - name: Node identifier (matches the name passed to `provision`).
     ///   - controlPlaneEndpoint: `<ip>:<port>` of the control-plane API server.
     ///   - token: kubeadm bootstrap token (format `<id>.<secret>`).
     ///   - caCertHash: Discovery token CA cert hash including the `sha256:` prefix.
-    func join(name: String, controlPlaneEndpoint: String, token: String, caCertHash: String, log: Logger) async throws
+    func join(controlPlaneEndpoint: String, token: String, caCertHash: String, log: Logger) async throws
 
-    /// Poll until the node with `name` is registered and Ready in the cluster.
-    func waitForReady(name: String, log: Logger) async throws
+    /// Poll until the node is registered and Ready in the cluster.
+    func waitForReady(log: Logger) async throws
 
-    /// Poll until the node with `name` is registered in the cluster, without requiring it to be Ready.
+    /// Poll until the node is registered in the cluster, without requiring it to be Ready.
     /// Used instead of `waitForReady` when no CNI is installed.
-    func waitForRegistered(name: String, log: Logger) async throws
+    func waitForRegistered(log: Logger) async throws
 
-    /// Remove the machine identified by `name`.
-    func teardown(name: String, log: Logger) async throws
+    /// Remove the node. Must be safe to call for a cluster that was
+    /// never provisioned, and must leave nodes this provisioner did not create alone.
+    func teardown(log: Logger) async throws
 }

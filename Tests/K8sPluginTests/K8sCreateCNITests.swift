@@ -42,9 +42,9 @@ struct K8sCreateCNIFlagTests {
     }
 }
 
-// MARK: - K8sHelper.loadCNIManifest
+// MARK: - ClusterBootstrapper.loadCNIManifest
 
-@Suite("K8sHelper.loadCNIManifest")
+@Suite("ClusterBootstrapper.loadCNIManifest")
 struct LoadCNIManifestTests {
     private let log = Logger(label: "test")
 
@@ -55,7 +55,7 @@ struct LoadCNIManifestTests {
         try contents.write(to: url, atomically: true, encoding: .utf8)
         defer { try? FileManager.default.removeItem(at: url) }
 
-        let result = try await K8sHelper.loadCNIManifest(path: url.path, log: log)
+        let result = try await ClusterBootstrapper.loadCNIManifest(path: url.path, log: log)
         #expect(result == contents)
     }
 
@@ -64,7 +64,7 @@ struct LoadCNIManifestTests {
             .appendingPathComponent(UUID().uuidString + "-does-not-exist.yaml").path
 
         await #expect(throws: ContainerizationError.self) {
-            _ = try await K8sHelper.loadCNIManifest(path: missingPath, log: log)
+            _ = try await ClusterBootstrapper.loadCNIManifest(path: missingPath, log: log)
         }
     }
 }

@@ -22,6 +22,7 @@ import Logging
 
 /// A `NodeProvisioner` that runs a k8s node as a Linux container on the same host.
 public struct LinuxNodeProvisioner: NodeProvisioner {
+    public let name: String
     public let roles: [String]
 
     private let clusterName: String
@@ -33,7 +34,12 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
     private let remove: Bool
     private let fqdn: String?
 
+    /// - Parameters:
+    ///   - name: Name of this node. The control plane is named after the cluster;
+    ///     workers use `K8sHelper.workerName(cluster:index:)`.
+    ///   - clusterName: The cluster this node belongs to.
     public init(
+        name: String,
         clusterName: String,
         roles: [String] = [StandardRoles.controlPlane],
         nodeImage: String? = nil,
@@ -54,6 +60,7 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
                 .invalidArgument,
                 message: "LinuxNode roles contains unrecognized values: \(unrecognized.joined(separator: ", "))")
         }
+        self.name = name
         self.clusterName = clusterName
         self.roles = roles
         self.nodeImage = nodeImage
@@ -65,7 +72,7 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
         self.fqdn = fqdn
     }
 
-    public func provision(name: String, log: Logger) async throws {
+    public func provision(log: Logger) async throws {
         let containerSystemConfig: ContainerSystemConfig = try await ConfigurationLoader.load()
         let resolvedImage = nodeImage ?? K8sHelper.nodeImage
         try await K8sHelper.ensureImage(nodeImage: resolvedImage, log: log, containerSystemConfig: containerSystemConfig)
@@ -147,16 +154,25 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
             initImage: initfs
         )
 
-        let io = try ProcessIO.create(tty: false, interactive: false, detach: true)
-        defer { try? io.close() }
-        let process = try await client.bootstrap(id: name, stdio: io.stdio)
-        try await process.start()
-        try io.closeAfterStart()
+        // The container exists from here on, so remove it if a later step fails; the caller
+        // only tears down nodes whose `provision` succeeded.
+        do {
+            let io = try ProcessIO.create(tty: false, interactive: false, detach: true)
+            defer { try? io.close() }
+            let process = try await client.bootstrap(id: name, stdio: io.stdio)
+            try await process.start()
+            try io.closeAfterStart()
 
-        try await K8sHelper.waitForNodeBooted(containerId: name, client: client, log: log)
+            try await K8sHelper.waitForNodeBooted(containerId: name, client: client, log: log)
+            try await prepareNode(nodeID: name, client: client, log: log)
+        } catch {
+            try? await client.stop(id: name)
+            try? await client.delete(id: name)
+            throw error
+        }
     }
 
-    public func address(name: String, log: Logger) async throws -> String {
+    public func address(log: Logger) async throws -> String {
         let client = ContainerClient()
         let snapshot = try await client.get(id: name)
         guard let ip = snapshot.networks.first?.ipv4Address.address.description else {
@@ -166,15 +182,12 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
     }
 
     public func join(
-        name: String,
         controlPlaneEndpoint: String,
         token: String,
         caCertHash: String,
         log: Logger
     ) async throws {
         let client = ContainerClient()
-        try await K8sHelper.prepareNode(nodeID: name, client: client, log: log)
-
         let (code, output) = try await K8sHelper.execCapture(
             containerId: name,
             executable: K8sHelper.kubeadmPath,
@@ -191,7 +204,7 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
         }
     }
 
-    public func waitForReady(name: String, log: Logger) async throws {
+    public func waitForReady(log: Logger) async throws {
         let timeout = 180
         let client = ContainerClient()
         log.info("Waiting for node to become ready", metadata: ["node": "\(name)"])
@@ -219,7 +232,7 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
 
     /// Wait until the node is registered with the API server, without requiring it to be Ready.
     /// Used when no CNI is installed, since nodes stay NotReady without one.
-    public func waitForRegistered(name: String, log: Logger) async throws {
+    public func waitForRegistered(log: Logger) async throws {
         let timeout = 180
         let client = ContainerClient()
         log.info("Waiting for node to register", metadata: ["node": "\(name)"])
@@ -245,13 +258,53 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
         }
     }
 
-    public func teardown(name: String, log: Logger) async throws {
+    public func teardown(log: Logger) async throws {
         let client = ContainerClient()
+        let container: ContainerSnapshot
+        do {
+            container = try await client.get(id: name)
+        } catch let error as ContainerizationError where error.code == .notFound {
+            return
+        }
+        guard container.configuration.labels[ResourceLabelKeys.plugin] == K8sHelper.pluginName else {
+            log.warning(
+                "container exists but is not owned by this plugin, refusing teardown",
+                metadata: ["name": "\(name)"])
+            return
+        }
         do {
             try? await client.stop(id: name)
             try await client.delete(id: name)
         } catch let error as ContainerizationError where error.code == .notFound {
             log.debug("node container not found, skipping delete", metadata: ["name": "\(name)"])
         }
+    }
+
+    private func prepareNode(nodeID: String, client: ContainerClient, log: Logger) async throws {
+        log.info("Preparing node", metadata: ["id": "\(nodeID)"])
+        let result = try await K8sHelper.execCapture(
+            containerId: nodeID, executable: "/bin/sh",
+            arguments: ["-c", Self.nodePrepScript], client: client)
+        guard result.code == 0 else {
+            throw ContainerizationError(.internalError, message: "node prep failed on \(nodeID): \(result.output)")
+        }
+    }
+
+    private static var nodePrepScript: String {
+        """
+        set -e
+        mkdir -p /etc/containerd/conf.d
+        cat > /etc/containerd/conf.d/native-snapshotter.toml <<'EOF'
+        [plugins.'io.containerd.cri.v1.images']
+          snapshotter = "native"
+        EOF
+        sysctl -w net.ipv4.ip_forward=1                 2>/dev/null || true
+        sysctl -w net.bridge.bridge-nf-call-iptables=1  2>/dev/null || true
+        sysctl -w net.bridge.bridge-nf-call-ip6tables=1 2>/dev/null || true
+        systemctl restart containerd
+        ctr -n k8s.io images tag registry.k8s.io/pause:3.10 registry.k8s.io/pause:3.10.1 2>/dev/null || true
+        /usr/sbin/iptables -t mangle -A OUTPUT  -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1220
+        /usr/sbin/iptables -t mangle -A FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1220
+        """
     }
 }

@@ -17,28 +17,16 @@
 import ContainerAPIClient
 import ContainerPlugin
 import ContainerizationError
-import ContainerizationOCI
 import Foundation
 import Logging
 
-extension K8sHelper {
-
-    public static func prepareNode(nodeID: String, client: ContainerClient, log: Logger) async throws {
-        log.info("Preparing node", metadata: ["id": "\(nodeID)"])
-        let result = try await execCapture(
-            containerId: nodeID, executable: "/bin/sh",
-            arguments: ["-c", nodePrepScript], client: client)
-        guard result.code == 0 else {
-            throw ContainerizationError(.internalError, message: "node prep failed on \(nodeID): \(result.output)")
-        }
-    }
-
-    static func bootstrapControlPlane(
-        nodeID: String, nodeImage: String, apiServerSANs: [String], advertiseAddress: String,
-        schedulable: Bool, cniManifestPath: String? = nil, client: ContainerClient, log: Logger
+extension ClusterBootstrapper {
+    func bootstrapControlPlane(
+        nodeID: String, apiServerSANs: [String], advertiseAddress: String,
+        schedulable: Bool, client: ContainerClient, log: Logger
     ) async throws {
-        let configYAML = try initConfigYAML(nodeImage: nodeImage, advertiseAddress: advertiseAddress, certSANs: apiServerSANs)
-        var r = try await execCapture(
+        let configYAML = Self.initConfigYAML(kubernetesVersion: kubernetesVersion, advertiseAddress: advertiseAddress, certSANs: apiServerSANs)
+        var r = try await K8sHelper.execCapture(
             containerId: nodeID, executable: "/bin/sh",
             arguments: ["-c", "cat > /etc/kubernetes/kubeadm-config.yaml <<'EOF'\n\(configYAML)\nEOF"],
             client: client)
@@ -47,20 +35,20 @@ extension K8sHelper {
         }
 
         log.info("Running kubeadm init", metadata: ["node": "\(nodeID)"])
-        r = try await execCapture(
-            containerId: nodeID, executable: kubeadmPath,
+        r = try await K8sHelper.execCapture(
+            containerId: nodeID, executable: K8sHelper.kubeadmPath,
             arguments: [
                 "init", "--config", "/etc/kubernetes/kubeadm-config.yaml",
-                "--ignore-preflight-errors", ignorePreflightErrors,
+                "--ignore-preflight-errors", K8sHelper.ignorePreflightErrors,
             ],
             client: client)
         guard r.code == 0 else {
             throw ContainerizationError(.internalError, message: "kubeadm init failed on \(nodeID): \(r.output)")
         }
 
-        r = try await execCapture(
+        r = try await K8sHelper.execCapture(
             containerId: nodeID, executable: "/bin/sh",
-            arguments: ["-c", "mkdir -p /root/.kube && cp \(kubeconfigPath) /root/.kube/config"],
+            arguments: ["-c", "mkdir -p /root/.kube && cp \(K8sHelper.kubeconfigPath) /root/.kube/config"],
             client: client)
         guard r.code == 0 else {
             throw ContainerizationError(.internalError, message: "failed to install root kubeconfig on \(nodeID): \(r.output)")
@@ -68,7 +56,7 @@ extension K8sHelper {
 
         if schedulable {
             log.info("Removing control-plane taint for single-node scheduling", metadata: ["node": "\(nodeID)"])
-            let taintCode = try await runProbe(
+            let taintCode = try await K8sHelper.runProbe(
                 client: client, containerId: nodeID,
                 arguments: ["taint", "nodes", "--all", "node-role.kubernetes.io/control-plane-"])
             guard taintCode == 0 else {
@@ -76,13 +64,13 @@ extension K8sHelper {
             }
         }
 
-        if cniManifestPath?.uppercased() == noCNIName {
+        if skipCNI {
             log.info("Skipping CNI installation", metadata: ["node": "\(nodeID)"])
         } else {
             log.info("Applying CNI manifest", metadata: ["node": "\(nodeID)"])
-            let manifest = try await loadCNIManifest(path: cniManifestPath, log: log)
-            let apply = "\(kubeconfigEnv) kubectl apply -f - <<'EOF'\n\(manifest)\nEOF"
-            r = try await execCapture(
+            let manifest = try await Self.loadCNIManifest(path: cni, log: log)
+            let apply = "\(K8sHelper.kubeconfigEnv) kubectl apply -f - <<'EOF'\n\(manifest)\nEOF"
+            r = try await K8sHelper.execCapture(
                 containerId: nodeID, executable: "/bin/sh",
                 arguments: ["-c", apply], client: client)
             guard r.code == 0 else {
@@ -91,9 +79,9 @@ extension K8sHelper {
         }
     }
 
-    static func createJoinToken(nodeID: String, client: ContainerClient) async throws -> (token: String, caCertHash: String) {
-        let (code, output) = try await execCapture(
-            containerId: nodeID, executable: kubeadmPath,
+    func createJoinToken(nodeID: String, client: ContainerClient) async throws -> (token: String, caCertHash: String) {
+        let (code, output) = try await K8sHelper.execCapture(
+            containerId: nodeID, executable: K8sHelper.kubeadmPath,
             arguments: ["token", "create", "--print-join-command"],
             client: client)
         guard code == 0 else {
@@ -133,25 +121,7 @@ extension K8sHelper {
         return contents
     }
 
-    private static var nodePrepScript: String {
-        """
-        set -e
-        mkdir -p /etc/containerd/conf.d
-        cat > /etc/containerd/conf.d/native-snapshotter.toml <<'EOF'
-        [plugins.'io.containerd.cri.v1.images']
-          snapshotter = "native"
-        EOF
-        sysctl -w net.ipv4.ip_forward=1                 2>/dev/null || true
-        sysctl -w net.bridge.bridge-nf-call-iptables=1  2>/dev/null || true
-        sysctl -w net.bridge.bridge-nf-call-ip6tables=1 2>/dev/null || true
-        systemctl restart containerd
-        ctr -n k8s.io images tag registry.k8s.io/pause:3.10 registry.k8s.io/pause:3.10.1 2>/dev/null || true
-        /usr/sbin/iptables -t mangle -A OUTPUT  -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1220
-        /usr/sbin/iptables -t mangle -A FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1220
-        """
-    }
-
-    private static func initConfigYAML(nodeImage: String, advertiseAddress: String, certSANs: [String]) throws -> String {
+    private static func initConfigYAML(kubernetesVersion: String, advertiseAddress: String, certSANs: [String]) -> String {
         let sans = certSANs.map { "  - \($0)" }.joined(separator: "\n")
         return """
             apiVersion: kubeadm.k8s.io/v1beta4
@@ -164,9 +134,9 @@ extension K8sHelper {
             ---
             apiVersion: kubeadm.k8s.io/v1beta4
             kind: ClusterConfiguration
-            kubernetesVersion: \(try kubernetesVersion(nodeImage: nodeImage))
+            kubernetesVersion: \(kubernetesVersion)
             networking:
-              podSubnet: \(podSubnet)
+              podSubnet: \(K8sHelper.podSubnet)
             apiServer:
               certSANs:
             \(sans)
@@ -176,16 +146,5 @@ extension K8sHelper {
             cgroupDriver: systemd
             failSwapOn: false
             """
-    }
-
-    /// kubeadm needs the exact version, and only the tag carries it.
-    static func kubernetesVersion(nodeImage: String) throws -> String {
-        let nameAndTag = nodeImage.split(separator: "@").first.map(String.init) ?? nodeImage
-        guard let ref = try? Reference.parse(nameAndTag), let tag = ref.tag else {
-            throw ContainerizationError(
-                .invalidArgument,
-                message: "node image \(nodeImage) has no tag; use a tagged image such as docker.io/kindest/node:v1.34.11")
-        }
-        return tag
     }
 }
