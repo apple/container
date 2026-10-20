@@ -193,6 +193,7 @@ public actor RuntimeService {
                     var (attachment, additionalData) = try await client.allocate(
                         hostname: attachmentConfig.options.hostname,
                         macAddress: attachmentConfig.options.macAddress,
+                        aliases: attachmentConfig.options.aliases,
                         on: session
                     )
                     if let mtu = attachmentConfig.options.mtu {
@@ -263,7 +264,13 @@ public actor RuntimeService {
 
             let id = config.id
             let rootfs = try bundle.containerRootfs.asMount
-            let container = try LinuxContainer(id, rootfs: rootfs, vmm: vmm, logger: self.log) { czConfig in
+            // Give the VM headroom beyond the container's cgroup limits for the guest kernel,
+            // vminitd, and the overhead configured via `config.resources.cpuOverhead`.
+            let vmResources = VMResources(
+                cpus: config.resources.cpus + config.resources.cpuOverhead,
+                memoryInBytes: config.resources.memoryInBytes + VMResources.guestMemoryOverhead
+            )
+            let container = try LinuxContainer(id, rootfs: rootfs, vmm: vmm, vm: vmResources, logger: self.log) { czConfig in
                 try Self.configureContainer(czConfig: &czConfig, config: config, dynamicEnv: dynamicEnv, log: self.log)
                 czConfig.interfaces = interfaces
                 czConfig.process.stdout = stdout
@@ -782,6 +789,127 @@ public actor RuntimeService {
         }
     }
 
+    /// Snapshot the container's root filesystem.
+    ///
+    /// When the container is running, freeze/thaw around the copy for consistency.
+    /// When it is not running, copy directly without freeze/thaw.
+    ///
+    /// - Parameters:
+    ///   - message: An XPC message with the following parameters:
+    ///     - imagePath: The path to the source filesystem image.
+    ///     - destinationPath: The path where the snapshot will be written.
+    ///
+    /// - Returns: An XPC message with no parameters.
+    @Sendable
+    public func snapshotDisk(_ message: XPCMessage) async throws -> XPCMessage {
+        self.log.info("`snapshotDisk` xpc handler")
+        switch self.state {
+        case .running, .booted:
+            guard let imagePath = message.string(key: RuntimeKeys.imagePath.rawValue) else {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "no image path supplied for snapshotDisk"
+                )
+            }
+            guard let destinationPath = message.string(key: RuntimeKeys.destinationPath.rawValue) else {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "no destination path supplied for snapshotDisk"
+                )
+            }
+
+            let ctr = try getContainer()
+            let shouldFreeze = self.state == .running
+
+            if shouldFreeze {
+                try await ctr.container.filesystemOperation(operation: .freeze, path: "/")
+            }
+
+            do {
+                try FileManager.default.copyItem(atPath: imagePath, toPath: destinationPath)
+            } catch {
+                if shouldFreeze {
+                    do {
+                        try await ctr.container.filesystemOperation(operation: .thaw, path: "/")
+                    } catch {
+                        self.log.error(
+                            "failed to thaw filesystem after snapshotDisk error",
+                            metadata: [
+                                "error": "\(error)"
+                            ])
+                    }
+                }
+                throw error
+            }
+
+            if shouldFreeze {
+                try await ctr.container.filesystemOperation(operation: .thaw, path: "/")
+            }
+
+            return message.reply()
+        default:
+            throw ContainerizationError(
+                .invalidState,
+                message: "cannot snapshot disk: container is not running"
+            )
+        }
+    }
+
+    /// Clean up unused space in the container filesystem.
+    ///
+    /// - Parameters:
+    ///   - message: An XPC message with the following parameters:
+    ///     - id: The container ID.
+    ///
+    /// - Returns: An XPC message with no parameters.
+    @Sendable
+    public func clean(_ message: XPCMessage) async throws -> XPCMessage {
+        self.log.info("`clean` xpc handler")
+        switch self.state {
+        case .running:
+            guard let id = message.string(key: RuntimeKeys.id.rawValue) else {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "no id supplied for clean"
+                )
+            }
+
+            let ctr = try getContainer()
+
+            var targets: [String] = []
+            if !ctr.config.readOnly {
+                targets.append("/")
+            }
+            for mount in ctr.config.mounts where mount.isBlock && !mount.options.readonly {
+                targets.append(mount.destination)
+            }
+
+            var failed: [String] = []
+            for path in targets {
+                do {
+                    try await ctr.container.filesystemOperation(operation: .trim, path: path)
+                } catch {
+                    self.log.error("failed to clean mount", metadata: ["path": "\(path)", "error": "\(error)"])
+                    failed.append("\(path) (\(error))")
+                }
+            }
+
+            guard failed.isEmpty else {
+                throw ContainerizationError(
+                    .internalError,
+                    message: "failed to clean mounts in \(id): \(failed.joined(separator: ", "))"
+                )
+            }
+
+            return message.reply()
+        default:
+            throw ContainerizationError(
+                .invalidState,
+                message: "cannot clean: container is not running"
+            )
+        }
+    }
+
     /// Dial a vsock port on the virtual machine.
     ///
     /// - Parameters:
@@ -995,11 +1123,13 @@ public actor RuntimeService {
         log: Logger? = nil,
     ) throws {
         czConfig.cpus = config.resources.cpus
-        czConfig.cpuOverhead = config.resources.cpuOverhead
         czConfig.memoryInBytes = config.resources.memoryInBytes
-        czConfig.sysctl = config.sysctls.reduce(into: [String: String]()) {
-            $0[$1.key] = $1.value
-        }
+        // Overcommit memory and allow more memory mappings than the kernel default
+        // so workloads inside swap-less guest VMs hit limits less easily.
+        var sysctls = config.sysctls
+        sysctls["vm.overcommit_memory"] = "1"
+        sysctls["vm.max_map_count"] = "262144"
+        czConfig.sysctl = sysctls
         // If the host doesn't support this, we'll throw on container creation.
         czConfig.virtualization = config.virtualization
         czConfig.useInit = config.useInit

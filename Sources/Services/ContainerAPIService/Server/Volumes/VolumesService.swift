@@ -174,8 +174,7 @@ public actor VolumesService {
             )
         }
 
-        let volumePath = self.volumePath(for: name)
-        return FileManager.default.allocatedSize(of: URL(fileURLWithPath: volumePath))
+        return try await self._volumeDiskUsage(name)
     }
 
     /// Calculate disk usage for volumes
@@ -403,4 +402,12 @@ public actor VolumesService {
         return volume
     }
 
+    private func _volumeDiskUsage(_ name: String) async throws -> UInt64 {
+        guard VolumeStorage.isValidVolumeName(name) else {
+            throw VolumeError.invalidVolumeName("invalid volume name '\(name)': must match \(VolumeStorage.volumeNamePattern)")
+        }
+
+        let volumePath = self.volumePath(for: name)
+        return FileManager.default.allocatedSize(of: URL(fileURLWithPath: volumePath))
+    }
 }

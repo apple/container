@@ -15,7 +15,10 @@
 # Version and build configuration variables
 BUILD_CONFIGURATION ?= debug
 WARNINGS_AS_ERRORS ?= true
-SWIFT_CONFIGURATION := $(if $(filter-out false,$(WARNINGS_AS_ERRORS)),-Xswiftc -warnings-as-errors) -Xswiftc -enable-testing
+# Extra swift build flags, appended last so callers can add to (rather than
+# replace) the configuration above.
+SWIFT_CONFIGURATION_EXTRA ?=
+SWIFT_CONFIGURATION := $(if $(filter-out false,$(WARNINGS_AS_ERRORS)),-Xswiftc -warnings-as-errors) -Xswiftc -enable-testing $(SWIFT_CONFIGURATION_EXTRA)
 # Code-coverage instrumentation, layered onto the shared build stages. Empty for
 # ordinary builds; the coverage-* targets opt in via a target-specific value so
 # only those goals compile instrumented binaries.
@@ -36,6 +39,10 @@ DSYM_DIR := bin/$(BUILD_CONFIGURATION)/bundle/container-dSYM
 DSYM_PATH := bin/$(BUILD_CONFIGURATION)/bundle/container-dSYM.zip
 CODESIGN_OPTS ?= --force --sign - --timestamp=none
 
+# Default isolated application data root under the project directory so test runs do not touch your
+# own installation. Override with APP_ROOT=/your/path, or APP_ROOT= (empty) to run against
+# the default ~/Library/Application Support/com.apple.container.
+APP_ROOT ?= $(ROOT_DIR)/.test-data
 
 # Conditionally use a temporary data directory for integration tests
 SYSTEM_START_OPTS :=
@@ -62,6 +69,9 @@ SUDO ?= sudo
 .DEFAULT_GOAL := all
 
 include Protobuf.Makefile
+
+.PHONY: verify
+verify: all test integration
 
 .PHONY: all
 all: container
@@ -133,6 +143,10 @@ $(STAGING_DIR):
 	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/container-core-images/bin)"
 	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/machine-apiserver/bin)"
 	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/machine-apiserver/resources)"
+	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/k8s/bin)"
+	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/k8s/resources)"
+	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/build/bin)"
+	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/builder/bin)"
 
 	@install "$(BUILD_BIN_DIR)/container" "$(join $(STAGING_DIR), bin/container)"
 	@install "$(BUILD_BIN_DIR)/container-apiserver" "$(join $(STAGING_DIR), bin/container-apiserver)"
@@ -145,7 +159,13 @@ $(STAGING_DIR):
 	@install "$(BUILD_BIN_DIR)/machine-apiserver" "$(join $(STAGING_DIR), libexec/container/plugins/machine-apiserver/bin/machine-apiserver)"
 	@install Sources/Plugins/MachineAPIServer/config.toml "$(join $(STAGING_DIR), libexec/container/plugins/machine-apiserver/config.toml)"
 	@install Sources/Plugins/MachineAPIServer/Resources/init "$(join $(STAGING_DIR), libexec/container/plugins/machine-apiserver/resources/init)"
-	@install Sources/Plugins/MachineAPIServer/Resources/create-user.sh "$(join $(STAGING_DIR), libexec/container/plugins/machine-apiserver/resources/create-user.sh)"
+	@install "$(BUILD_BIN_DIR)/k8s" "$(join $(STAGING_DIR), libexec/container/plugins/k8s/bin/k8s)"
+	@install Sources/Plugins/K8s/config.toml "$(join $(STAGING_DIR), libexec/container/plugins/k8s/config.toml)"
+	@install Sources/Plugins/K8s/Resources/kindnet.yaml "$(join $(STAGING_DIR), libexec/container/plugins/k8s/resources/kindnet.yaml)"
+	@install "$(BUILD_BIN_DIR)/container-build" "$(join $(STAGING_DIR), libexec/container/plugins/build/bin/build)"
+	@install Sources/Plugins/ContainerBuild/config.toml "$(join $(STAGING_DIR), libexec/container/plugins/build/config.toml)"
+	@install "$(BUILD_BIN_DIR)/container-builder" "$(join $(STAGING_DIR), libexec/container/plugins/builder/bin/builder)"
+	@install Sources/Plugins/ContainerBuilder/config.toml "$(join $(STAGING_DIR), libexec/container/plugins/builder/config.toml)"
 
 	@echo Install update script
 	@install scripts/update-container.sh "$(join $(STAGING_DIR), bin/update-container.sh)"
@@ -161,6 +181,9 @@ installer-pkg: $(STAGING_DIR)
 	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. --entitlements=signing/container-runtime-linux.entitlements "$(join $(STAGING_DIR), libexec/container/plugins/container-runtime-linux/bin/container-runtime-linux)"
 	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. --entitlements=signing/container-network-vmnet.entitlements "$(join $(STAGING_DIR), libexec/container/plugins/container-network-vmnet/bin/container-network-vmnet)"
 	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. "$(join $(STAGING_DIR), libexec/container/plugins/machine-apiserver/bin/machine-apiserver)"
+	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. "$(join $(STAGING_DIR), libexec/container/plugins/k8s/bin/k8s)"
+	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. "$(join $(STAGING_DIR), libexec/container/plugins/build/bin/build)"
+	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. "$(join $(STAGING_DIR), libexec/container/plugins/builder/bin/builder)"
 
 	@echo Creating application installer
 	@pkgbuild --root "$(STAGING_DIR)" --identifier com.apple.container-installer --install-location /usr/local --version ${RELEASE_VERSION} $(PKG_PATH)
@@ -197,16 +220,19 @@ install-kernel:
 COV_DATA_DIR = $(shell $(SWIFT) test --show-coverage-path | xargs dirname)
 COV_REPORT_FILE = $(ROOT_DIR)/code-coverage-report
 COVERAGE_OUTPUT_DIR := $(ROOT_DIR)/coverage-reports
-TEST_BINARY = $(BUILD_BIN_DIR)/containerPackageTests.xctest/Contents/MacOS/containerPackageTests
+# One bundle per test target, e.g. ContainerOSTests.xctest/Contents/MacOS/ContainerOSTests.
+TEST_BINARY = $(foreach b,$(wildcard $(BUILD_BIN_DIR)/*.xctest),-object $(b)/Contents/MacOS/$(basename $(notdir $(b))))
 # All product binaries that may be instrumented for coverage.
-# Used as additional -object args to llvm-cov for integration/combined reports.
+# Used as additional -object args to llvm-cov for all reports.
 COV_BINARIES := \
 	$(BUILD_BIN_DIR)/container \
 	$(BUILD_BIN_DIR)/container-apiserver \
 	$(BUILD_BIN_DIR)/container-runtime-linux \
 	$(BUILD_BIN_DIR)/container-network-vmnet \
 	$(BUILD_BIN_DIR)/container-core-images \
-	$(BUILD_BIN_DIR)/machine-apiserver
+	$(BUILD_BIN_DIR)/machine-apiserver \
+	$(BUILD_BIN_DIR)/container-build \
+	$(BUILD_BIN_DIR)/container-builder
 COV_OBJECT_FLAGS := $(patsubst %,-object %,$(COV_BINARIES))
 # Set of files we do not want to get caught in the coverage generation
 LLVM_COV_IGNORE := \
@@ -292,11 +318,11 @@ define RUN_INTEGRATION
 		CLITEST_LOG_ROOT=$(LOG_ROOT) && export CLITEST_LOG_ROOT ; \
 		CLITEST_SCRATCH_ROOT=$(SCRATCH_ROOT) && export CLITEST_SCRATCH_ROOT ; \
 		CONTAINER_CLI_PATH=$(ROOT_DIR)/bin/container && export CONTAINER_CLI_PATH ; \
-		echo "==> Warmup pass" && \
+		echo "==> Starting warmup tests" && \
 		$(SWIFT) test $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter "$(WARMUP_FILTER)" && \
-		echo "==> Concurrent pass (width=$(PARALLEL_WIDTH))" && \
+		echo "==> Starting $(words $(CONCURRENT_TEST_SUITES)) test suites concurrently (width=$(PARALLEL_WIDTH))" && \
 		$(SWIFT) test $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) $(CONCURRENT_EVENT_STREAM_OPTS) --experimental-maximum-parallelization-width $(PARALLEL_WIDTH) --filter "$(CONCURRENT_FILTER)" && \
-		echo "==> Global pass (serial)" && \
+		echo "==> Starting $(words $(SERIAL_TEST_SUITES)) test suites serially" && \
 		$(SWIFT) test $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) $(GLOBAL_EVENT_STREAM_OPTS) --experimental-maximum-parallelization-width 1 --filter "$(SERIAL_FILTER)" ; \
 		exit_code=$$? ; \
 		$(INTEGRATION_POST_TEST) \
@@ -307,7 +333,12 @@ define RUN_INTEGRATION
 endef
 
 .PHONY: integration
-integration: init-block
+integration: container init-block
+	@echo "HOSTNAME: $$(hostname)"
+	$(RUN_INTEGRATION)
+
+.PHONY: integration-only
+integration-only: init-block
 	@echo "HOSTNAME: $$(hostname)"
 	$(RUN_INTEGRATION)
 
@@ -356,7 +387,7 @@ coverage-unit: build-tests
 	@$(SWIFT) test --skip-build --enable-code-coverage -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --skip TestCLI --skip IntegrationTests
 	@echo Merging unit coverage profdata...
 	@xcrun llvm-profdata merge -sparse $(COV_DATA_DIR)/*.profraw -o $(COVERAGE_OUTPUT_DIR)/unit/default.profdata
-	$(call GENERATE_COV_REPORTS,$(COVERAGE_OUTPUT_DIR)/unit/default.profdata,unit)
+	$(call GENERATE_COV_REPORTS,$(COVERAGE_OUTPUT_DIR)/unit/default.profdata,unit,$(COV_OBJECT_FLAGS))
 
 .PHONY: fmt
 fmt: swift-fmt update-licenses
@@ -418,10 +449,22 @@ cleancontent:
 	@rm -rf ~/Library/Application\ Support/com.apple.container
 
 .PHONY: clean
-clean:
+clean: cleantest cleanbuild
+
+.PHONY: cleanbuild
+cleanbuild:
 	@echo Cleaning build files...
 	@rm -rf bin/ libexec/
 	@rm -rf _site _serve
 	@rm -f $(COV_REPORT_FILE)
 	@rm -rf $(COVERAGE_OUTPUT_DIR)
 	@$(SWIFT) package clean
+
+.PHONY: cleantest
+cleantest:
+	@echo Stopping container services...
+	@bin/container system stop 2>/dev/null || true
+	@scripts/ensure-container-stopped.sh -a || true
+	@if [ -n "$(APP_ROOT)" ]; then echo "Removing $(APP_ROOT)..." ; rm -rf "$(APP_ROOT)" ; fi
+	@echo "Removing $(SCRATCH_ROOT)..."
+	@rm -rf "$(SCRATCH_ROOT)"

@@ -14,8 +14,9 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerAPIClient
 import Foundation
-import Testing
+import SystemPackage
 
 // MARK: - Image inspect types
 
@@ -69,6 +70,27 @@ extension ContainerFixture {
         try run(args).check()
     }
 
+    /// Saves `image` to ``WarmupImage/cacheTarPath``, overwriting any existing archive.
+    ///
+    /// Called once per image by the `ImageWarmup` suite. No `--platform`/`--os`/`--arch`
+    /// is passed, so `image save` captures every platform the image supports.
+    public func cacheWarmupImage(_ image: WarmupImage) throws {
+        try FileManager.default.createDirectory(
+            atPath: WarmupImage.cacheDirectory.string, withIntermediateDirectories: true)
+        try run(["image", "save", "--output", image.cacheTarPath.string, image.rawValue])
+            .check("failed to cache \(image.rawValue)")
+    }
+
+    /// Reloads `image` from its cached tar archive rather than pulling over the network.
+    ///
+    /// Use this in serial tests to restore a warmup image after a destructive operation
+    /// (`image rm --all`, `image prune`) removes it from the store. Requires the
+    /// `ImageWarmup` suite to have already run and populated the cache.
+    public func restoreWarmupImage(_ image: WarmupImage) throws {
+        try run(["image", "load", "--input", image.cacheTarPath.string])
+            .check("failed to restore \(image.rawValue) from cache")
+    }
+
     /// Returns the full inspect output for an image, including variant information.
     public func doInspectImages(_ name: String) throws -> [ImageInspectOutput] {
         let result = try run(["image", "inspect", name]).check()
@@ -87,6 +109,9 @@ extension ContainerFixture {
     /// Asserts that the image was successfully built and is present in the image store.
     public func assertImageBuilt(_ image: String) throws {
         let name = try inspectImage(image)
-        #expect(name == image, "expected image \(image) to be present")
+        let expected = try ClientImage.normalizeReference(image, containerSystemConfig: getSystemConfig())
+        guard name == expected else {
+            throw CommandError.executionFailed("expected image \(image) to be present")
+        }
     }
 }
