@@ -20,6 +20,7 @@ import ContainerPersistence
 import ContainerPlugin
 import ContainerXPC
 import ContainerizationError
+import ContainerizationOCI
 import Foundation
 import MachineAPIClient
 import SystemPackage
@@ -151,7 +152,7 @@ extension Application {
             }
 
             if await !initImageExists(containerSystemConfig: containerSystemConfig) {
-                try? await installInitialFilesystem(initImage: containerSystemConfig.vminit.image)
+                await installInitialFilesystem(initImage: containerSystemConfig.vminit.image)
             }
 
             guard await !kernelExists() else {
@@ -163,11 +164,10 @@ extension Application {
                 kernelDigest: containerSystemConfig.kernel.digest)
         }
 
-        private func installInitialFilesystem(initImage: String) async throws {
-            var pullCommand = try ImagePull.parse()
-            pullCommand.reference = initImage
+        private func installInitialFilesystem(initImage: String) async {
             log.info("Installing base container filesystem...")
             do {
+                let pullCommand = try Self.initImagePullCommand(reference: initImage)
                 try await pullCommand.run()
             } catch {
                 log.error("failed to install base container filesystem", metadata: ["error": "\(error)"])
@@ -199,6 +199,13 @@ extension Application {
                 kernelFilePath: kernelBinaryPath,
                 expectedDigest: kernelDigest,
                 force: true)
+        }
+
+        /// The pull that installs the init image. The arguments are passed explicitly: `parse()`
+        /// with none reads the process's own command line, which here is `system start ...`. The
+        /// platform matches the one `initImageExists` checks for.
+        static func initImagePullCommand(reference: String) throws -> ImagePull {
+            try ImagePull.parse(["--platform", Platform.current.description, reference])
         }
 
         private func initImageExists(containerSystemConfig: ContainerSystemConfig) async -> Bool {
