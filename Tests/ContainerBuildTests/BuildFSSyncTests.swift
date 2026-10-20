@@ -146,6 +146,118 @@ import Testing
         }
     }
 
+    // Symlink following is limited to relative targets beneath the context
+    // root. A link with an absolute target is rejected even when that target is
+    // inside the context, because the descriptor walk cannot follow an absolute
+    // path without leaving the pinned directory.
+
+    @Test func testReadRejectsAbsoluteSymlinkInsideContext() async throws {
+        let realFile = contextDir.appendingPathComponent("real.txt")
+        try write("hello", to: realFile)
+        try fm.createSymbolicLink(
+            atPath: contextDir.appendingPathComponent("alias").path(percentEncoded: false),
+            withDestinationPath: realFile.path(percentEncoded: false)
+        )
+
+        let fssync = try BuildFSSync(contextDir)
+        var continuation: AsyncStream<ClientStream>.Continuation!
+        _ = AsyncStream<ClientStream> { continuation = $0 }
+        defer { continuation.finish() }
+
+        do {
+            try await fssync.read(continuation, readPacket(source: "alias"), "build-0")
+            Issue.record("read() should throw BuildFSSync.Error for a symlink with an absolute target, even inside the context")
+        } catch is BuildFSSync.Error {
+            // expected
+        }
+    }
+
+    @Test func testInfoRejectsAbsoluteSymlinkInsideContext() async throws {
+        let realFile = contextDir.appendingPathComponent("real.txt")
+        try write("hello", to: realFile)
+        try fm.createSymbolicLink(
+            atPath: contextDir.appendingPathComponent("alias").path(percentEncoded: false),
+            withDestinationPath: realFile.path(percentEncoded: false)
+        )
+
+        let fssync = try BuildFSSync(contextDir)
+        var continuation: AsyncStream<ClientStream>.Continuation!
+        _ = AsyncStream<ClientStream> { continuation = $0 }
+        defer { continuation.finish() }
+
+        do {
+            try await fssync.info(continuation, readPacket(source: "alias"), "build-0")
+            Issue.record("info() should throw BuildFSSync.Error for a symlink with an absolute target, even inside the context")
+        } catch is BuildFSSync.Error {
+            // expected
+        }
+    }
+
+    // MARK: - read(): served content
+
+    private func readResponse(_ fssync: BuildFSSync, source: String) async throws -> BuildTransfer {
+        var continuation: AsyncStream<ClientStream>.Continuation!
+        let stream = AsyncStream<ClientStream> { continuation = $0 }
+        defer { continuation.finish() }
+        try await fssync.read(continuation, readPacket(source: source), "build-0")
+        continuation.finish()
+        for await packet in stream { return packet.buildTransfer }
+        throw BuildFSSync.Error.buildTransferMissing
+    }
+
+    @Test func testReadServesRegularFileAndRelativeInContextSymlink() async throws {
+        try write("hello", to: contextDir.appendingPathComponent("plain.txt"))
+        try fm.createSymbolicLink(
+            atPath: contextDir.appendingPathComponent("alias").path(percentEncoded: false),
+            withDestinationPath: "plain.txt")
+
+        let fssync = try BuildFSSync(contextDir)
+        for source in ["plain.txt", "alias", "./plain.txt", contextDir.appendingPathComponent("plain.txt").path(percentEncoded: false)] {
+            let transfer = try await readResponse(fssync, source: source)
+            #expect(String(data: transfer.data, encoding: .utf8) == "hello", "source: \(source)")
+        }
+    }
+
+    @Test func testReadOfDirectoryReturnsNoData() async throws {
+        try fm.createDirectory(at: contextDir.appendingPathComponent("sub"), withIntermediateDirectories: true)
+        let transfer = try await readResponse(try BuildFSSync(contextDir), source: "sub")
+        #expect(transfer.data.isEmpty)
+        #expect(transfer.isDirectory)
+    }
+
+    /// The scenario from GHSA-fqxg-rrf3-358v: a link is swapped between an
+    /// in-context and an out-of-context target while reads are in flight. Every
+    /// read must either return the in-context content or fail; the secret must
+    /// never be served.
+    @Test func testReadNeverServesSwappedSymlinkTarget() async throws {
+        try write("safe", to: contextDir.appendingPathComponent("safe.txt"))
+        try write("supersecret", to: outsideDir.appendingPathComponent("secret.txt"))
+        let bait = contextDir.appendingPathComponent("bait").path(percentEncoded: false)
+        let tmp = contextDir.appendingPathComponent("bait.tmp").path(percentEncoded: false)
+        let targets = ["safe.txt", outsideDir.appendingPathComponent("secret.txt").path(percentEncoded: false)]
+        try fm.createSymbolicLink(atPath: bait, withDestinationPath: targets[0])
+
+        let stop = ManagedAtomicFlag()
+        let swapper = Thread {
+            var i = 0
+            while !stop.isSet {
+                unlink(tmp)
+                symlink(targets[i % 2], tmp)
+                rename(tmp, bait)
+                i += 1
+            }
+        }
+        swapper.start()
+        defer { stop.set() }
+
+        let fssync = try BuildFSSync(contextDir)
+        for _ in 0..<2000 {
+            if let transfer = try? await readResponse(fssync, source: "bait") {
+                #expect(String(data: transfer.data, encoding: .utf8) != "supersecret")
+            }
+        }
+    }
+
     // MARK: - info(): symlink boundary enforcement
     //
     // info() is the metadata-only half of the shim's FS.Open() fallback path.
@@ -254,6 +366,34 @@ import Testing
         }
 
         #expect(leaked.isEmpty, "walk() returned non-symlink URLs that physically resolve outside the context: \(leaked)")
+    }
+
+    // MARK: - walk(): plain subdirectory contents under a symlinked ancestor
+    //
+    // Globber.children(of:) used to list directories via
+    // contentsOfDirectory(at:), which silently resolves /tmp to /private/tmp
+    // even for a non-symlink child. That made walk()'s parentOf() check
+    // reject every entry found by descending into a plain subdirectory, so
+    // "COPY foodir /dest" tarred an empty directory while
+    // "COPY foodir/payload /dest/payload" worked fine.
+
+    @Test func testWalkUnderSymlinkedAncestor() async throws {
+        // Root the context directly under /tmp (a symlink to /private/tmp on
+        // macOS) to reproduce the bug precisely.
+        let tmpBase = URL(fileURLWithPath: "/tmp").appendingPathComponent(UUID().uuidString)
+        let ctx = tmpBase.appendingPathComponent("context")
+        try fm.createDirectory(at: ctx, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: tmpBase) }
+
+        let subdir = ctx.appendingPathComponent("foodir")
+        try fm.createDirectory(at: subdir, withIntermediateDirectories: true)
+        try write("payload", to: subdir.appendingPathComponent("payload.txt"))
+
+        let fssync = try BuildFSSync(ctx)
+        let infos = try await walkJSON(fssync, followPaths: ["foodir"])
+
+        let payload = infos.first { $0.name == "foodir/payload.txt" }
+        #expect(payload != nil, "expected foodir/payload.txt to be included when COPYing a directory glob, got: \(infos.map { $0.name })")
     }
 
     // MARK: - walk(): JSON/FileInfo metadata paths
@@ -394,4 +534,11 @@ import Testing
         let secretLeak = infos.first { $0.name.hasSuffix("secret.txt") }
         #expect(secretLeak == nil, "no entry for the external file should appear in walk() results: \(infos.map { $0.name })")
     }
+}
+
+private final class ManagedAtomicFlag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = false
+    var isSet: Bool { lock.withLock { value } }
+    func set() { lock.withLock { value = true } }
 }

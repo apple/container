@@ -127,6 +127,36 @@ struct K8sNodeRowTests {
     }
 }
 
+// MARK: - K8sHelper.workerContainerNames
+
+@Suite("K8sHelper.workerContainerNames")
+struct WorkerContainerNamesTests {
+    @Test func emptyInputProducesNoNames() {
+        #expect(K8sHelper.workerContainerNames(from: [], clusterName: "dev").isEmpty)
+    }
+
+    @Test func excludesControlPlane() throws {
+        let cp = try makeControlPlane("dev")
+        let names = K8sHelper.workerContainerNames(from: [cp], clusterName: "dev")
+        #expect(names.isEmpty)
+    }
+
+    @Test func includesMatchingWorkers() throws {
+        let cp = try makeControlPlane("dev")
+        let w1 = try makeWorker("dev-worker-1")
+        let w2 = try makeWorker("dev-worker-2")
+        let names = K8sHelper.workerContainerNames(from: [cp, w2, w1], clusterName: "dev")
+        #expect(names == ["dev-worker-1", "dev-worker-2"])
+    }
+
+    @Test func excludesWorkersFromOtherClusters() throws {
+        let w1 = try makeWorker("dev-worker-1")
+        let other = try makeWorker("dev2-worker-1")
+        let names = K8sHelper.workerContainerNames(from: [w1, other], clusterName: "dev")
+        #expect(names == ["dev-worker-1"])
+    }
+}
+
 // MARK: - buildK8sRows ordering and grouping
 
 @Suite("K8sHelper.buildK8sRows")
@@ -151,6 +181,21 @@ struct BuildK8sRowsTests {
         #expect(rows[0].snapshot.id == "dev")
         #expect(rows[1].snapshot.id == "dev-worker-1")
         #expect(rows[2].snapshot.id == "dev-worker-2")
+    }
+
+    @Test func mixedControlPlaneRoleIsGroupedAsControlPlane() throws {
+        let cp = try makeSnapshot(
+            id: "k8s-dev",
+            role: "\(K8sHelper.controlPlaneRoleName),worker")
+        let worker = try makeWorker("k8s-dev-worker-1")
+
+        let rows = K8sHelper.buildK8sRows(from: [worker, cp])
+
+        #expect(rows.count == 2)
+        #expect(rows[0].snapshot.id == "k8s-dev")
+        #expect(rows[0].clusterName == "k8s-dev")
+        #expect(rows[1].snapshot.id == "k8s-dev-worker-1")
+        #expect(rows[1].clusterName == "k8s-dev")
     }
 
     @Test func workersGroupedUnderCorrectControlPlane() throws {

@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerAPIClient
 import Darwin
 import Foundation
 import Logging
@@ -37,6 +38,16 @@ private func decode(_ yaml: String) throws -> KubeConfig {
 
 private func encode(_ config: KubeConfig) throws -> String {
     try YAMLEncoder().encode(config)
+}
+
+/// A single cluster/user/context kubeconfig (the shape kubeadm produces).
+private func makeConfig(clusterName: String, server: String = "https://127.0.0.1:6443") -> KubeConfig {
+    var config = KubeConfig()
+    config.clusters = [NamedCluster(name: clusterName, cluster: Cluster(server: server, certificateAuthorityData: "dGVzdA=="))]
+    config.contexts = [NamedContext(name: clusterName, context: Context(cluster: clusterName, user: clusterName))]
+    config.users = [NamedAuthInfo(name: clusterName, authInfo: AuthInfo(clientCertificateData: "dGVzdA==", clientKeyData: "dGVzdA=="))]
+    config.currentContext = clusterName
+    return config
 }
 
 private let log = Logger(label: "test")
@@ -195,19 +206,75 @@ struct KubeconfigRoundTripTests {
     }
 }
 
+// MARK: - transformConfig sanitization
+
+@Suite("K8sHelper.transformConfig")
+struct TransformConfigTests {
+
+    @Test func rejectsExecFromUntrustedKubeconfig() async throws {
+        var config = makeConfig(clusterName: "kubernetes", server: "https://10.0.0.2:6443")
+        config.users[0].authInfo.exec = ExecConfig(command: "/bin/sh", args: ["-c", "id"], apiVersion: "client.authentication.k8s.io/v1")
+
+        await #expect(throws: (any Error).self) {
+            _ = try await K8sHelper.transformConfig(config, containerId: "victim", fqdn: "victim.local", client: ContainerClient())
+        }
+    }
+
+    @Test func rejectsAuthProviderFromUntrustedKubeconfig() async throws {
+        var config = makeConfig(clusterName: "kubernetes", server: "https://10.0.0.2:6443")
+        config.users[0].authInfo.authProvider = AuthProviderConfig(name: "gcp")
+
+        await #expect(throws: (any Error).self) {
+            _ = try await K8sHelper.transformConfig(config, containerId: "victim", fqdn: "victim.local", client: ContainerClient())
+        }
+    }
+
+    @Test func dropsProxyURLAndInsecureSkipTLSVerifyAndRewritesServer() async throws {
+        var config = makeConfig(clusterName: "kubernetes", server: "https://10.0.0.2:6443")
+        config.clusters[0].cluster.proxyURL = "http://127.0.0.1:3128"
+        config.clusters[0].cluster.insecureSkipTLSVerify = true
+        config.clusters[0].cluster.tlsServerName = "attacker.example.com"
+        config.contexts[0].context.namespace = "default"
+
+        let result = try await K8sHelper.transformConfig(config, containerId: "victim", fqdn: "victim.local", client: ContainerClient())
+
+        #expect(result.clusters.count == 1)
+        #expect(result.clusters[0].name == "victim")
+        #expect(result.clusters[0].cluster.server == "https://victim.local:6443")
+        #expect(result.clusters[0].cluster.certificateAuthorityData == "dGVzdA==")
+        #expect(result.clusters[0].cluster.proxyURL == nil)
+        #expect(result.clusters[0].cluster.insecureSkipTLSVerify == nil)
+        #expect(result.clusters[0].cluster.tlsServerName == nil)
+
+        #expect(result.users.count == 1)
+        #expect(result.users[0].name == "victim")
+        #expect(result.users[0].authInfo.exec == nil)
+        #expect(result.users[0].authInfo.authProvider == nil)
+        #expect(result.users[0].authInfo.clientCertificateData == "dGVzdA==")
+        #expect(result.users[0].authInfo.clientKeyData == "dGVzdA==")
+
+        #expect(result.contexts.count == 1)
+        #expect(result.contexts[0].name == "victim")
+        #expect(result.contexts[0].context.cluster == "victim")
+        #expect(result.contexts[0].context.user == "victim")
+        #expect(result.contexts[0].context.namespace == "default")
+        #expect(result.currentContext == "victim")
+    }
+
+    @Test func rejectsMultipleClustersUsersOrContexts() async throws {
+        var config = makeConfig(clusterName: "a", server: "https://1.2.3.4")
+        config.clusters.append(NamedCluster(name: "b", cluster: Cluster(server: "https://5.6.7.8")))
+
+        await #expect(throws: (any Error).self) {
+            _ = try await K8sHelper.transformConfig(config, containerId: "victim", fqdn: "victim.local", client: ContainerClient())
+        }
+    }
+}
+
 // MARK: - mergeConfig behavior
 
 @Suite("K8sHelper.mergeConfig")
 struct MergeConfigTests {
-
-    private func makeConfig(clusterName: String, server: String = "https://127.0.0.1:6443") -> KubeConfig {
-        var config = KubeConfig()
-        config.clusters = [NamedCluster(name: clusterName, cluster: Cluster(server: server, certificateAuthorityData: "dGVzdA=="))]
-        config.contexts = [NamedContext(name: clusterName, context: Context(cluster: clusterName, user: clusterName))]
-        config.users = [NamedAuthInfo(name: clusterName, authInfo: AuthInfo(clientCertificateData: "dGVzdA==", clientKeyData: "dGVzdA=="))]
-        config.currentContext = clusterName
-        return config
-    }
 
     @Test func mergeIntoEmptyFileCreatesFile() throws {
         let (path, cleanup) = try makeTempFile()
@@ -411,14 +478,6 @@ struct KubeconfigEnvTests {
 
     @Suite("K8sHelper.removeConfig")
     struct RemoveConfigTests {
-
-        private func makeConfig(clusterName: String) -> KubeConfig {
-            var config = KubeConfig()
-            config.clusters = [NamedCluster(name: clusterName, cluster: Cluster(server: "https://127.0.0.1:6443"))]
-            config.contexts = [NamedContext(name: clusterName, context: Context(cluster: clusterName, user: clusterName))]
-            config.users = [NamedAuthInfo(name: clusterName, authInfo: AuthInfo())]
-            return config
-        }
 
         private func withKubeconfig(_ initial: KubeConfig, _ body: () throws -> Void) throws {
             let tmp = FilePath(FileManager.default.temporaryDirectory.path)

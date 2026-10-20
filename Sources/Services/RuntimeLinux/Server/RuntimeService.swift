@@ -195,6 +195,7 @@ public actor RuntimeService {
                     var (attachment, additionalData) = try await client.allocate(
                         hostname: attachmentConfig.options.hostname,
                         macAddress: attachmentConfig.options.macAddress,
+                        aliases: attachmentConfig.options.aliases,
                         requestedAddress: attachmentConfig.options.ipv4Address,
                         on: session
                     )
@@ -216,6 +217,7 @@ public actor RuntimeService {
                                 hostname: attachmentConfig.options.hostname,
                                 macAddress: grantedMAC,
                                 mtu: attachmentConfig.options.mtu,
+                                aliases: attachmentConfig.options.aliases,
                                 ipv4Address: grantedAddress
                             )
                         )
@@ -293,7 +295,13 @@ public actor RuntimeService {
 
             let id = config.id
             let rootfs = try bundle.containerRootfs.asMount
-            let container = try LinuxContainer(id, rootfs: rootfs, vmm: vmm, logger: self.log) { czConfig in
+            // Give the VM headroom beyond the container's cgroup limits for the guest kernel,
+            // vminitd, and the overhead configured via `config.resources.cpuOverhead`.
+            let vmResources = VMResources(
+                cpus: config.resources.cpus + config.resources.cpuOverhead,
+                memoryInBytes: config.resources.memoryInBytes + VMResources.guestMemoryOverhead
+            )
+            let container = try LinuxContainer(id, rootfs: rootfs, vmm: vmm, vm: vmResources, logger: self.log) { czConfig in
                 try Self.configureContainer(czConfig: &czConfig, config: config, dynamicEnv: dynamicEnv, log: self.log)
                 czConfig.interfaces = interfaces
                 czConfig.process.stdout = stdout
@@ -1146,7 +1154,6 @@ public actor RuntimeService {
         log: Logger? = nil,
     ) throws {
         czConfig.cpus = config.resources.cpus
-        czConfig.cpuOverhead = config.resources.cpuOverhead
         czConfig.memoryInBytes = config.resources.memoryInBytes
         // Overcommit memory and allow more memory mappings than the kernel default
         // so workloads inside swap-less guest VMs hit limits less easily.

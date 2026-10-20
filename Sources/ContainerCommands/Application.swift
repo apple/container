@@ -17,14 +17,12 @@
 import ArgumentParser
 import ContainerAPIClient
 import ContainerLog
-import ContainerPersistence
 import ContainerPlugin
 import ContainerVersion
 import ContainerizationError
 import ContainerizationOS
 import Foundation
 import Logging
-import SystemPackage
 import TerminalProgress
 
 // This logger is only used until `asyncCommand.run()`.
@@ -55,6 +53,7 @@ public struct Application: AsyncLoggableCommand {
                 name: "Container",
                 subcommands: [
                     ContainerClean.self,
+                    ContainerCommit.self,
                     ContainerCopy.self,
                     ContainerCreate.self,
                     ContainerDelete.self,
@@ -74,7 +73,6 @@ public struct Application: AsyncLoggableCommand {
             CommandGroup(
                 name: "Image",
                 subcommands: [
-                    BuildCommand.self,
                     ImageCommand.self,
                     RegistryCommand.self,
                 ]
@@ -101,7 +99,7 @@ public struct Application: AsyncLoggableCommand {
     )
 
     public static func main() async throws {
-        restoreCursorAtExit()
+        ProgressBar.restoreCursorAtExit()
 
         #if DEBUG
         let warning = "Running debug build. Performance may be degraded."
@@ -144,20 +142,6 @@ public struct Application: AsyncLoggableCommand {
         }
     }
 
-    /// Load the system configuration using `appRoot` / `installRoot` reported by the
-    /// daemon. `container system start` MUST have previously been run to start the daemon.
-    public static func loadContainerSystemConfig() async throws -> ContainerSystemConfig {
-        let health = try await ClientHealthCheck.ping(timeout: .seconds(10))
-        let appRoot = FilePath(health.appRoot.path(percentEncoded: false))
-        let installRoot = FilePath(health.installRoot.path(percentEncoded: false))
-        return try await ConfigurationLoader.load(
-            configurationFiles: [
-                ConfigurationLoader.configurationFile(in: appRoot, of: .appRoot),
-                ConfigurationLoader.configurationFile(in: installRoot, of: .installRoot),
-            ]
-        )
-    }
-
     public func validate() throws {
         // Not really a "validation", but a cheat to run this before
         // any of the commands do their business.
@@ -179,35 +163,16 @@ public struct Application: AsyncLoggableCommand {
     private static func otherCommands() -> [any ParsableCommand.Type] {
         guard #available(macOS 26, *) else {
             return [
-                BuilderCommand.self,
-                SystemCommand.self,
+                SystemCommand.self
             ]
         }
 
         return [
-            BuilderCommand.self,
             NetworkCommand.self,
             SystemCommand.self,
         ]
     }
 
-    private static func restoreCursorAtExit() {
-        let signalHandler: @convention(c) (Int32) -> Void = { signal in
-            let exitCode = ExitCode(signal + 128)
-            Application.exit(withError: exitCode)
-        }
-        // Termination by Ctrl+C.
-        signal(SIGINT, signalHandler)
-        // Termination using `kill`.
-        signal(SIGTERM, signalHandler)
-        // Normal and explicit exit.
-        atexit {
-            if let progressConfig = try? ProgressConfig() {
-                let progressBar = ProgressBar(config: progressConfig)
-                progressBar.resetCursor()
-            }
-        }
-    }
 }
 
 extension Application {
@@ -217,7 +182,7 @@ extension Application {
         let original = Application.helpMessage(for: Application.self)
         guard let pluginLoader else {
             print(addGroupSpacing(original))
-            print("\nPLUGINS: not available, run `container system start`")
+            print("\n[Warning] CLI plugins not available, run `container system start`")
             return
         }
         let altered = pluginLoader.alterCLIHelpText(original: original)
@@ -227,7 +192,6 @@ extension Application {
     private static func addGroupSpacing(_ text: String) -> String {
         text
             .replacingOccurrences(of: "\n([A-Z].+SUBCOMMANDS:)", with: "\n\n$1", options: .regularExpression)
-            .replacingOccurrences(of: "\nPLUGINS:", with: "\n\nPLUGINS:")
     }
 
     func isTranslated() throws -> Bool {

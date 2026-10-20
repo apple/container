@@ -20,6 +20,7 @@ import Containerization
 import ContainerizationError
 import ContainerizationExtras
 import ContainerizationOCI
+import DNSServer
 import Foundation
 import Logging
 import TerminalProgress
@@ -308,15 +309,16 @@ public struct Utility {
             return try networks.enumerated().map { item in
                 let macAddress = try item.element.macAddress.map { try MACAddress($0) } ?? .generate()
                 let mtu = item.element.mtu ?? 1280
+                let aliases = try qualifyAliases(item.element.aliases, dnsDomain: dnsDomain)
                 guard item.offset == 0 else {
                     return AttachmentConfiguration(
                         network: item.element.name,
-                        options: AttachmentOptions(hostname: containerId, macAddress: macAddress, mtu: mtu)
+                        options: AttachmentOptions(hostname: containerId, macAddress: macAddress, mtu: mtu, aliases: aliases)
                     )
                 }
                 return AttachmentConfiguration(
                     network: item.element.name,
-                    options: AttachmentOptions(hostname: fqdn ?? containerId, macAddress: macAddress, mtu: mtu)
+                    options: AttachmentOptions(hostname: fqdn ?? containerId, macAddress: macAddress, mtu: mtu, aliases: aliases)
                 )
             }
         }
@@ -331,6 +333,39 @@ public struct Utility {
                 options: AttachmentOptions(hostname: fqdn ?? containerId, macAddress: .generate(), mtu: 1280)
             )
         ]
+    }
+
+    /// Appends the default DNS domain to the aliases that have no domain of their own.
+    ///
+    /// This follows the rule that makes `--name foo` the hostname `foo.test.` when the default domain
+    /// is `test`: a name without a dot gets the domain, and a name with a dot is taken to be
+    /// qualified already. For a name with a leading dot, which matches every name below it, the rule
+    /// applies to the name after the dot. Without a default domain the aliases are left as they are,
+    /// and the server rejects any that is not fully qualified.
+    ///
+    /// - Parameters:
+    ///   - aliases: The aliases of an attachment, in their normalized form.
+    ///   - dnsDomain: The default DNS domain from the system configuration, if there is one.
+    /// - Returns: The qualified aliases.
+    static func qualifyAliases(_ aliases: [String], dnsDomain: String?) throws -> [String] {
+        guard let dnsDomain else {
+            return aliases
+        }
+        return try aliases.map { alias in
+            let isSubtree = alias.hasPrefix(".")
+            let name = isSubtree ? String(alias.dropFirst()) : alias
+            guard !name.contains(".") else {
+                return alias
+            }
+            do {
+                return try DNSMatchRule("\(isSubtree ? "." : "")\(name).\(dnsDomain)").description
+            } catch {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "cannot qualify alias \"\(alias)\" with the default DNS domain \"\(dnsDomain)\": \(error)"
+                )
+            }
+        }
     }
 
     private static func getKernel(management: Flags.Management) async throws -> Kernel {

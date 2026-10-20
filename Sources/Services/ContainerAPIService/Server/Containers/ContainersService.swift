@@ -290,26 +290,11 @@ public actor ContainersService {
                 )
             }
 
-            var allHostnames = Set<String>()
+            var existingNetworks = [AttachmentConfiguration]()
             for container in await self.containers.values {
-                for attachmentConfiguration in container.snapshot.configuration.networks {
-                    allHostnames.insert(attachmentConfiguration.options.hostname)
-                }
+                existingNetworks.append(contentsOf: container.snapshot.configuration.networks)
             }
-
-            var conflictingHostnames = [String]()
-            for attachmentConfiguration in configuration.networks {
-                if allHostnames.contains(attachmentConfiguration.options.hostname) {
-                    conflictingHostnames.append(attachmentConfiguration.options.hostname)
-                }
-            }
-
-            guard conflictingHostnames.isEmpty else {
-                throw ContainerizationError(
-                    .exists,
-                    message: "hostname(s) already exist: \(conflictingHostnames)"
-                )
-            }
+            try AttachmentNameValidator.validate(networks: configuration.networks, existing: existingNetworks)
 
             guard self.runtimePlugins.first(where: { $0.name == configuration.runtimeHandler }) != nil else {
                 throw ContainerizationError(
@@ -419,6 +404,7 @@ public actor ContainersService {
 
             let path = self.containerRoot.appendingPathComponent(id)
             let (config, _) = try Self.getContainerConfiguration(at: path)
+            try AttachmentNameValidator.validateStored(id: id, networks: config.networks)
 
             var networkBootstrapInfos = [NetworkBootstrapInfo]()
             for n in config.networks {
@@ -748,16 +734,19 @@ public actor ContainersService {
         }
 
         // Logs doesn't care if the container is running or not, just that
-        // the bundle is there, and that the files actually exist. We do
+        // the bundle is there; a log file that doesn't exist reads as empty. We do
         // first try and get the container state so we get a nicer error message
         // (container foo not found) however.
         do {
             _ = try _getContainerState(id: id)
             let path = self.containerRoot.appendingPathComponent(id)
             let bundle = ContainerResource.Bundle(path: path)
+            // A missing log means there are no messages yet, not that the bundle is broken: the
+            // runtime creates both at bootstrap, so a container that has never been started has
+            // neither.
             return [
-                try FileHandle(forReadingFrom: bundle.containerLog),
-                try FileHandle(forReadingFrom: bundle.bootlog),
+                try self.openLog(bundle.containerLog, of: id),
+                try self.openLog(bundle.bootlog, of: id),
             ]
         } catch {
             throw ContainerizationError(
@@ -765,6 +754,47 @@ public actor ContainersService {
                 message: "failed to open container logs: \(error)"
             )
         }
+    }
+
+    /// The log at `url`, or an empty stand-in when it doesn't exist. Other failures throw.
+    private func openLog(_ url: URL, of id: String) throws -> FileHandle {
+        if let handle = try Self.openIfPresent(url) {
+            return handle
+        }
+        log.debug(
+            "ContainersService: log not present, returning it empty",
+            metadata: ["id": "\(id)", "log": "\(url.lastPathComponent)"]
+        )
+        return try Self.emptyLog()
+    }
+
+    /// A stand-in for a log that doesn't exist: `/dev/null` opened for reading.
+    ///
+    /// Not `FileHandle.nullDevice`, which has no file descriptor (`fileDescriptor` is -1): these
+    /// handles go to the client over XPC, a -1 dups back as -1, and the client's
+    /// `fileHandles(key:)` then returns nil, so `container logs` would still fail.
+    static func emptyLog() throws -> FileHandle {
+        let fd = open("/dev/null", O_RDONLY | O_CLOEXEC | O_NOFOLLOW)
+        guard fd >= 0 else {
+            throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+        }
+        return FileHandle(fileDescriptor: fd, closeOnDealloc: true)
+    }
+
+    /// Opens `url` for reading, or returns nil if it doesn't exist. Any other failure, such
+    /// as a permissions problem, still throws.
+    ///
+    /// `O_NOFOLLOW`: these are fixed paths inside a container's bundle that runtimes create as
+    /// regular files, so a symlink there is never legitimate, and following one would hand
+    /// the caller whatever file it points at. A symlink fails with ELOOP rather than ENOENT,
+    /// so it is refused, not read as an empty log.
+    static func openIfPresent(_ url: URL) throws -> FileHandle? {
+        let fd = open(url.path, O_RDONLY | O_CLOEXEC | O_NOFOLLOW)
+        guard fd >= 0 else {
+            if errno == ENOENT { return nil }
+            throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+        }
+        return FileHandle(fileDescriptor: fd, closeOnDealloc: true)
     }
 
     /// Copy a file or directory from the host into the container.

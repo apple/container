@@ -67,9 +67,13 @@ extension NetworkClient {
     /// Use `connect()` to obtain a session, then pass it here. The session
     /// must remain open for the lifetime of the allocation; closing it
     /// releases the allocation on the network helper automatically.
+    ///
+    /// - Parameter aliases: Additional names that resolve to the attachment, in their normalized
+    ///   string form.
     public func allocate(
         hostname: String,
         macAddress: MACAddress? = nil,
+        aliases: [String] = [],
         requestedAddress: IPv4Address? = nil,
         on session: XPCClientSession
     ) async throws -> (attachment: Attachment, additionalData: XPCMessage?) {
@@ -77,6 +81,9 @@ extension NetworkClient {
         request.set(key: NetworkKeys.hostname.rawValue, value: hostname)
         if let macAddress = macAddress {
             request.set(key: NetworkKeys.macAddress.rawValue, value: macAddress.description)
+        }
+        if !aliases.isEmpty {
+            try request.setAliases(aliases)
         }
         if let requestedAddress = requestedAddress {
             request.set(key: NetworkKeys.requestedAddress.rawValue, value: requestedAddress.description)
@@ -87,16 +94,26 @@ extension NetworkClient {
         return (attachment, additionalData)
     }
 
-    public func lookup(hostname: String) async throws -> Attachment? {
+    /// Look up a name on the network.
+    ///
+    /// The name can be the hostname of an attachment, an alias of it, or a name below a subtree alias.
+    ///
+    /// - Returns: The attachment that the name resolves to and how the name matched, or nil if the
+    ///   name does not resolve on this network.
+    public func lookup(name: String) async throws -> NetworkMatch? {
         let request = XPCMessage(route: NetworkRoutes.lookup.rawValue)
-        request.set(key: NetworkKeys.hostname.rawValue, value: hostname)
+        request.set(key: NetworkKeys.name.rawValue, value: name)
 
         let client = createClient()
 
         let response = try await client.send(request)
-        return try response.dataNoCopy(key: NetworkKeys.attachment.rawValue).map {
-            try JSONDecoder().decode(Attachment.self, from: $0)
+        guard let data = response.dataNoCopy(key: NetworkKeys.attachment.rawValue) else {
+            return nil
         }
+        return NetworkMatch(
+            attachment: try JSONDecoder().decode(Attachment.self, from: data),
+            kind: try response.matchKind()
+        )
     }
 
     private func createClient() -> XPCClient {
@@ -126,6 +143,14 @@ extension XPCMessage {
             throw ContainerizationError(.invalidArgument, message: "no hostname data in message")
         }
         return hostname
+    }
+
+    public func name() throws -> String {
+        let name = self.string(key: NetworkKeys.name.rawValue)
+        guard let name else {
+            throw ContainerizationError(.invalidArgument, message: "no name data in message")
+        }
+        return name
     }
 
     public func status() throws -> NetworkStatus {

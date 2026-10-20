@@ -81,7 +81,7 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
             detach: true,
             dns: .init(domain: nil, nameservers: [], options: [], searchDomains: []),
             dnsDisabled: false,
-            entrypoint: nil,
+            entrypoint: "/bin/sh",
             initImage: nil,
             kernel: nil,
             kernelArgs: [],
@@ -126,7 +126,7 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
         var (config, kernel, initfs) = try await Utility.containerConfigFromFlags(
             id: name,
             image: resolvedImage,
-            arguments: [],
+            arguments: ["-c", K8sHelper.nodeEntrypointScript, "sh", "/sbin/init"],
             process: processFlags,
             management: management,
             resource: updatedResource,
@@ -212,6 +212,34 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
                 throw ContainerizationError(
                     .timeout,
                     message: "node \(name) did not become Ready within \(timeout * 2)s")
+            }
+            try await Task.sleep(for: .seconds(2))
+        }
+    }
+
+    /// Wait until the node is registered with the API server, without requiring it to be Ready.
+    /// Used when no CNI is installed, since nodes stay NotReady without one.
+    public func waitForRegistered(name: String, log: Logger) async throws {
+        let timeout = 180
+        let client = ContainerClient()
+        log.info("Waiting for node to register", metadata: ["node": "\(name)"])
+        for attempt in 1...timeout {
+            let code: Int32
+            do {
+                code = try await K8sHelper.runProbe(
+                    client: client,
+                    containerId: clusterName,
+                    arguments: ["get", "node/\(name)", "--request-timeout=2s"])
+            } catch {
+                throw ContainerizationError(
+                    .internalError,
+                    message: "node \(name) stopped unexpectedly while waiting for registration: \(error)")
+            }
+            if code == 0 { return }
+            if attempt == timeout {
+                throw ContainerizationError(
+                    .timeout,
+                    message: "node \(name) did not register within \(timeout * 2)s")
             }
             try await Task.sleep(for: .seconds(2))
         }
