@@ -48,6 +48,8 @@ public enum RuntimeKeys: String {
     case destinationPath
     case fileMode
     case createParents
+    /// Image path for snapshot operations
+    case imagePath
 
     /// Special-case environment variables recomputed on each container start
     case dynamicEnv

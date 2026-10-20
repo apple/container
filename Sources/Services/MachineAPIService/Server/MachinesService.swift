@@ -175,7 +175,7 @@ public actor MachinesService {
         return snapshots
     }
 
-    public func create(configuration: MachineConfiguration, resources: MachineResources?, bootConfig: MachineConfig) async throws {
+    public func create(configuration: MachineConfiguration, bootConfig: MachineConfig) async throws {
         self.log.debug("\(#function)")
 
         try await self.lock.withLock { context in
@@ -191,7 +191,6 @@ public actor MachinesService {
                 path: path,
                 machineConfiguration: configuration,
                 resourceRoot: self.resourceRoot,
-                resources: resources,
                 bootConfig: bootConfig,
             )
 
@@ -697,6 +696,8 @@ extension MachineConfiguration {
         config.capAdd = ["ALL"]
         config.ssh = true
         config.virtualization = virtualization
+        config.readonlyPaths = []
+        config.maskedPaths = []
 
         config.rosetta = platform.architecture == "amd64" && Arch.hostArchitecture() == .arm64
 

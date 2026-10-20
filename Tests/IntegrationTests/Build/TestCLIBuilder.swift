@@ -1000,4 +1000,34 @@ struct TestCLIBuilder {
             #expect(result.status != 0, "build should fail when source image does not exist")
         }
     }
+
+    /// Regression test: the context *root* itself (not an entry inside it) is a
+    /// symlink to a sibling directory, e.g. `context -> real-context`. The build
+    /// must resolve the symlink and use the real directory's contents.
+    @Test func testBuildContextRootSymlink() async throws {
+        try await ContainerFixture.with { f in
+            let dir = try f.createTempDir()
+            let dockerfile = """
+                FROM ghcr.io/linuxcontainers/alpine:3.20
+                COPY hello.txt hello.txt
+                RUN cat hello.txt
+                """
+            try f.createContext(
+                dir: dir,
+                dockerfile: dockerfile,
+                context: [
+                    .file("hello.txt", content: .data(Data("hello from real-context".utf8)))
+                ])
+
+            let contextPath = dir.appending("context")
+            let realContextPath = dir.appending("real-context")
+            try FileManager.default.moveItem(atPath: contextPath.string, toPath: realContextPath.string)
+            try FileManager.default.createSymbolicLink(
+                atPath: contextPath.string, withDestinationPath: "real-context")
+
+            let image = "registry.local/build-context-root-symlink:\(UUID().uuidString)"
+            try f.build(tag: image, contextDir: dir)
+            try f.assertImageBuilt(image)
+        }
+    }
 }

@@ -63,4 +63,13 @@ struct TestCLIMachineCommand {
             #expect(result.status != 0, "create should reject names longer than max")
         }
     }
+
+    @Test func testCreateRejectsNonNumericUserGroup() async throws {
+        try await ContainerFixture.with { f in
+            let name = "\(f.testID)-machine"
+            let result = try f.runMachine(["create", "--no-boot", "--name", name, "--user", "devuser:notanumber", machineImage])
+            #expect(result.status != 0, "create should reject a non-numeric group in --user")
+            #expect(result.error.contains("must be numeric"), "error should explain the constraint")
+        }
+    }
 }

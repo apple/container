@@ -15,6 +15,8 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
+import Logging
+import SystemPackage
 import Testing
 
 @testable import ContainerPlugin
@@ -86,6 +88,179 @@ struct PluginLoaderTest {
         #expect(loader.findPlugin(name: "cli")?.name == "cli")
         #expect(loader.findPlugin(name: "service")?.name == "service")
         #expect(loader.findPlugin(name: "throw") == nil)
+    }
+
+    @Test
+    func testFindPluginForExecutable() async throws {
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+        let (factory, cliBinaryURL, serviceBinaryURL) = try setupMockWithRealBinaries(tempURL: tempURL)
+        let loader = try PluginLoader(
+            appRoot: tempURL,
+            installRoot: URL(filePath: "/usr/local/"),
+            logRoot: nil,
+            pluginDirectories: [tempURL],
+            pluginFactories: [factory]
+        )
+
+        let cliMatch = loader.findPlugin(forExecutable: FilePath(cliBinaryURL.path(percentEncoded: false)))
+        #expect(cliMatch?.name == "cli")
+
+        let serviceMatch = loader.findPlugin(forExecutable: FilePath(serviceBinaryURL.path(percentEncoded: false)))
+        #expect(serviceMatch?.name == "service")
+    }
+
+    @Test
+    func testFindPluginForExecutableViaSymlinkedInput() async throws {
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+        let (factory, cliBinaryURL, _) = try setupMockWithRealBinaries(tempURL: tempURL)
+        let loader = try PluginLoader(
+            appRoot: tempURL,
+            installRoot: URL(filePath: "/usr/local/"),
+            logRoot: nil,
+            pluginDirectories: [tempURL],
+            pluginFactories: [factory]
+        )
+
+        // Simulate CommandLine.executablePath resolving to a symlink that
+        // ultimately points at the plugin's real binary on disk.
+        let otherTempURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: otherTempURL) }
+        try FileManager.default.createDirectory(at: otherTempURL, withIntermediateDirectories: true)
+        let symlinkURL = otherTempURL.appendingPathComponent("cli-symlink")
+        try FileManager.default.createSymbolicLink(at: symlinkURL, withDestinationURL: cliBinaryURL)
+
+        let match = loader.findPlugin(forExecutable: FilePath(symlinkURL.path(percentEncoded: false)))
+        #expect(match?.name == "cli")
+    }
+
+    @Test
+    func testFindPluginForExecutableWithSymlinkedPluginBinary() async throws {
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+        try FileManager.default.createDirectory(at: tempURL, withIntermediateDirectories: true)
+
+        // The plugin's registered binaryURL is itself a symlink pointing at a
+        // binary that lives elsewhere on disk (e.g. a dev-mode install).
+        let realBinDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: realBinDir) }
+        try FileManager.default.createDirectory(at: realBinDir, withIntermediateDirectories: true)
+        let realBinaryURL = realBinDir.appendingPathComponent("cli-real")
+        try Data().write(to: realBinaryURL)
+
+        let symlinkBinaryURL = tempURL.appendingPathComponent("bin").appendingPathComponent("cli")
+        try FileManager.default.createDirectory(at: symlinkBinaryURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(at: symlinkBinaryURL, withDestinationURL: realBinaryURL)
+
+        let cliConfig = PluginConfig(abstract: "cli", author: "CLI", servicesConfig: nil)
+        let cliPlugin = Plugin(binaryURL: symlinkBinaryURL, config: cliConfig)
+        let factory = try MockPluginFactory(tempURL: tempURL, plugins: ["cli": cliPlugin])
+
+        let loader = try PluginLoader(
+            appRoot: tempURL,
+            installRoot: URL(filePath: "/usr/local/"),
+            logRoot: nil,
+            pluginDirectories: [tempURL],
+            pluginFactories: [factory]
+        )
+
+        let match = loader.findPlugin(forExecutable: FilePath(realBinaryURL.path(percentEncoded: false)))
+        #expect(match?.name == "cli")
+    }
+
+    @Test
+    func testFindPluginForExecutableNoMatch() async throws {
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+        let (factory, _, _) = try setupMockWithRealBinaries(tempURL: tempURL)
+        let loader = try PluginLoader(
+            appRoot: tempURL,
+            installRoot: URL(filePath: "/usr/local/"),
+            logRoot: nil,
+            pluginDirectories: [tempURL],
+            pluginFactories: [factory]
+        )
+
+        let unrelatedURL = tempURL.appendingPathComponent("unrelated-bin")
+        try Data().write(to: unrelatedURL)
+
+        let match = loader.findPlugin(forExecutable: FilePath(unrelatedURL.path(percentEncoded: false)))
+        #expect(match == nil)
+    }
+
+    @Test
+    func testFindPluginForExecutableNonexistentPath() async throws {
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+        let (factory, _, _) = try setupMockWithRealBinaries(tempURL: tempURL)
+        let loader = try PluginLoader(
+            appRoot: tempURL,
+            installRoot: URL(filePath: "/usr/local/"),
+            logRoot: nil,
+            pluginDirectories: [tempURL],
+            pluginFactories: [factory]
+        )
+
+        let missingURL = tempURL.appendingPathComponent("does-not-exist")
+        let match = loader.findPlugin(forExecutable: FilePath(missingURL.path(percentEncoded: false)))
+        #expect(match == nil)
+    }
+
+    // Confirms findPlugin(forExecutable:) works against plugins produced by
+    // the real factories, not just MockPluginFactory's adhoc paths.
+    @Test
+    func testFindPluginForExecutableUnixLayout() async throws {
+        let fm = FileManager.default
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? fm.removeItem(at: tempURL) }
+        let pluginsURL = tempURL.appendingPathComponent("plugins")
+        let installURL = pluginsURL.appendingPathComponent("cli")
+        let binaryDirURL = installURL.appendingPathComponent("bin")
+        try fm.createDirectory(at: binaryDirURL, withIntermediateDirectories: true)
+        let binaryURL = binaryDirURL.appendingPathComponent("cli")
+        try Data().write(to: binaryURL)
+        try "abstract = \"cli\"\nauthor = \"Apple\"".write(
+            to: installURL.appendingPathComponent("config.toml"), atomically: true, encoding: .utf8)
+
+        let loader = try PluginLoader(
+            appRoot: tempURL,
+            installRoot: URL(filePath: "/usr/local/"),
+            logRoot: nil,
+            pluginDirectories: [pluginsURL],
+            pluginFactories: [DefaultPluginFactory(logger: Logger(label: "test"))]
+        )
+
+        let match = loader.findPlugin(forExecutable: FilePath(binaryURL.path(percentEncoded: false)))
+        #expect(match?.name == "cli")
+    }
+
+    @Test
+    func testFindPluginForExecutableAppBundleLayout() async throws {
+        let fm = FileManager.default
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? fm.removeItem(at: tempURL) }
+        let pluginsURL = tempURL.appendingPathComponent("plugins")
+        let installURL = pluginsURL.appendingPathComponent("cli.app")
+        let macosURL = installURL.appendingPathComponent("Contents").appendingPathComponent("MacOS")
+        let resourcesURL = installURL.appendingPathComponent("Contents").appendingPathComponent("Resources")
+        try fm.createDirectory(at: macosURL, withIntermediateDirectories: true)
+        try fm.createDirectory(at: resourcesURL, withIntermediateDirectories: true)
+        let binaryURL = macosURL.appendingPathComponent("cli")
+        try Data().write(to: binaryURL)
+        try "abstract = \"cli\"\nauthor = \"Apple\"".write(
+            to: resourcesURL.appendingPathComponent("config.toml"), atomically: true, encoding: .utf8)
+
+        let loader = try PluginLoader(
+            appRoot: tempURL,
+            installRoot: URL(filePath: "/usr/local/"),
+            logRoot: nil,
+            pluginDirectories: [pluginsURL],
+            pluginFactories: [AppBundlePluginFactory(logger: Logger(label: "test"))]
+        )
+
+        let match = loader.findPlugin(forExecutable: FilePath(binaryURL.path(percentEncoded: false)))
+        #expect(match?.name == "cli")
     }
 
     @Test
@@ -288,5 +463,40 @@ struct PluginLoaderTest {
         ]
 
         return try MockPluginFactory(tempURL: tempURL, plugins: mockPlugins)
+    }
+
+    // Unlike `setupMock`, the plugins here are backed by real, empty files on
+    // disk so `findPlugin(forExecutable:)` can resolve their paths with
+    // `realpath`.
+    private func setupMockWithRealBinaries(tempURL: URL) throws -> (factory: MockPluginFactory, cliBinaryURL: URL, serviceBinaryURL: URL) {
+        // Binaries live under a "bin" subdirectory, distinct from the
+        // per-plugin bookkeeping directories MockPluginFactory creates
+        // directly under tempURL, and are named to match `Plugin.name`
+        // (`binaryURL.lastPathComponent`).
+        let binDir = tempURL.appendingPathComponent("bin")
+        try FileManager.default.createDirectory(at: binDir, withIntermediateDirectories: true)
+        let cliBinaryURL = binDir.appendingPathComponent("cli")
+        let serviceBinaryURL = binDir.appendingPathComponent("service")
+        try Data().write(to: cliBinaryURL)
+        try Data().write(to: serviceBinaryURL)
+
+        let cliConfig = PluginConfig(abstract: "cli", author: "CLI", servicesConfig: nil)
+        let cliPlugin: Plugin = Plugin(binaryURL: cliBinaryURL, config: cliConfig)
+        let serviceServicesConfig = PluginConfig.ServicesConfig(
+            loadAtBoot: false,
+            runAtLoad: false,
+            services: [PluginConfig.Service(type: .runtime, description: nil)],
+            defaultArguments: []
+        )
+        let serviceConfig = PluginConfig(abstract: "service", author: "SERVICE", servicesConfig: serviceServicesConfig)
+        let servicePlugin: Plugin = Plugin(binaryURL: serviceBinaryURL, config: serviceConfig)
+        let mockPlugins = [
+            "cli": cliPlugin,
+            MockPluginFactory.throwSuffix: nil,
+            "service": servicePlugin,
+        ]
+
+        let factory = try MockPluginFactory(tempURL: tempURL, plugins: mockPlugins)
+        return (factory, cliBinaryURL, serviceBinaryURL)
     }
 }

@@ -131,4 +131,118 @@ struct UtilityTests {
         #expect(ports[1].proto == .udp)
         #expect(ports[1].count == 100)
     }
+
+    @Test("Aliases from the network specification land on the attachment they were declared for")
+    func testAttachmentConfigurationsCarryAliases() throws {
+        let networks = [
+            Parser.ParsedNetwork(name: "default", aliases: ["api.test", ".foo.test"]),
+            Parser.ParsedNetwork(name: "backend"),
+        ]
+
+        let attachments = try Utility.getAttachmentConfigurations(
+            containerId: "foo",
+            builtinNetworkId: "default",
+            networks: networks,
+            dnsDomain: "test"
+        )
+
+        #expect(attachments.count == 2)
+        #expect(attachments[0].network == "default")
+        #expect(attachments[0].options.hostname == "foo.test.")
+        #expect(attachments[0].options.aliases == ["api.test", ".foo.test"])
+        #expect(attachments[1].network == "backend")
+        #expect(attachments[1].options.hostname == "foo")
+        #expect(attachments[1].options.aliases.isEmpty)
+    }
+
+    @Test("Aliases are carried to a later attachment")
+    func testAttachmentConfigurationsCarryAliasesOnLaterNetworks() throws {
+        let networks = [
+            Parser.ParsedNetwork(name: "default"),
+            Parser.ParsedNetwork(name: "backend", aliases: ["db.internal"]),
+        ]
+
+        let attachments = try Utility.getAttachmentConfigurations(
+            containerId: "foo",
+            builtinNetworkId: "default",
+            networks: networks,
+            dnsDomain: "test"
+        )
+
+        #expect(attachments[0].options.aliases.isEmpty)
+        #expect(attachments[1].options.aliases == ["db.internal"])
+    }
+
+    @Test("A container with no network specification has no aliases")
+    func testDefaultAttachmentHasNoAliases() throws {
+        let attachments = try Utility.getAttachmentConfigurations(
+            containerId: "foo",
+            builtinNetworkId: "default",
+            networks: [],
+            dnsDomain: "test"
+        )
+
+        #expect(attachments.count == 1)
+        #expect(attachments[0].options.aliases.isEmpty)
+    }
+
+    @Test("Aliases without a domain get the default domain")
+    func testQualifyAliasesAddsTheDefaultDomain() throws {
+        let aliases = try Utility.qualifyAliases(["api", ".gateway"], dnsDomain: "test")
+
+        #expect(aliases == ["api.test", ".gateway.test"])
+    }
+
+    @Test("Aliases with a dot are taken to be qualified")
+    func testQualifyAliasesLeavesQualifiedNamesAlone() throws {
+        let aliases = try Utility.qualifyAliases(["web.internal", ".a.b", "api.test"], dnsDomain: "test")
+
+        #expect(aliases == ["web.internal", ".a.b", "api.test"])
+    }
+
+    @Test("Aliases are left as they are without a default domain")
+    func testQualifyAliasesWithoutADefaultDomain() throws {
+        let aliases = try Utility.qualifyAliases(["api", ".gateway", "web.internal"], dnsDomain: nil)
+
+        #expect(aliases == ["api", ".gateway", "web.internal"])
+    }
+
+    @Test("No aliases stay empty")
+    func testQualifyAliasesWithNoAliases() throws {
+        #expect(try Utility.qualifyAliases([], dnsDomain: "test").isEmpty)
+        #expect(try Utility.qualifyAliases([], dnsDomain: nil).isEmpty)
+    }
+
+    @Test("The default domain is normalized when it is added")
+    func testQualifyAliasesNormalizesTheDomain() throws {
+        let aliases = try Utility.qualifyAliases(["api", ".gateway"], dnsDomain: "Example.TEST.")
+
+        #expect(aliases == ["api.example.test", ".gateway.example.test"])
+    }
+
+    @Test("A default domain that is not a valid name is reported")
+    func testQualifyAliasesWithAnInvalidDomain() {
+        #expect(throws: (any Error).self) {
+            try Utility.qualifyAliases(["api"], dnsDomain: "not a domain")
+        }
+    }
+
+    @Test("Aliases in a network specification are qualified when the attachments are built")
+    func testAttachmentConfigurationsQualifyAliases() throws {
+        let networks = [
+            Parser.ParsedNetwork(name: "default", aliases: ["api", ".foo"]),
+            Parser.ParsedNetwork(name: "backend", aliases: ["db"]),
+        ]
+
+        let attachments = try Utility.getAttachmentConfigurations(
+            containerId: "foo",
+            builtinNetworkId: "default",
+            networks: networks,
+            dnsDomain: "test"
+        )
+
+        #expect(attachments[0].options.hostname == "foo.test.")
+        #expect(attachments[0].options.aliases == ["api.test", ".foo.test"])
+        #expect(attachments[1].options.aliases == ["db.test"])
+    }
 }

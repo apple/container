@@ -22,14 +22,24 @@ import Testing
 @Suite
 struct TestCLIStatus {
     struct StatusJSON: Codable {
+        struct Server: Codable {
+            let version: String
+            let build: String
+            let commit: String
+            let appName: String
+        }
+
+        struct Paths: Codable {
+            let appRoot: String
+            let installRoot: String
+            let logRoot: String?
+        }
+
         let status: String
-        let appRoot: String
-        let installRoot: String
-        let logRoot: String?
-        let apiServerVersion: String
-        let apiServerCommit: String
-        let apiServerBuild: String
-        let apiServerAppName: String
+        // Daemon-sourced fields are only present when the apiserver is running,
+        // so they are optional to allow decoding the "not running" payload too.
+        let server: Server?
+        let paths: Paths?
     }
 
     @Test func defaultDisplaysTable() async throws {
@@ -47,10 +57,10 @@ struct TestCLIStatus {
             let fullOutput = lines.joined(separator: "\n")
             #expect(fullOutput.contains("status"))
             #expect(fullOutput.contains("running"))
-            #expect(fullOutput.contains("appRoot"))
-            #expect(fullOutput.contains("installRoot"))
-            #expect(fullOutput.contains("apiserver.version"))
-            #expect(fullOutput.contains("apiserver.commit"))
+            #expect(fullOutput.contains("paths.appRoot"))
+            #expect(fullOutput.contains("paths.installRoot"))
+            #expect(fullOutput.contains("server.version"))
+            #expect(fullOutput.contains("server.commit"))
         }
     }
 
@@ -68,12 +78,12 @@ struct TestCLIStatus {
             #expect(!result.output.isEmpty)
             let decoded = try JSONDecoder().decode(StatusJSON.self, from: result.outputData)
             #expect(decoded.status == "running")
-            #expect(!decoded.appRoot.isEmpty)
-            #expect(!decoded.installRoot.isEmpty)
-            #expect(!decoded.apiServerVersion.isEmpty)
-            #expect(!decoded.apiServerCommit.isEmpty)
-            #expect(!decoded.apiServerBuild.isEmpty)
-            #expect(!decoded.apiServerAppName.isEmpty)
+            #expect(!(decoded.paths?.appRoot.isEmpty ?? true))
+            #expect(!(decoded.paths?.installRoot.isEmpty ?? true))
+            #expect(!(decoded.server?.version.isEmpty ?? true))
+            #expect(!(decoded.server?.commit.isEmpty ?? true))
+            #expect(!(decoded.server?.build.isEmpty ?? true))
+            #expect(!(decoded.server?.appName.isEmpty ?? true))
         }
     }
 
@@ -102,12 +112,16 @@ struct TestCLIStatus {
 
             let decoded = try JSONDecoder().decode(StatusJSON.self, from: jsonResult.outputData)
             #expect(tableResult.output.contains(decoded.status))
-            #expect(tableResult.output.contains(decoded.appRoot))
-            #expect(tableResult.output.contains(decoded.installRoot))
-            #expect(tableResult.output.contains(decoded.apiServerVersion))
-            #expect(tableResult.output.contains(decoded.apiServerCommit))
-            #expect(tableResult.output.contains(decoded.apiServerBuild))
-            #expect(tableResult.output.contains(decoded.apiServerAppName))
+            if let paths = decoded.paths {
+                #expect(tableResult.output.contains(paths.appRoot))
+                #expect(tableResult.output.contains(paths.installRoot))
+            }
+            if let server = decoded.server {
+                #expect(tableResult.output.contains(server.version))
+                #expect(tableResult.output.contains(server.commit))
+                #expect(tableResult.output.contains(server.build))
+                #expect(tableResult.output.contains(server.appName))
+            }
         }
     }
 
@@ -117,9 +131,9 @@ struct TestCLIStatus {
             let decoded = try JSONDecoder().decode(StatusJSON.self, from: result.outputData)
             if result.status == 0 {
                 #expect(decoded.status == "running")
-                #expect(!decoded.appRoot.isEmpty)
-                #expect(!decoded.installRoot.isEmpty)
-                #expect(!decoded.apiServerVersion.isEmpty)
+                #expect(!(decoded.paths?.appRoot.isEmpty ?? true))
+                #expect(!(decoded.paths?.installRoot.isEmpty ?? true))
+                #expect(!(decoded.server?.version.isEmpty ?? true))
             } else {
                 #expect(decoded.status == "not running" || decoded.status == "unregistered")
             }

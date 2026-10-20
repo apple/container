@@ -38,7 +38,7 @@ struct TestCLISystemDFSerial {
     @Test func imageDiskUsageIsPopulatedAfterPull() async throws {
         try await ContainerFixture.with { f in
             try withCleanImageStore(f) {
-                try f.doPull(self.alpine)
+                try f.restoreWarmupImage(.alpine320)
                 let stats = try systemDiskUsage(f)
                 #expect(stats.images.total >= 1)
                 #expect(stats.images.active == 0)
@@ -52,7 +52,7 @@ struct TestCLISystemDFSerial {
     @Test func tagsDoNotDoubleCountImageStorage() async throws {
         try await ContainerFixture.with { f in
             try withCleanImageStore(f) {
-                try f.doPull(self.alpine)
+                try f.restoreWarmupImage(.alpine320)
                 let before = try systemDiskUsage(f)
                 try f.doImageTag(self.alpine, newName: "local/system-df-alpine:tag-one")
                 try f.doImageTag(self.alpine, newName: "local/system-df-alpine:tag-two")
@@ -69,7 +69,7 @@ struct TestCLISystemDFSerial {
         try await ContainerFixture.with { f in
             try withCleanImageStore(f) {
                 let baseline = try systemDiskUsage(f)
-                try f.doPull(self.alpine)
+                try f.restoreWarmupImage(.alpine320)
                 try f.doImageTag(self.alpine, newName: "local/system-df-alpine:delete-probe")
                 let beforeDelete = try systemDiskUsage(f)
 

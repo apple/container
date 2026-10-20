@@ -35,22 +35,25 @@ struct TestCLIKernelSetSerial {
 
     /// Kernel release string parsed from the binary filename.
     ///
-    /// The binary path is conventionally `vmlinux-{release}` — but Kata's distribution
-    /// appends a `-{buildNumber}` suffix to the file (e.g. `vmlinux-6.18.15-186`)
-    /// while `uname -r` in the guest only reports the upstream release (`6.18.15`).
-    /// We strip a trailing `-N` where N is all digits to match what the guest reports,
-    /// while preserving non-numeric suffixes like `-rc1` or `-rt` that ARE part of the
-    /// upstream release string.
+    /// Kata names artifacts `vmlinux-{release}-{build}[-{variant}]` (e.g.
+    /// `vmlinux-6.18.35-197-debug`) while `uname -r` in the guest reports only the
+    /// release (`6.18.35`). We drop the first all-digit component after the release
+    /// and everything past it, preserving non-numeric components like `-rc1` or `-rt`
+    /// that ARE part of the upstream release string. A name with no build number is
+    /// returned unchanged.
     private var expectedKernelRelease: String {
         let filename = URL(fileURLWithPath: defaultBinaryPath).lastPathComponent
         let prefix = "vmlinux-"
         let raw = filename.hasPrefix(prefix) ? String(filename.dropFirst(prefix.count)) : filename
-        if let dashIdx = raw.lastIndex(of: "-"),
-            raw[raw.index(after: dashIdx)...].allSatisfy({ $0.isNumber })
-        {
-            return String(raw[..<dashIdx])
+        let components = raw.split(separator: "-", omittingEmptySubsequences: false)
+        guard
+            let buildIndex = components.dropFirst().firstIndex(where: {
+                !$0.isEmpty && $0.allSatisfy(\.isNumber)
+            })
+        else {
+            return raw
         }
-        return raw
+        return components[..<buildIndex].joined(separator: "-")
     }
 
     // MARK: - Tests

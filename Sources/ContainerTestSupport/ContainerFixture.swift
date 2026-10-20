@@ -20,7 +20,6 @@ import Foundation
 import Logging
 import Synchronization
 import SystemPackage
-import Testing
 
 /// Per-test fixture for CLI integration tests.
 ///
@@ -73,38 +72,54 @@ public final class ContainerFixture: Sendable {
 
     // MARK: - Unstructured API
 
+    /// Identity of the running test, supplied by the test target.
+    ///
+    /// `ContainerTestSupport` does not import the Testing module, so callers that
+    /// can `import Testing` should pass `Test.current` / `Test.Case.current` here.
+    public struct TestIdentity: Sendable {
+        public var name: String?
+        public var identifier: String?
+        public var isParameterized: Bool
+
+        public init(name: String? = nil, identifier: String? = nil, isParameterized: Bool = false) {
+            self.name = name
+            self.identifier = identifier
+            self.isParameterized = isParameterized
+        }
+    }
+
     /// Runs `body` with a fresh fixture, then tears down all registered resources.
     ///
     /// Cleanup runs in LIFO order regardless of whether `body` throws.
+    /// Pass `identity` from the test target so log files and scratch directories
+    /// keep the current test name without this module importing Testing.
     @discardableResult
-    public static func with<T>(_ body: (ContainerFixture) async throws -> T) async throws -> T {
+    public static func with<T>(identity: TestIdentity, _ body: (ContainerFixture) async throws -> T) async throws -> T {
         let testID = String(UUID().uuidString.prefix(8)).lowercased()
 
-        let scratchRoot =
-            ProcessInfo.processInfo.environment["CLITEST_SCRATCH_ROOT"]
-            .map { FilePath($0) }
-            ?? FilePath(FileManager.default.temporaryDirectory.path)
+        let testName: String = {
+            guard let name = identity.name else { return testID }
+            return name.hasSuffix("()") ? String(name.dropLast(2)) : name
+        }()
+        // Derive the suite from the test's fully-qualified ID
+        // (e.g. "IntegrationTests.TestCLIStatus/explicitTableFormat()/..."),
+        // the same identifier format used in the swift-testing event-stream JSON.
+        let testIdentifier = identity.identifier
+        let suiteName = testIdentifier?.split(separator: "/", maxSplits: 1).first.map(String.init) ?? "unknown"
 
-        let testName =
-            Test.current.map { $0.name.hasSuffix("()") ? String($0.name.dropLast(2)) : $0.name }
-            ?? testID
-        let suiteName = Test.current.map { "\(type(of: $0))" } ?? "unknown"
+        // Parameterized tests share one `testName` across concurrently-running cases,
+        // so fall back to the per-invocation `testID` to keep each case's log file distinct.
+        let logFileName = identity.isParameterized ? "\(testName)-\(testID).log" : "\(testName).log"
 
-        // Name the scratch directory so it's immediately identifiable when browsing:
-        // {sanitizedTestName}-{testID}
-        let safeName = testName.replacingOccurrences(
-            of: "[^a-zA-Z0-9]", with: "-", options: .regularExpression)
-        let testDir = scratchRoot.appending("\(safeName)-\(testID)")
-        try FileManager.default.createDirectory(
-            atPath: testDir.string, withIntermediateDirectories: true, attributes: nil)
-
+        // Set up logging before any fixture work (scratch dir creation, etc.) so a "test start"
+        // message is the first thing recorded — bookended by "test end" once `body` returns.
         var logger = Logger(label: "com.apple.container.test") { label in
             if let root = ProcessInfo.processInfo.environment["CLITEST_LOG_ROOT"], !root.isEmpty {
                 let path =
                     FilePath(root)
                     .appending("clitests")
                     .appending(suiteName)
-                    .appending(testName + ".log")
+                    .appending(logFileName)
                 if let handler = try? FileLogHandler(label: label, category: "clitests", path: path) {
                     return handler
                 }
@@ -112,6 +127,21 @@ public final class ContainerFixture: Sendable {
             return StreamLogHandler.standardOutput(label: label)
         }
         logger[metadataKey: "testID"] = "\(testID)"
+        logger[metadataKey: "test"] = "\(testIdentifier ?? testName)"
+        logger.info("test start")
+
+        let scratchRoot =
+            ProcessInfo.processInfo.environment["CLITEST_SCRATCH_ROOT"]
+            .map { FilePath($0) }
+            ?? FilePath(FileManager.default.temporaryDirectory.path)
+
+        // Name the scratch directory so it's immediately identifiable when browsing:
+        // {sanitizedTestName}-{testID}
+        let safeName = testName.replacingOccurrences(
+            of: "[^a-zA-Z0-9]", with: "-", options: String.CompareOptions.regularExpression)
+        let testDir = scratchRoot.appending("\(safeName)-\(testID)")
+        try FileManager.default.createDirectory(
+            atPath: testDir.string, withIntermediateDirectories: true, attributes: nil)
 
         let fixture = ContainerFixture(testID: testID, testDir: testDir, log: logger)
 
@@ -123,10 +153,14 @@ public final class ContainerFixture: Sendable {
 
         do {
             let result = try await body(fixture)
+            logger.info("test end", metadata: ["result": "pass"])
             await fixture.runCleanup()
+            logger.info("test cleaned up")
             return result
         } catch {
+            logger.info("test end", metadata: ["result": "fail", "error": "\(error)"])
             await fixture.runCleanup()
+            logger.info("test cleaned up")
             throw error
         }
     }
