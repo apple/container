@@ -158,8 +158,8 @@ public struct Flags {
             self.scheme = scheme
         }
 
-        @Option(help: "Scheme to use when connecting to the container registry. One of (http, https, auto)")
-        public var scheme: String = "auto"
+        @Option(help: "Scheme to use when connecting to the container registry. One of (http, https)")
+        public var scheme: String = "https"
     }
 
     public struct Management: ParsableArguments {
@@ -178,6 +178,7 @@ public struct Flags {
             kernel: String?,
             kernelArgs: [String],
             labels: [String],
+            maskedPaths: [String],
             mounts: [String],
             name: String?,
             networks: [String],
@@ -186,6 +187,7 @@ public struct Flags {
             publishPorts: [String],
             publishSockets: [String],
             readOnly: Bool,
+            readonlyPaths: [String],
             remove: Bool,
             rosetta: Bool,
             runtime: String?,
@@ -208,6 +210,7 @@ public struct Flags {
             self.kernel = kernel
             self.kernelArgs = kernelArgs
             self.labels = labels
+            self.maskedPaths = maskedPaths
             self.mounts = mounts
             self.name = name
             self.networks = networks
@@ -216,6 +219,7 @@ public struct Flags {
             self.publishPorts = publishPorts
             self.publishSockets = publishSockets
             self.readOnly = readOnly
+            self.readonlyPaths = readonlyPaths
             self.remove = remove
             self.rosetta = rosetta
             self.runtime = runtime
@@ -291,13 +295,23 @@ public struct Flags {
         @Option(name: [.short, .customLong("label")], help: "Add a key=value label to the container")
         public var labels: [String] = []
 
+        /// EXPERIMENTAL: The flag is subject to change.
+        @Option(
+            name: .customLong("masked-path"),
+            help: .init(
+                "[EXPERIMENTAL] Hide a path inside the container, in addition to the runtime defaults (or NONE to clear prior values and the defaults)",
+                valueName: "path"
+            )
+        )
+        public var maskedPaths: [String] = []
+
         @Option(name: .customLong("mount"), help: "Add a mount to the container (format: type=<>,source=<>,target=<>,readonly)")
         public var mounts: [String] = []
 
         @Option(name: .long, help: "Use the specified name as the container ID")
         public var name: String?
 
-        @Option(name: [.customLong("network")], help: "Attach the container to a network (format: <name>[,mac=XX:XX:XX:XX:XX:XX][,mtu=VALUE])")
+        @Option(name: [.customLong("network")], help: "Attach the container to a network (format: <name>[,mac=XX:XX:XX:XX:XX:XX][,mtu=VALUE][,alias=NAME]...)")
         public var networks: [String] = []
 
         @Flag(name: [.customLong("no-dns")], help: "Do not configure DNS in the container")
@@ -329,6 +343,16 @@ public struct Flags {
 
         @Flag(name: .long, help: "Mount the container's root filesystem as read-only")
         public var readOnly = false
+
+        /// EXPERIMENTAL: The flag is subject to change.
+        @Option(
+            name: .customLong("read-only-path"),
+            help: .init(
+                "[EXPERIMENTAL] Mark a path inside the container read-only, in addition to the runtime defaults (or NONE to clear prior values and the defaults)",
+                valueName: "path"
+            )
+        )
+        public var readonlyPaths: [String] = []
 
         @Flag(name: [.customLong("rm"), .long], help: "Remove the container after it stops")
         public var remove = false

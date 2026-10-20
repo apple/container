@@ -17,6 +17,8 @@
 import ArgumentParser
 import ContainerAPIClient
 import ContainerPersistence
+import ContainerPlugin
+import ContainerResource
 import Foundation
 import SystemPackage
 
@@ -42,15 +44,10 @@ extension Application {
         public init() {}
 
         public func run() async throws {
-            let health = try await ClientHealthCheck.ping(timeout: .seconds(10))
-            let configurationFiles = [
-                ConfigurationLoader.configurationFile(in: FilePath(health.appRoot.path(percentEncoded: false)), of: .appRoot),
-                ConfigurationLoader.configurationFile(in: FilePath(health.installRoot.path(percentEncoded: false)), of: .installRoot),
-            ]
-            let containerSystemConfig: ContainerSystemConfig = try await ConfigurationLoader.load(configurationFiles: configurationFiles)
+            let containerSystemConfig: ContainerSystemConfig = try await ClientHealthCheck.loadContainerSystemConfig()
             let properties = try SystemProperties(
                 config: containerSystemConfig,
-                plugin: PluginProperties.load(configurationFiles: configurationFiles)
+                plugin: PluginProperties.load()
             )
             let output =
                 switch format {

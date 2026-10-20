@@ -29,7 +29,7 @@ struct TestCLIPluginErrors {
             #expect(result.error.contains("container system start"))
             #expect(
                 result.error.contains("Plugins are unavailable")
-                    || result.error.contains("Plugin 'container-"))
+                    || result.error.contains("unknown command '"))
             #expect(
                 result.error.contains("container-plugins")
                     || result.error.contains("container/plugins"))

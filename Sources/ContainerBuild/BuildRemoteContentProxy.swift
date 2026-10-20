@@ -21,6 +21,11 @@ import ContainerizationOCI
 import Foundation
 import GRPCCore
 
+/// Handles the `content-store` stage of the build protocol.
+///
+/// Proxies image-layer blob requests from BuildKit to the host's local
+/// containerd content store. BuildKit issues these requests when it needs
+/// base-image layers that are not already present in the builder VM.
 struct BuildRemoteContentProxy: BuildPipelineHandler {
     let local: ContentStore
 

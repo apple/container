@@ -301,17 +301,31 @@ public actor NetworksService {
 
     /// Perform a hostname lookup on all networks.
     ///
+    /// The name can be the hostname of an attachment, an alias of it, or a name below a subtree alias.
+    /// A hostname or an exact alias is returned as soon as a network reports it. Otherwise every network
+    /// is asked, and the subtree alias with the longest base wins.
+    ///
+    /// The network helpers are called without holding `stateLock`. Network create and delete hold it
+    /// for as long as a helper takes to start or stop, and a DNS answer must not wait for them. A
+    /// network that cannot answer, because its helper is starting or stopping, is skipped.
+    ///
     /// - Parameter hostname: A canonical DNS hostname with a trailing dot (e.g. `"example.com."`).
     public func lookup(hostname: String) async throws -> Attachment? {
-        try await self.stateLock.withLock { _ in
-            for state in await self.serviceStates.values {
-                guard let allocation = try await state.client.lookup(hostname: hostname) else {
-                    continue
-                }
-                return allocation
-            }
-            return nil
+        let sources = self.serviceStates.map { id, entry in
+            let client = entry.client
+            return (name: id, lookup: { @Sendable in try await client.lookup(name: hostname) })
         }
+        let log = self.log
+        let match = await NetworkMatchSelector.select(from: sources) { network, error in
+            log.warning(
+                "network lookup failed",
+                metadata: [
+                    "network": "\(network)",
+                    "name": "\(hostname)",
+                    "error": "\(error)",
+                ])
+        }
+        return match?.attachment
     }
 
     public func plugin(for id: String) throws -> String {

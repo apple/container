@@ -18,11 +18,61 @@ import Foundation
 import GRPCCore
 import NIO
 
+/// A handler for one stage of the build protocol.
+///
+/// The build pipeline multiplexes a single bidirectional gRPC stream between
+/// the macOS host and the builder shim. Each packet carries a stage tag;
+/// a handler claims packets for its stage via ``accept(_:)`` and processes
+/// them via ``handle(_:_:)``.
 protocol BuildPipelineHandler: Sendable {
     func accept(_ packet: ServerStream) throws -> Bool
     func handle(_ sender: AsyncStream<ClientStream>.Continuation, _ packet: ServerStream) async throws
 }
 
+/// Drives a build session by routing packets from the builder shim to the
+/// appropriate handler.
+///
+/// ## Three-tier architecture
+///
+/// Builds involve three components with distinct responsibilities:
+///
+/// **macOS host (`BuildPipeline` / its handlers)**
+/// Serves resources to the builder shim over a bidirectional gRPC stream.
+/// Responsibilities include:
+/// - Packing requested build-context files into a tar archive (``BuildFSSync``).
+/// - Proxying image-layer blobs from the local content store (``BuildRemoteContentProxy``).
+/// - Resolving and pulling base images (``BuildImageResolver``).
+/// - Relaying builder stdout/stderr to the terminal (``BuildStdio``).
+/// - Enforcing the context root boundary: directory traversal uses `openat(O_NOFOLLOW)`
+///   at every descent step, and every individual file request resolves symlinks to their
+///   canonical path before verifying containment within the context root.
+///
+/// **Builder shim (`container-builder-shim`)**
+/// A Go process running inside a Linux VM that bridges the host gRPC stream
+/// and BuildKit's `filesync` gRPC interface. Responsibilities include:
+/// - Receiving the context tar from the host, unpacking it to a local cache,
+///   and presenting the result to BuildKit via `DiffCopy`.
+/// - Applying dockerignore exclusions (received from BuildKit as
+///   `exclude-patterns` metadata) when walking the unpacked cache.
+/// - Passing `followpaths` from BuildKit to the host so the host knows which
+///   context paths to include in the tar.
+///
+/// **BuildKit**
+/// Parses and executes the Dockerfile. Responsibilities include:
+/// - Sending `Walk` requests with `followpaths` derived from each `COPY`/`ADD`
+///   source and `exclude-patterns` derived from `.dockerignore`.
+/// - Dereferencing symlinks, recursing into directories, and applying all
+///   other COPY/ADD transfer semantics on the unpacked context the shim provides.
+///
+/// ## Packet flow
+///
+/// ```
+/// BuildKit ──► shim DiffCopy ──► host Walk  (tar of context files)
+///                            ◄── tar archive
+///          ◄── PACKET_STAT per file (after shim unpacks + filters)
+///          ──► PACKET_REQ for each regular file
+///          ◄── PACKET_DATA (shim reads from local unpacked cache)
+/// ```
 public actor BuildPipeline {
     let handlers: [BuildPipelineHandler]
     public init(_ config: Builder.BuildConfig) async throws {

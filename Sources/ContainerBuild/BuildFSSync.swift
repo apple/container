@@ -18,22 +18,70 @@ import Collections
 import ContainerAPIClient
 import ContainerizationArchive
 import ContainerizationOCI
+import ContainerizationOS
 import CryptoKit
 import Foundation
 import GRPCCore
+import SystemPackage
 
+/// Handles the `fssync` stage of the build protocol.
+///
+/// When BuildKit needs build-context files it sends `Walk`, `Read`, and `Info`
+/// requests to the shim, which proxies them over the gRPC stream to this actor.
+///
+/// ## Primary path: Walk (tar mode)
+///
+/// `Walk` is the primary data path. The host packs all requested context paths
+/// into a tar archive and streams it to the shim. The shim unpacks the tar to a
+/// local cache and presents the files to BuildKit via `DiffCopy`. BuildKit then
+/// issues `PACKET_REQ` for regular files it needs; the shim serves those from
+/// the local cache without any further calls to the host.
+///
+/// When a context path is a symlink whose target lies within the context root,
+/// ``walk(_:_:_:)`` adds the target to the archive alongside the symlink so
+/// BuildKit can dereference it during `COPY`/`ADD` processing.
+///
+/// ## Fallback path: Info + Read
+///
+/// `FS.Open()` in the shim falls back to `Info` followed by `Read` calls when
+/// its local checksum cache is unpopulated (a narrow race window at the start of
+/// a build). These paths are not exercised during a normal build.
+///
+/// ## Symlink safety
+///
+/// The host enforces that no file served to the builder resolves to a path
+/// outside the context root. If any component of a requested path is a symlink
+/// whose target lies outside the context root the request is rejected.
+///
+/// ``read(_:_:_:)`` and ``info(_:_:_:)`` enforce this by walking the path
+/// component by component from a directory descriptor pinned on the context
+/// root (``FileDescriptorOps``), so there is no window between checking a path
+/// and using it in which a symlink can be swapped in. Symlinks are followed
+/// only to relative targets that stay beneath the context root.
+/// Dockerignore filtering is **not** applied here; the shim applies it after
+/// unpacking the tar.
 actor BuildFSSync: BuildPipelineHandler {
     let contextDir: URL
+    /// Descriptor for `contextDir`, opened once so every request is resolved
+    /// relative to the same directory regardless of later changes to its path.
+    private let contextFD: FileDescriptor
 
     init(_ contextDir: URL) throws {
+        let resolved = contextDir.resolvingSymlinksInPath()
         guard FileManager.default.fileExists(atPath: contextDir.cleanPath) else {
             throw Error.contextNotFound(contextDir.cleanPath)
         }
-        guard try contextDir.isDir() else {
+        guard resolved.isDirectory else {
             throw Error.contextIsNotDirectory(contextDir.cleanPath)
         }
 
-        self.contextDir = contextDir
+        self.contextDir = resolved
+        self.contextFD = try FileDescriptor.open(
+            FilePath(resolved.cleanPath), .readOnly, options: [.directory, .closeOnExec])
+    }
+
+    deinit {
+        try? contextFD.close()
     }
 
     nonisolated func accept(_ packet: ServerStream) throws -> Bool {
@@ -63,31 +111,34 @@ actor BuildFSSync: BuildPipelineHandler {
         }
     }
 
+    /// Serves the content of a single context file to the shim.
+    ///
+    /// Called only via the shim's `FS.Open()` fallback path, not during a
+    /// normal `Walk`-based build. The file is opened by walking its path from
+    /// the pinned context descriptor, following only symlinks that stay beneath
+    /// the context root; anything else is rejected with ``Error/pathIsNotChild``.
     func read(_ sender: AsyncStream<ClientStream>.Continuation, _ packet: BuildTransfer, _ buildID: String) async throws {
         let offset: UInt64 = packet.offset() ?? 0
         let size: Int = packet.len() ?? 0
-        var path: URL
-        if packet.source.hasPrefix("/") {
-            path = URL(fileURLWithPath: packet.source).standardizedFileURL
-        } else {
-            path =
-                contextDir
-                .appendingPathComponent(packet.source)
-                .standardizedFileURL
-        }
-        if !FileManager.default.fileExists(atPath: path.cleanPath) {
-            path = URL(filePath: self.contextDir.cleanPath)
-            path.append(components: packet.source.cleanPathComponent)
-        }
-        let data = try {
-            if try path.isDir() {
-                return Data()
-            }
-            let file = try LocalContent(path: path.standardizedFileURL)
-            return try file.data(offset: offset, length: size) ?? Data()
-        }()
+        let relative = try self.relativePath(for: packet.source)
 
-        let transfer = try path.buildTransfer(id: packet.id, contextDir: self.contextDir, complete: true, data: data)
+        let (data, status) = try self.confined(packet.source) { () -> (Data, FileDescriptorOps.FileStatus) in
+            do {
+                let fd = try FileDescriptorOps.openFile(self.contextFD, relativePath: relative, symlinks: .followBeneath)
+                defer { try? fd.close() }
+                // Metadata and content both come from the descriptor, so they
+                // describe the same inode.
+                let status = try FileDescriptorOps.status(of: fd)
+                let handle = FileHandle(fileDescriptor: fd.rawValue, closeOnDealloc: false)
+                try handle.seek(toOffset: offset)
+                let data = size == 0 ? try handle.readToEnd() : try handle.read(upToCount: size)
+                return (data ?? Data(), status)
+            } catch FileDescriptorOps.Error.conflict(.directory) {
+                return (Data(), try self.entryStatus(relative))
+            }
+        }
+
+        let transfer = BuildTransfer(id: packet.id, source: relative.string, status: status, complete: true, data: data)
         var response = ClientStream()
         response.buildID = buildID
         response.buildTransfer = transfer
@@ -95,22 +146,72 @@ actor BuildFSSync: BuildPipelineHandler {
         sender.yield(response)
     }
 
+    /// Returns metadata (mode, size, modification time, uid/gid) for a single
+    /// context path.
+    ///
+    /// Called only via the shim's `FS.Open()` fallback path, not during a
+    /// normal `Walk`-based build. Applies the same descriptor-relative
+    /// confinement as ``read(_:_:_:)``. The metadata is that of the entry
+    /// itself (a symlink is not dereferenced), but a symlink is rejected unless
+    /// it also resolves beneath the context root.
     func info(_ sender: AsyncStream<ClientStream>.Continuation, _ packet: BuildTransfer, _ buildID: String) async throws {
-        let path: URL
-        if packet.source.hasPrefix("/") {
-            path = URL(fileURLWithPath: packet.source).standardizedFileURL
-        } else {
-            path =
-                contextDir
-                .appendingPathComponent(packet.source)
-                .standardizedFileURL
+        let relative = try self.relativePath(for: packet.source)
+
+        let status = try self.confined(packet.source) { () -> FileDescriptorOps.FileStatus in
+            let status = try self.entryStatus(relative)
+            if status.type == .symlink {
+                do {
+                    try FileDescriptorOps.openFile(self.contextFD, relativePath: relative, symlinks: .followBeneath).close()
+                } catch FileDescriptorOps.Error.conflict, FileDescriptorOps.Error.notFound {
+                    // The link stays beneath the context; its target is just not a regular file.
+                }
+            }
+            return status
         }
-        let transfer = try path.buildTransfer(id: packet.id, contextDir: self.contextDir, complete: true)
+
+        let transfer = BuildTransfer(id: packet.id, source: relative.string, status: status, complete: true)
         var response = ClientStream()
         response.buildID = buildID
         response.buildTransfer = transfer
         response.packetType = .buildTransfer(transfer)
         sender.yield(response)
+    }
+
+    /// Converts a request `source` into a path relative to the context root.
+    ///
+    /// Absolute sources inside the context are made relative to it; other
+    /// absolute sources are taken to be relative to the context root, as the
+    /// shim sometimes sends them. `..` is collapsed lexically and a result
+    /// that leaves the context is rejected. This is only normalisation: the
+    /// real confinement is done by the descriptor walk.
+    private func relativePath(for source: String) throws -> FilePath {
+        if source.hasPrefix("/") {
+            let url = URL(fileURLWithPath: source).standardizedFileURL
+            if let relative = try? url.relativeChildPath(to: self.contextDir) {
+                return FilePath(relative)
+            }
+            let fallback = self.contextDir.appending(components: source.cleanPathComponent).standardizedFileURL
+            return FilePath(try fallback.relativeChildPath(to: self.contextDir))
+        }
+        let url = self.contextDir.appendingPathComponent(source).standardizedFileURL
+        return FilePath(try url.relativeChildPath(to: self.contextDir))
+    }
+
+    /// Metadata of the entry at `relative` without dereferencing it.
+    private func entryStatus(_ relative: FilePath) throws -> FileDescriptorOps.FileStatus {
+        guard let status = try FileDescriptorOps.status(self.contextFD, relativePath: relative, symlinks: .followBeneath) else {
+            throw FileDescriptorOps.Error.notFound
+        }
+        return status
+    }
+
+    /// Runs `body`, reporting a refused symlink or path as ``Error/pathIsNotChild``.
+    private func confined<T>(_ source: String, _ body: () throws -> T) throws -> T {
+        do {
+            return try body()
+        } catch FileDescriptorOps.Error.cannotFollowSymlink, FileDescriptorOps.Error.invalidRelativePath {
+            throw Error.pathIsNotChild(source, self.contextDir.cleanPath)
+        }
     }
 
     private struct DirEntry: Hashable {
@@ -127,6 +228,23 @@ actor BuildFSSync: BuildPipelineHandler {
         }
     }
 
+    /// Packs requested context paths into a tar archive and streams it to the shim.
+    ///
+    /// This is the primary data path for build-context transfer. BuildKit sends
+    /// a `Walk` request whose `followpaths` field names the context paths needed
+    /// for the current build step (e.g. the source of a `COPY` instruction).
+    /// The host resolves those globs, builds an entry set, and passes it to
+    /// `Archiver.compress` to produce the tar.
+    ///
+    /// For any symlink in the entry set whose target lies within the context
+    /// root, the target is added to the entry set so BuildKit can dereference
+    /// the symlink during `COPY`/`ADD` processing without a separate request.
+    /// Symlinks whose targets lie outside the context root are included as
+    /// symlink entries but their targets are not; BuildKit will resolve them
+    /// against the shim's local filesystem on Linux, not the macOS host.
+    ///
+    /// Dockerignore filtering is the shim's responsibility and is applied after
+    /// the tar is unpacked; this method has no knowledge of `.dockerignore`.
     func walk(
         _ sender: AsyncStream<ClientStream>.Continuation,
         _ packet: BuildTransfer,
@@ -334,16 +452,10 @@ actor BuildFSSync: BuildPipelineHandler {
         let target: String
 
         init(path: URL, contextDir: URL) throws {
-            if path.isSymlink {
-                let target: URL = path.resolvingSymlinksInPath()
-                if contextDir.parentOf(target) {
-                    self.target = target.relativePathFrom(from: path)
-                } else {
-                    self.target = target.cleanPath
-                }
-            } else {
-                self.target = ""
-            }
+            // Always report the literal, unresolved on-disk symlink target —
+            // the same value tar mode provides via Archiver's use of
+            // destinationOfSymbolicLink — rather than a host-resolved path.
+            self.target = path.isSymlink ? try FileManager.default.destinationOfSymbolicLink(atPath: path.cleanPath) : ""
 
             self.name = try path.relativeChildPath(to: contextDir)
             self.modTime = try path.modTime()
@@ -436,6 +548,27 @@ extension BuildTransfer {
     }
 }
 
+extension BuildTransfer {
+    fileprivate init(id: String, source: String, status: FileDescriptorOps.FileStatus, complete: Bool, data: Data = Data()) {
+        self.init(
+            id: id,
+            source: source,
+            complete: complete,
+            isDir: status.type == .directory,
+            metadata: [
+                "os": "linux",
+                "stage": "fssync",
+                "mode": String(status.permissions.rawValue),
+                "size": String(status.size),
+                "modified_at": Date(timeIntervalSince1970: TimeInterval(status.modificationSeconds)).rfc3339(),
+                "uid": String(status.userID),
+                "gid": String(status.groupID),
+            ],
+            data: data
+        )
+    }
+}
+
 extension URL {
     fileprivate func size() throws -> UInt64 {
         let attrs = try FileManager.default.attributesOfItem(atPath: self.cleanPath)
@@ -453,64 +586,12 @@ extension URL {
         throw BuildFSSync.Error.couldNotDetermineModTime(self.cleanPath)
     }
 
-    fileprivate func isDir() throws -> Bool {
-        let attrs = try FileManager.default.attributesOfItem(atPath: self.cleanPath)
-        guard let t = attrs[.type] as? FileAttributeType, t == .typeDirectory else {
-            return false
-        }
-        return true
-    }
-
     fileprivate func mode() throws -> UInt32 {
         let attrs = try FileManager.default.attributesOfItem(atPath: self.cleanPath)
         if let mode = attrs[FileAttributeKey.posixPermissions] as? NSNumber {
             return mode.uint32Value
         }
         throw BuildFSSync.Error.couldNotDetermineFileMode(self.cleanPath)
-    }
-
-    fileprivate func uid() throws -> UInt32 {
-        let attrs = try FileManager.default.attributesOfItem(atPath: self.cleanPath)
-        if let uid = attrs[.ownerAccountID] as? UInt32 {
-            return uid
-        }
-        throw BuildFSSync.Error.couldNotDetermineUID(self.cleanPath)
-    }
-
-    fileprivate func gid() throws -> UInt32 {
-        let attrs = try FileManager.default.attributesOfItem(atPath: self.cleanPath)
-        if let gid = attrs[.groupOwnerAccountID] as? UInt32 {
-            return gid
-        }
-        throw BuildFSSync.Error.couldNotDetermineGID(self.cleanPath)
-    }
-
-    fileprivate func buildTransfer(
-        id: String,
-        contextDir: URL? = nil,
-        complete: Bool = false,
-        data: Data = Data()
-    ) throws -> BuildTransfer {
-        let p = try {
-            if let contextDir { return try self.relativeChildPath(to: contextDir) }
-            return self.cleanPath
-        }()
-        return BuildTransfer(
-            id: id,
-            source: String(p),
-            complete: complete,
-            isDir: try self.isDir(),
-            metadata: [
-                "os": "linux",
-                "stage": "fssync",
-                "mode": String(try self.mode()),
-                "size": String(try self.size()),
-                "modified_at": try self.modTime(),
-                "uid": String(try self.uid()),
-                "gid": String(try self.gid()),
-            ],
-            data: data
-        )
     }
 }
 
