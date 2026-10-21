@@ -57,6 +57,15 @@ public struct K8sCreate: AsyncParsableCommand {
     @Option(name: .long, help: "Number of worker nodes to create")
     var workers: UInt = 0
 
+    @Option(
+        name: [.customShort("p"), .customLong("publish")],
+        help: .init(
+            "Publish a port from the cluster node to the host (format: [host-ip:]host-port:container-port[/protocol])",
+            valueName: "spec"
+        )
+    )
+    var publishPorts: [String] = []
+
     /// Task count is `4 + workers` as an `Int`, so keep `workers` far enough below `Int.max` to avoid overflow.
     static let maxWorkers: UInt = 1024
 
@@ -113,7 +122,8 @@ public struct K8sCreate: AsyncParsableCommand {
             registryScheme: registryFlags.scheme,
             maxConcurrentDownloads: imageFetchFlags.maxConcurrentDownloads,
             remove: remove,
-            fqdn: fqdn
+            fqdn: fqdn,
+            publishPorts: publishPorts
         )
 
         progress.set(description: "Starting cluster")
