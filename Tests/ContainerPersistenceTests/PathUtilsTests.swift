@@ -75,24 +75,28 @@ struct PathUtilsTests {
         #expect(path == FilePath("/usr/local"))
     }
 
-    @Test func testExcludeFromBackupMarksDirectoryAndLeavesSiblingAlone() throws {
+    @Test func testNewDirectoryIsExcludedAndExistingChoiceIsKept() throws {
         let parent = FileManager.default.temporaryDirectory
             .appendingPathComponent("container-backup-exclusion-\(UUID().uuidString)", isDirectory: true)
         let snapshots = parent.appendingPathComponent("snapshots", isDirectory: true)
         let volumes = parent.appendingPathComponent("volumes", isDirectory: true)
-        try FileManager.default.createDirectory(at: snapshots, withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: volumes, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: parent) }
 
-        try PathUtils.excludeFromBackup(snapshots)
-        try PathUtils.excludeFromBackup(snapshots)
+        try PathUtils.createDirectoryExcludingFromBackup(snapshots)
+        try FileManager.default.createDirectory(at: volumes, withIntermediateDirectories: true)
         FileManager.default.createFile(
             atPath: snapshots.appendingPathComponent("snapshot").path,
             contents: Data("sparse".utf8)
         )
-
         #expect(try Self.isExcludedFromBackup(snapshots))
         #expect(try !Self.isExcludedFromBackup(volumes))
+
+        var included = URLResourceValues()
+        included.isExcludedFromBackup = false
+        var mutableSnapshots = snapshots
+        try mutableSnapshots.setResourceValues(included)
+        try PathUtils.createDirectoryExcludingFromBackup(snapshots)
+        #expect(try !Self.isExcludedFromBackup(snapshots))
     }
 
     private static func isExcludedFromBackup(_ url: URL) throws -> Bool {

@@ -63,8 +63,7 @@ public actor SnapshotStore {
         self.ingestDir = self.path.appendingPathComponent(Self.ingestDirName)
         self.unpackStrategy = unpackStrategy
         self.log = log
-        try self.fm.createDirectory(at: root, withIntermediateDirectories: true)
-        try PathUtils.excludeFromBackup(root)
+        try PathUtils.createDirectoryExcludingFromBackup(root, fileManager: self.fm)
         try self.fm.createDirectory(at: self.ingestDir, withIntermediateDirectories: true)
     }
 

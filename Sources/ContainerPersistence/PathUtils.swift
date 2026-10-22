@@ -59,14 +59,19 @@ public enum PathUtils {
         }
     }
 
-    /// Marks an existing directory so Time Machine skips it.
+    /// Creates `url` and excludes that new directory from backups.
     ///
-    /// The exclusion is the sticky item attribute, not a path-list entry, and
-    /// applying it again is safe. Call it whenever the directory is ensured so an
-    /// install that already has the directory is excluded on the next start. Use it
-    /// for data that can be recreated, such as image snapshots and container root
-    /// filesystems, not for volume data.
-    public static func excludeFromBackup(_ url: URL) throws {
+    /// Backup software that reads the item's exclusion attribute, including Time Machine,
+    /// skips the directory. The attribute is set only when this call creates `url`.
+    /// An existing directory is left unchanged, so a person who includes it in backups
+    /// again keeps that choice across later starts. Use this for data that can be
+    /// recreated, such as image snapshots and container root filesystems, not for volume data.
+    public static func createDirectoryExcludingFromBackup(_ url: URL, fileManager: FileManager = .default) throws {
+        let alreadyExists = fileManager.fileExists(atPath: url.path)
+        try fileManager.createDirectory(at: url, withIntermediateDirectories: true)
+        guard !alreadyExists else {
+            return
+        }
         var values = URLResourceValues()
         values.isExcludedFromBackup = true
         var mutableURL = url
