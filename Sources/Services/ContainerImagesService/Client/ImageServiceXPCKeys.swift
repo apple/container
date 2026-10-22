@@ -38,6 +38,9 @@ public enum ImagesServiceXPCKeys: String {
     case maxConcurrentDownloads
     case forceLoad
     case rejectedMembers
+    /// Pre-resolved registry `Authorization` header value, read from the
+    /// keychain on the client (CLI) side and forwarded to the images helper.
+    case registryAuthorization
 
     /// ContentStore
     case digest
