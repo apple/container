@@ -177,4 +177,119 @@ struct TestK8sNetworkingSerial {
             #expect(response.contains("ok"))
         }
     }
+
+    // Verify that the single-node endpoint used by kube-proxy stays reachable
+    // when vmnet assigns the control-plane VM a different address on restart.
+    @Test func testServiceNetworkingSurvivesAddressRotation() async throws {
+        try await ContainerFixture.with { f in
+            let name = "k8s-\(f.testID)"
+            let bumper = "\(name)-bumper"
+            f.addCleanup { try f.doRemoveIfExists(bumper, force: true, ignoreFailure: true) }
+            f.addCleanup { _ = try? f.run(["k8s", "delete", "--name", name]) }
+
+            try f.restoreWarmupImage(.kindestNodeV1_35_5)
+            try f.run(["k8s", "create", "--name", name]).check()
+            try f.restoreWarmupImage(Self.testImage)
+            try f.run(["k8s", "load-image", "--name", name, Self.testImage.rawValue]).check()
+
+            let (_, serverStatus) = try f.kubectl(
+                node: name,
+                args: [
+                    "run", "server",
+                    "--image=\(Self.testImage.rawValue)",
+                    "--image-pull-policy=Never",
+                    "--restart=Always",
+                    "--port=8080",
+                    "--", "sh", "-c",
+                    "while true; do printf 'HTTP/1.1 200 OK\\r\\nContent-Length: 2\\r\\nConnection: close\\r\\n\\r\\nok' | nc -l -p 8080; done",
+                ])
+            #expect(serverStatus == 0)
+            try waitForPod(f, node: name, podName: "server", timeoutSeconds: 300)
+
+            let (_, exposeStatus) = try f.kubectl(
+                node: name,
+                args: ["expose", "pod", "server", "--port=8080", "--name=server-svc"])
+            #expect(exposeStatus == 0)
+
+            let (_, clientStatus) = try f.kubectl(
+                node: name,
+                args: [
+                    "run", "client",
+                    "--image=\(Self.testImage.rawValue)",
+                    "--image-pull-policy=Never",
+                    "--restart=Always",
+                    "--", "sleep", "infinity",
+                ])
+            #expect(clientStatus == 0)
+            try waitForPod(f, node: name, podName: "client", timeoutSeconds: 300)
+
+            let (initialResponse, initialWgetStatus) = try f.kubectl(
+                node: name,
+                args: ["exec", "client", "--", "wget", "-qO-", "http://server-svc:8080"])
+            #expect(initialWgetStatus == 0)
+            #expect(initialResponse.contains("ok"))
+
+            let originalAddress = try f.run(["exec", name, "cat", "/etc/.container-k8s-last-ip"])
+            try originalAddress.check()
+            try f.run(["stop", "--time", "30", name]).check()
+
+            // Occupy another address while the node is stopped so the restarted
+            // control plane cannot accidentally receive its previous address.
+            try f.run([
+                "run", "--name", bumper, "--detach", Self.testImage.rawValue,
+                "sleep", "infinity",
+            ]).check()
+            try f.run(["start", name]).check()
+
+            // `container start` returns before the node entrypoint and API
+            // server finish booting. Wait for reconciliation before reading
+            // the persisted marker, then wait for the API before using kubectl.
+            try await f.retry(attempts: 180) {
+                guard let result = try? f.run(["exec", name, "cat", "/etc/.container-k8s-last-ip"]), result.status == 0 else {
+                    return false
+                }
+                return result.output.trimmingCharacters(in: .whitespacesAndNewlines)
+                    != originalAddress.output.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            let rotatedAddress = try f.run(["exec", name, "cat", "/etc/.container-k8s-last-ip"])
+            try rotatedAddress.check()
+            #expect(
+                originalAddress.output.trimmingCharacters(in: .whitespacesAndNewlines)
+                    != rotatedAddress.output.trimmingCharacters(in: .whitespacesAndNewlines))
+
+            try await f.retry(attempts: 180) {
+                let (ready, status) = try f.kubectl(
+                    node: name, args: ["get", "--raw=/readyz", "--request-timeout=5s"])
+                return status == 0 && ready.trimmingCharacters(in: .whitespacesAndNewlines) == "ok"
+            }
+            let (_, nodeStatus) = try f.kubectl(
+                node: name,
+                args: ["wait", "--for=condition=Ready", "node", "--all", "--timeout=180s"])
+            #expect(nodeStatus == 0)
+            let (_, dnsStatus) = try f.kubectl(
+                node: name,
+                args: [
+                    "wait", "--namespace=kube-system", "--for=condition=Ready", "pod",
+                    "--selector=k8s-app=kube-dns", "--timeout=180s",
+                ])
+            #expect(dnsStatus == 0)
+            try waitForPod(f, node: name, podName: "server", timeoutSeconds: 300)
+            try waitForPod(f, node: name, podName: "client", timeoutSeconds: 300)
+
+            let (proxyConfig, proxyConfigStatus) = try f.kubectl(
+                node: name,
+                args: [
+                    "get", "--namespace=kube-system", "configmap/kube-proxy",
+                    "--output=jsonpath={.data.kubeconfig\\.conf}",
+                ])
+            #expect(proxyConfigStatus == 0)
+            #expect(proxyConfig.contains("server: https://127.0.0.1:6443"))
+
+            let (response, wgetStatus) = try f.kubectl(
+                node: name,
+                args: ["exec", "client", "--", "wget", "-qO-", "http://server-svc:8080"])
+            #expect(wgetStatus == 0)
+            #expect(response.contains("ok"))
+        }
+    }
 }

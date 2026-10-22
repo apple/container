@@ -53,6 +53,14 @@ public struct K8sHelper {
     static let proxyEnvVars = ["HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy"]
 
     public static let clusterContainerPort: UInt16 = 6443
+    /// Stable API endpoint for clients running inside a single-node cluster VM.
+    static let nodeLocalControlPlaneEndpoint = "127.0.0.1:\(clusterContainerPort)"
+
+    static func bootstrapControlPlaneEndpoint(workerCount: UInt) -> String? {
+        // kube-proxy shares this endpoint across nodes; separate workers must
+        // be able to reach the control plane instead of their own loopback.
+        workerCount == 0 ? nodeLocalControlPlaneEndpoint : nil
+    }
 
     public static var nodeEntrypointScript: String {
         """
