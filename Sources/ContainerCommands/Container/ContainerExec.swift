@@ -77,6 +77,9 @@ extension Application {
                 gid: processFlags.gid, defaultUser: defaultUser)
             config.user = user
             config.supplementalGroups.append(contentsOf: additionalGroups)
+            if !self.processFlags.ulimits.isEmpty {
+                config.rlimits = try Parser.rlimits(self.processFlags.ulimits)
+            }
 
             do {
                 let io = try ProcessIO.create(tty: tty, interactive: stdin, detach: self.detach)
