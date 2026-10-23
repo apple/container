@@ -51,6 +51,19 @@ container machine run -n dev -- cat /proc/cpuinfo
 
 When you run `container machine run` anywhere under your macOS home directory, the Linux process runs in the equivalent directory in the container machine's home mount. Otherwise, the process runs in the your Linux user's home directory.
 
+Commands are **not** argv-preserving. The guest joins `<executable>` and `<arguments>` into one string and evaluates it with the execution user's shell:
+
+```sh
+exec "${USER_SHELL:-${SHELL}}" -c "$*"
+```
+
+That shell performs expansion, substitution, and redirection. For example, `printf ':%s:' 'one two three'` becomes three words after joining, and `$(...)` inside an argument is evaluated in the guest. Quote a single shell script string when you need spaces or metacharacters preserved as one argument to the guest shell:
+
+```bash
+container machine run -n dev -- 'printf ":%s:" "one two three"'
+container machine run -n dev -- 'echo "uid=$(id -u)"'
+```
+
 ### Set a default
 
 Pick a default container machine so you can drop the `-n` flag:
