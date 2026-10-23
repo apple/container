@@ -149,6 +149,13 @@ Remove volumes with no container references:
 container volume prune
 ```
 
+Return the blocks that a running container has freed by deleting files on its root
+filesystem and named volumes to the host, without stopping the container:
+
+```bash
+container clean mycontainer
+```
+
 Reclaim space used by the builder VM's layer cache by replacing the builder:
 
 ```bash
