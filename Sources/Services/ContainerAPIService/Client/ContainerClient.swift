@@ -405,4 +405,28 @@ public struct ContainerClient: Sendable {
             )
         }
     }
+
+    /// Create an image from a container's current filesystem and configuration.
+    public func commit(id: String, reference: String) async throws -> ClientImage {
+        let request = XPCMessage(route: .containerCommit)
+        request.set(key: .id, value: id)
+        request.set(key: .commitImageReference, value: reference)
+
+        do {
+            let response = try await xpcSend(message: request, timeout: .seconds(300))
+            guard let data = response.dataNoCopy(key: .committedImage) else {
+                throw ContainerizationError(.empty, message: "image description not received")
+            }
+            let description = try JSONDecoder().decode(ImageDescription.self, from: data)
+            return ClientImage(description: description)
+        } catch let error as ContainerizationError {
+            throw error
+        } catch {
+            throw ContainerizationError(
+                .internalError,
+                message: "failed to commit container \(id)",
+                cause: error
+            )
+        }
+    }
 }

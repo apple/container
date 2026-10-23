@@ -58,6 +58,10 @@ public enum XPCKeys: String {
     case plugin
     /// Archive path to export rootfs
     case archive
+    /// Image reference used by container commit
+    case commitImageReference
+    /// Image description returned by container commit
+    case committedImage
     /// Special-case environment variables recomputed on each container start
     case dynamicEnv
 
@@ -165,6 +169,7 @@ public enum XPCRoute: String {
     case containerCopyIn
     case containerCopyOut
     case containerExport
+    case containerCommit
     case containerClean
 
     case pluginLoad
