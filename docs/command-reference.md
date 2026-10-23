@@ -615,7 +615,7 @@ container image pull [--scheme <scheme>] [--progress <type>] [--max-concurrent-d
 *   `--max-concurrent-downloads <max-concurrent-downloads>`: Maximum number of concurrent downloads (default: 3)
 *   `-a, --arch <arch>`: Limit the pull to the specified architecture
 *   `--os <os>`: Limit the pull to the specified OS
-*   `--platform <platform>`: Limit the pull to the specified platform (format: os/arch[/variant], takes precedence over --os and --arch)
+*   `--platform <platform>`: Limit the pull to the specified platform (format: os/arch[/variant], takes precedence over --os and --arch). Use `--platform all` to unpack every platform in the image. By default only the host platform is unpacked, to avoid storing a snapshot for each architecture; other platforms are unpacked on demand when run.
 
 ### `container image push`
 
