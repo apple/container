@@ -56,7 +56,8 @@ let package = Package(
         .library(name: "ContainerCluster", targets: ["ContainerCluster"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/apple/containerization.git", exact: Version(stringLiteral: scVersion)),
+        // Merged zstd EOF fix (apple/containerization#988); use a release tag once available.
+        .package(url: "https://github.com/apple/containerization.git", revision: "cc1614468aaa6006225b5443daa8f41053a345e0"),
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.7.0"),
         .package(url: "https://github.com/apple/swift-collections.git", from: "1.2.0"),
         .package(url: "https://github.com/apple/swift-configuration", from: "1.0.0"),
