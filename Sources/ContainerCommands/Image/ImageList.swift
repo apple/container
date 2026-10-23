@@ -49,7 +49,7 @@ extension Application {
             try Self.validate(quiet: quiet, verbose: verbose)
 
             var images = try await ClientImage.list().filter { img in
-                !Utility.isInfraImage(name: img.reference, builderImage: containerSystemConfig.build.image, initImage: containerSystemConfig.vminit.image)
+                !(try Utility.isInfraImage(name: img.reference, containerSystemConfig: containerSystemConfig))
             }
             images.sort { $0.reference < $1.reference }
 
