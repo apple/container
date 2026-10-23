@@ -1622,26 +1622,26 @@ container system property list
 container system property list --format json
 ```
 
-## Kubernetes Cluster Management
+## Container Cluster Management
 
-`container k8s` manages local Kubernetes clusters backed by container VMs. Each cluster runs a Kubernetes control-plane node inside a container using `kindest/node` and `kubeadm`, with optional additional worker nodes.
+`container cluster` manages local Kubernetes clusters backed by container VMs. Each cluster runs a Kubernetes control-plane node inside a container using `kindest/node` and `kubeadm`, with optional additional worker nodes.
 
 > [!IMPORTANT]
-> The `k8s` command is an experimental feature and its subcommands and options are subject to change.
+> The `cluster` command is an experimental feature and its subcommands and options are subject to change.
 
-### `container k8s create`
+### `container cluster create`
 
 Creates and starts a local Kubernetes cluster and optional worker nodes. Pulls the node image if needed, runs `kubeadm init`, installs a CNI (default: bundled kindnet), and merges the cluster credentials into `~/.kube/config`.
 
 **Usage**
 
 ```bash
-container k8s create [--name <name>] [--node-image <image>] [--cni <path>] [--workers <n>] [--rm] [<resource options>] [--debug]
+container cluster create [--name <name>] [--node-image <image>] [--cni <path>] [--workers <n>] [--rm] [<resource options>] [--debug]
 ```
 
 **Options**
 
-*   `--name <name>`: Cluster name (default: `k8s-dev`)
+*   `--name <name>`: Cluster name (default: `cluster-dev`)
 *   `--node-image <image>`: Node image reference (default: `docker.io/kindest/node:v1.35.5`)
 *   `--cni <path>`: Optional path to a CNI manifest to apply, or `NONE` (case-insensitive) to skip installing a CNI. If not provided, the bundled kindnet CNI is used. With `NONE`, the command returns without waiting for nodes to become `Ready`, since that requires a CNI; apply your own afterward with `kubectl apply`.
 *   `--workers <n>`: Number of worker nodes to create (default: `0`, meaning the control-plane node also acts as a worker)
@@ -1663,75 +1663,75 @@ container k8s create [--name <name>] [--node-image <image>] [--cni <path>] [--wo
 **Examples**
 
 ```bash
-# create a cluster with the default name (k8s-dev)
-container k8s create
+# create a cluster with the default name (cluster-dev)
+container cluster create
 
 # create a cluster with a custom name and resource allocation
-container k8s create --name my-cluster --cpus 4 --memory 8g
+container cluster create --name my-cluster --cpus 4 --memory 8g
 
 # create a cluster that removes itself when stopped
-container k8s create --name temp-cluster --rm
+container cluster create --name temp-cluster --rm
 
 # create a cluster using a custom CNI manifest instead of the bundled kindnet
-container k8s create --cni ./my-cni.yaml
+container cluster create --cni ./my-cni.yaml
 
 # create a cluster with no CNI installed
-container k8s create --cni NONE
+container cluster create --cni NONE
 
 # create a cluster with a control plane and 3 worker nodes
-container k8s create --name my-cluster --workers 3
+container cluster create --name my-cluster --workers 3
 ```
 
-### `container k8s delete (rm)`
+### `container cluster delete (rm)`
 
 Stops and deletes a Kubernetes cluster container, including any worker nodes, and removes its entry from `~/.kube/config`.
 
 **Usage**
 
 ```bash
-container k8s delete [--name <name>] [--debug]
+container cluster delete [--name <name>] [--debug]
 ```
 
 **Options**
 
-*   `--name <name>`: Cluster name (default: `k8s-dev`)
+*   `--name <name>`: Cluster name (default: `cluster-dev`)
 
 **Examples**
 
 ```bash
 # delete the default cluster
-container k8s delete
+container cluster delete
 
 # delete a named cluster
-container k8s delete --name my-cluster
-container k8s rm --name my-cluster
+container cluster delete --name my-cluster
+container cluster rm --name my-cluster
 ```
 
-### `container k8s list (ls)`
+### `container cluster list (ls)`
 
 Lists all Kubernetes clusters with their status and node image.
 
 **Usage**
 
 ```bash
-container k8s list [--debug]
+container cluster list [--debug]
 ```
 
 **Examples**
 
 ```bash
-container k8s list
-container k8s ls
+container cluster list
+container cluster ls
 ```
 
-### `container k8s load-image`
+### `container cluster load-image`
 
 Exports an image from the local `container` image store and imports it into every node's containerd (in the `k8s.io` namespace) so that Kubernetes can schedule pods that reference it on any node.
 
 **Usage**
 
 ```bash
-container k8s load-image [--name <name>] [--platform <platform>] [--node <node> ...] <image> [--debug]
+container cluster load-image [--name <name>] [--platform <platform>] [--node <node> ...] <image> [--debug]
 ```
 
 **Arguments**
@@ -1740,7 +1740,7 @@ container k8s load-image [--name <name>] [--platform <platform>] [--node <node> 
 
 **Options**
 
-*   `--name <name>`: Cluster name (default: `k8s-dev`)
+*   `--name <name>`: Cluster name (default: `cluster-dev`)
 *   `--platform <platform>`: Platform of the image variant to load from a multi-arch image (format: os/arch[/variant], default: `linux/<host-arch>`). Use this when the local store contains a multi-arch manifest list and you want to select a specific variant.
 *   `--node <node>`: Load into specific nodes instead of every node in the cluster. Repeat to target multiple nodes.
 
@@ -1748,42 +1748,42 @@ container k8s load-image [--name <name>] [--platform <platform>] [--node <node> 
 
 ```bash
 # load an image into every node of the default cluster
-container k8s load-image my-app:latest
+container cluster load-image my-app:latest
 
 # load an image into every node of a named cluster
-container k8s load-image --name my-cluster my-app:latest
+container cluster load-image --name my-cluster my-app:latest
 
 # load the amd64 variant of a multi-arch image
-container k8s load-image --platform linux/amd64 my-app:latest
+container cluster load-image --platform linux/amd64 my-app:latest
 
 # load an image into a single worker node only
-container k8s load-image --node k8s-dev-worker-1 my-app:latest
+container cluster load-image --node cluster-dev-worker-1 my-app:latest
 
 # load an image into specific worker nodes only
-container k8s load-image --node k8s-dev-worker-1 --node k8s-dev-worker-2 my-app:latest
+container cluster load-image --node cluster-dev-worker-1 --node cluster-dev-worker-2 my-app:latest
 ```
 
-### `container k8s write-config`
+### `container cluster write-config`
 
 Fetches the current kubeconfig from a running cluster and merges its context into a kubeconfig file. Use this to write to an alternate config file.
 
 **Usage**
 
 ```bash
-container k8s write-config [--name <name>] [--kubeconfig <path>] [--debug]
+container cluster write-config [--name <name>] [--kubeconfig <path>] [--debug]
 ```
 
 **Options**
 
-*   `--name <name>`: Cluster name (default: `k8s-dev`)
+*   `--name <name>`: Cluster name (default: `cluster-dev`)
 *   `--kubeconfig <path>`: Path to the kubeconfig file to write or append to (default: `~/.kube/config`)
 
 **Examples**
 
 ```bash
 # refresh credentials for the default cluster into ~/.kube/config
-container k8s write-config
+container cluster write-config
 
 # write the context for a named cluster to an alternate kubeconfig file
-container k8s write-config --name my-cluster --kubeconfig ~/.kube/my-cluster.kubeconfig
+container cluster write-config --name my-cluster --kubeconfig ~/.kube/my-cluster.kubeconfig
 ```

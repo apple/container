@@ -52,7 +52,7 @@ let package = Package(
         .library(name: "TerminalProgress", targets: ["TerminalProgress"]),
         .library(name: "MachineAPIClient", targets: ["MachineAPIClient"]),
         .library(name: "MachineAPIService", targets: ["MachineAPIService"]),
-        .library(name: "ContainerK8s", targets: ["ContainerK8s"]),
+        .library(name: "ContainerCluster", targets: ["ContainerCluster"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/containerization.git", exact: Version(stringLiteral: scVersion)),
@@ -179,16 +179,16 @@ let package = Package(
             ]
         ),
         .testTarget(
-            name: "K8sPluginTests",
+            name: "ClusterPluginTests",
             dependencies: [
                 "ContainerAPIClient",
-                "ContainerK8s",
+                "ContainerCluster",
                 "ContainerResource",
                 "Yams",
             ]
         ),
         .target(
-            name: "ContainerK8s",
+            name: "ContainerCluster",
             dependencies: [
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "Logging", package: "swift-log"),
@@ -207,9 +207,9 @@ let package = Package(
             ]
         ),
         .executableTarget(
-            name: "k8s",
-            dependencies: ["ContainerK8s"],
-            path: "Sources/Plugins/K8s",
+            name: "cluster",
+            dependencies: ["ContainerCluster"],
+            path: "Sources/Plugins/Cluster",
             exclude: ["config.toml", "Resources"]
         ),
         .executableTarget(
