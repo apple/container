@@ -89,10 +89,15 @@ struct ClientProcessImpl: ClientProcess, Sendable {
     }
 
     static func forwardedSignalName(_ signal: Int32) throws -> String {
-        guard let name = Signal.platformName(signal), Signal.linux[name] != nil else {
+        switch Signal.platformName(signal) {
+        case .some(let name) where Signal.linux[name] != nil:
+            return name
+        // Fall back to the numeric string for signals with no platform name (e.g. real-time signals).
+        case nil where Signal.linux.values.contains(signal):
+            return "\(signal)"
+        default:
             throw ContainerizationError(.invalidArgument, message: "unsupported signal \(signal)")
         }
-        return name
     }
 
     /// Resize the processes PTY if it has one.
