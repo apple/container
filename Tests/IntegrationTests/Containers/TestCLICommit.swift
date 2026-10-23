@@ -22,13 +22,29 @@ import SystemPackage
 import Testing
 
 @Suite
-struct TestCLICommitCommand {
+struct TestCLICommit {
     @Test func testCommitStoppedContainer() async throws {
         try await testCommit(stopBeforeCommit: true)
     }
 
     @Test func testCommitRunningContainer() async throws {
         try await testCommit(stopBeforeCommit: false)
+    }
+
+    @Test func testCommittedImageRunsDifferentCommand() async throws {
+        try await ContainerFixture.with { f in
+            let reference = "localhost/committed-\(f.testID):latest"
+            f.addCleanup { try? f.doRemoveImages([reference]) }
+
+            try await f.withContainer(image: WarmupImage.alpine320.rawValue) { name in
+                try f.run(["commit", name, reference]).check("commit failed")
+            }
+
+            let expected = "ran-a-different-command"
+            let result = try f.run(["run", "--rm", reference, "echo", expected])
+            try result.check()
+            #expect(result.output.trimmingCharacters(in: .whitespacesAndNewlines) == expected)
+        }
     }
 
     private func testCommit(stopBeforeCommit: Bool) async throws {
@@ -57,7 +73,7 @@ struct TestCLICommitCommand {
                 #expect(try f.isImagePresent(reference))
                 try assertCommittedImageMetadata(f, reference: reference)
 
-                try await f.withContainer(image: reference) { committedName in
+                try await f.withContainer(image: reference, tag: "committed") { committedName in
                     let output = try f.doExec(committedName, cmd: ["cat", "/committed-file"])
                     #expect(output.trimmingCharacters(in: .whitespacesAndNewlines) == expected)
 
@@ -82,8 +98,13 @@ struct TestCLICommitCommand {
 
         let decoder = JSONDecoder()
         let index = try decoder.decode(Index.self, from: Data(contentsOf: URL(filePath: extractedDirectory.appending("index.json").string)))
-        let manifestDescriptor = try #require(index.manifests.first)
+        var manifestDescriptor = try #require(index.manifests.first)
         #expect(manifestDescriptor.annotations?["org.opencontainers.image.ref.name"] == reference)
+        // `image save` writes the image's own index, which in turn points at the manifest.
+        if manifestDescriptor.mediaType == MediaTypes.index {
+            let imageIndex = try decoder.decode(Index.self, from: blobData(manifestDescriptor, in: extractedDirectory))
+            manifestDescriptor = try #require(imageIndex.manifests.first)
+        }
 
         let manifest = try decoder.decode(Manifest.self, from: blobData(manifestDescriptor, in: extractedDirectory))
         #expect(manifest.layers.count == 1)
@@ -91,8 +112,8 @@ struct TestCLICommitCommand {
         let image = try decoder.decode(Image.self, from: blobData(manifest.config, in: extractedDirectory))
         #expect(image.rootfs.diffIDs == manifest.layers.map { $0.digest })
         #expect(image.history?.count == manifest.layers.count)
-        #expect(image.config?.entrypoint == ["sleep"])
-        #expect(image.config?.cmd == ["infinity"])
+        #expect(image.config?.entrypoint == nil)
+        #expect(image.config?.cmd == ["sleep", "infinity"])
     }
 
     private func blobData(_ descriptor: Descriptor, in directory: FilePath) throws -> Data {
