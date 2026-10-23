@@ -67,12 +67,37 @@ extension Application {
                 }
                 try fileHandle.close()
             } else {
-                let outputURL = URL(fileURLWithPath: output!)
-                if FileManager.default.fileExists(atPath: outputURL.path(percentEncoded: false)) {
-                    try FileManager.default.removeItem(at: outputURL)
-                }
-                try FileManager.default.moveItem(at: archive, to: outputURL)
+                try Self.replaceItem(at: output!, with: archive)
             }
+        }
+
+        /// Moves `archive` over `path` with `rename`. An existing file is replaced in one step, a directory
+        /// at `path` is an error instead of being deleted, and a failure leaves the old file where it was.
+        static func replaceItem(at path: String, with archive: URL) throws {
+            if rename(archive.path, path) == 0 {
+                return
+            }
+            guard errno == EXDEV else {
+                throw renameError(path)
+            }
+            // The archive is in the temporary directory, which can be on another volume than `path`.
+            // Move it next to the destination first, then rename within that directory.
+            let destination = URL(fileURLWithPath: path)
+            let staged = destination.deletingLastPathComponent()
+                .appendingPathComponent(".\(destination.lastPathComponent).\(UUID().uuidString)")
+            try FileManager.default.moveItem(at: archive, to: staged)
+            if rename(staged.path, path) != 0 {
+                let error = renameError(path)
+                try? FileManager.default.removeItem(at: staged)
+                throw error
+            }
+        }
+
+        private static func renameError(_ path: String) -> ContainerizationError {
+            if errno == EISDIR {
+                return ContainerizationError(.invalidArgument, message: "output path '\(path)' is a directory, specify a file name instead")
+            }
+            return ContainerizationError(.internalError, message: "failed to write \(path): \(String(cString: strerror(errno)))")
         }
     }
 }
