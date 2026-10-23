@@ -57,7 +57,10 @@ extension NetworkClient {
         let request = XPCMessage(route: NetworkRoutes.status.rawValue)
         let client = createClient()
 
-        let response = try await client.send(request)
+        // A network helper may block before it can answer (for example while
+        // vmnet_network_create waits for Internet Sharing). Do not hold API
+        // server startup indefinitely while checking that it is ready.
+        let response = try await client.send(request, responseTimeout: .seconds(20))
         let status = try response.status()
         return status
     }
