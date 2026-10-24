@@ -27,6 +27,24 @@ struct ContainerStatusTests {
         #expect(decoded.state == .running)
         #expect(decoded.networks.isEmpty)
         #expect(decoded.startedDate == nil)
+        #expect(decoded.exitCode == nil)
+        #expect(decoded.exitedAt == nil)
+    }
+
+    @Test func roundTripsTheExit() throws {
+        let exitedAt = Date(timeIntervalSinceReferenceDate: 812_571_436)
+        let status = ContainerStatus(state: .stopped, networks: [], exitCode: 7, exitedAt: exitedAt)
+        let decoded = try JSONDecoder().decode(ContainerStatus.self, from: JSONEncoder().encode(status))
+        #expect(decoded.exitCode == 7)
+        #expect(decoded.exitedAt == exitedAt)
+    }
+
+    @Test func decodesStatusWrittenBeforeTheExitFieldsExisted() throws {
+        let json = Data(#"{"state":"stopped","networks":[]}"#.utf8)
+        let decoded = try JSONDecoder().decode(ContainerStatus.self, from: json)
+        #expect(decoded.state == .stopped)
+        #expect(decoded.exitCode == nil)
+        #expect(decoded.exitedAt == nil)
     }
 }
 
@@ -51,6 +69,17 @@ struct ManagedContainerTests {
         #expect(mc.id == "abc")
         #expect(mc.name == "abc")
         #expect(mc.status.state == .running)
+    }
+
+    @Test func factoryCarriesTheExitFromTheSnapshot() {
+        let exitedAt = Date(timeIntervalSinceReferenceDate: 812_571_436)
+        let snapshot = ContainerSnapshot(
+            configuration: makeTestConfiguration(id: "abc"), status: .stopped, networks: [],
+            exitCode: 7, exitedAt: exitedAt
+        )
+        let mc = ManagedContainer(snapshot)
+        #expect(mc.status.exitCode == 7)
+        #expect(mc.status.exitedAt == exitedAt)
     }
 
     @Test func nameValidAcceptsContainerNames() {
