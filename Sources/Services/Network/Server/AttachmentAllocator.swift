@@ -60,9 +60,12 @@ actor AttachmentAllocator {
     /// The allocation fails without changing any state if an alias is already in use by another host
     /// on this network, either as a hostname or as an alias.
     ///
-    /// - Throws: `ContainerizationError` with code `.exists` if a name is already in use.
+    /// `requested` is reserved if free, else a fresh address is allocated.
+    ///
+    /// - Throws: `ContainerizationError` with code `.exists` if a name is already in use;
+    ///   `AllocatorError.allocatorFull` if no address is free.
     @discardableResult
-    func allocate(hostname: String, aliases: [DNSMatchRule] = []) async throws -> UInt32 {
+    func allocate(hostname: String, aliases: [DNSMatchRule] = [], requested: UInt32? = nil) async throws -> UInt32 {
         let hostname = AttachmentOptions.canonicalHostname(hostname)
 
         if hostnames[hostname] == nil, let owner = exactAliases[hostname], owner != hostname {
@@ -99,7 +102,7 @@ actor AttachmentAllocator {
         if let existing = hostnames[hostname] {
             index = existing
         } else {
-            index = try allocator.allocate()
+            index = try acquireIndex(requested: requested)
             hostnames[hostname] = index
         }
 
@@ -114,6 +117,19 @@ actor AttachmentAllocator {
         aliasesByHostname[hostname, default: []].append(contentsOf: newAliases)
 
         return index
+    }
+
+    private func acquireIndex(requested: UInt32?) throws -> UInt32 {
+        guard let requested else {
+            return try allocator.allocate()
+        }
+        do {
+            try allocator.reserve(requested)
+            return requested
+        } catch AllocatorError.alreadyAllocated, AllocatorError.invalidAddress {
+            // Address taken, or out of range after a subnet change - reassign.
+            return try allocator.allocate()
+        }
     }
 
     /// Free an allocated network address by hostname, along with the aliases registered for it.
