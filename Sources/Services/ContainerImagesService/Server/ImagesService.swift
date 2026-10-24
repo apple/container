@@ -16,6 +16,7 @@
 
 import ContainerAPIClient
 import ContainerImagesServiceClient
+import ContainerPersistence
 import ContainerResource
 import Containerization
 import ContainerizationArchive
@@ -31,16 +32,19 @@ public actor ImagesService {
     private let contentStore: ContentStore
     private let imageStore: ImageStore
     private let snapshotStore: SnapshotStore
+    private let containerSystemConfig: ContainerSystemConfig
 
     public init(
         contentStore: ContentStore,
         imageStore: ImageStore,
         snapshotStore: SnapshotStore,
+        containerSystemConfig: ContainerSystemConfig,
         log: Logger
     ) throws {
         self.contentStore = contentStore
         self.imageStore = imageStore
         self.snapshotStore = snapshotStore
+        self.containerSystemConfig = containerSystemConfig
         self.log = log
     }
 
@@ -76,6 +80,7 @@ public actor ImagesService {
             )
         }
 
+        try await self.removeLegacyShadows()
         return try await imageStore.list().map { $0.description.fromCZ }
     }
 
@@ -179,7 +184,11 @@ public actor ImagesService {
             )
         }
 
-        let img = try await self.imageStore.tag(existing: old, new: new)
+        let fullyQualified = try ClientImage.normalizeReference(new, containerSystemConfig: self.containerSystemConfig)
+        let plan = try await self.legacyPlan(for: fullyQualified, preserving: old)
+        try await self.renameLegacyReference(plan, to: fullyQualified)
+        let img = try await self.imageStore.tag(existing: old, new: fullyQualified)
+        try await self.dropLegacyReferences(plan)
         return img.description.fromCZ
     }
 
@@ -264,6 +273,10 @@ public actor ImagesService {
         let loaded = try await self.imageStore.load(from: tempDir)
         var images: [ImageDescription] = []
         for image in loaded {
+            let fullyQualified = try ClientImage.normalizeReference(image.reference, containerSystemConfig: self.containerSystemConfig)
+            let plan = try await self.legacyPlan(for: fullyQualified, preserving: image.reference)
+            try await self.renameLegacyReference(plan, to: fullyQualified)
+            try await self.dropLegacyReferences(plan, preserving: image.reference)
             images.append(image.description.fromCZ)
         }
         return (images, rejectedMembers)
@@ -339,6 +352,63 @@ public actor ImagesService {
         let reclaimable = totalOnDisk > activeSize ? totalOnDisk - activeSize : 0
 
         return (images.count, activeCount, totalOnDisk, reclaimable)
+    }
+
+    /// Legacy short-name entries that denote `fullyQualified`.
+    ///
+    /// `preserving` is left out of the pre-write rename so the caller can still
+    /// read that key. A following tag then overwrites the fully-qualified entry.
+    private func legacyPlan(for fullyQualified: String, preserving: String?) async throws -> ImageReferenceNormalization.Plan {
+        let stored = try await self.imageStore.list().map(\.reference)
+        return ImageReferenceNormalization.plan(
+            storedReferences: stored,
+            fullyQualified: fullyQualified,
+            preserving: preserving,
+            containerSystemConfig: self.containerSystemConfig
+        )
+    }
+
+    private func renameLegacyReference(_ plan: ImageReferenceNormalization.Plan, to fullyQualified: String) async throws {
+        guard let renameFrom = plan.renameFrom else {
+            return
+        }
+        self.log.debug(
+            "normalizing legacy image reference",
+            metadata: [
+                "from": "\(renameFrom)",
+                "to": "\(fullyQualified)",
+            ]
+        )
+        let existing = try await self.imageStore.get(reference: renameFrom)
+        _ = try await self.imageStore.create(
+            description: Containerization.Image.Description(reference: fullyQualified, descriptor: existing.descriptor)
+        )
+    }
+
+    private func dropLegacyReferences(_ plan: ImageReferenceNormalization.Plan, preserving: String? = nil) async throws {
+        for reference in plan.drop where reference != preserving {
+            self.log.debug(
+                "removing legacy short-name image reference",
+                metadata: [
+                    "reference": "\(reference)"
+                ]
+            )
+            try await self.imageStore.delete(reference: reference)
+        }
+    }
+
+    /// Drops a short-name entry when the fully-qualified form of the same tag is already stored.
+    private func removeLegacyShadows() async throws {
+        let stored = try await self.imageStore.list().map(\.reference)
+        let shadows = ImageReferenceNormalization.legacyShadows(
+            storedReferences: stored,
+            containerSystemConfig: self.containerSystemConfig
+        )
+        guard !shadows.isEmpty else {
+            return
+        }
+        let plan = ImageReferenceNormalization.Plan(renameFrom: nil, drop: shadows)
+        try await self.dropLegacyReferences(plan)
     }
 
     private func contentDiskSize(_ content: Content) throws -> UInt64 {
