@@ -283,6 +283,8 @@ public actor ContainersService {
         }
 
         try await self.lock.withLock(logMetadata: ["acquirer": "\(#function)", "id": "\(configuration.id)"]) { context in
+            try Utility.validEntityName(configuration.id)
+
             guard await self.containers[configuration.id] == nil else {
                 throw ContainerizationError(
                     .exists,
@@ -922,6 +924,8 @@ public actor ContainersService {
             )
         }
 
+        try Utility.validEntityName(id)
+
         let containerPath = self.containerRoot.appendingPathComponent(id).path
 
         return FileManager.default.allocatedSize(of: URL(fileURLWithPath: containerPath))
@@ -929,6 +933,8 @@ public actor ContainersService {
 
     public func exportRootfs(id: String, archive: URL) async throws {
         self.log.debug("\(#function)")
+
+        try Utility.validEntityName(id)
 
         let state = try self._getContainerState(id: id)
         let path = self.containerRoot.appendingPathComponent(id)
