@@ -226,12 +226,10 @@ public struct Utility {
         if management.dnsDisabled {
             config.dns = nil
         } else {
-            let domain = management.dns.domain ?? containerSystemConfig.dns.domain
-            config.dns = .init(
-                nameservers: management.dns.nameservers,
-                domain: domain,
-                searchDomains: management.dns.searchDomains,
-                options: management.dns.options
+            config.dns = dnsConfiguration(
+                from: management.dns,
+                defaults: containerSystemConfig.container.dns,
+                hostDomainFallback: containerSystemConfig.dns.domain
             )
         }
 
@@ -367,6 +365,38 @@ public struct Utility {
         }
     }
 
+    /// Resolves the DNS configuration for a container from CLI flags, falling back
+    /// to the defaults configured in `~/.config/container/config.toml`.
+    ///
+    /// Precedence: CLI flags > `[container.dns]` defaults > host domain fallback.
+    /// `hostDomainFallback` is the API server's own DNS domain (the `[dns]` section),
+    /// used so a container's default domain still matches the host domain when no
+    /// `--dns-domain` flag and no `[container.dns]` domain are configured.
+    public static func dnsConfiguration(
+        from flags: Flags.DNS,
+        defaults: ContainerDNSConfig?,
+        hostDomainFallback: String? = nil
+    ) -> ContainerConfiguration.DNSConfiguration {
+        let nameservers =
+            flags.nameservers.isEmpty
+            ? (defaults?.nameservers ?? [])
+            : flags.nameservers
+        let domain = flags.domain ?? defaults?.domain ?? hostDomainFallback
+        let searchDomains =
+            flags.searchDomains.isEmpty
+            ? (defaults?.searchDomains ?? [])
+            : flags.searchDomains
+        let options =
+            flags.options.isEmpty
+            ? (defaults?.options ?? [])
+            : flags.options
+        return .init(
+            nameservers: nameservers,
+            domain: domain,
+            searchDomains: searchDomains,
+            options: options
+        )
+    }
     private static func getKernel(management: Flags.Management) async throws -> Kernel {
         // For the image itself we'll take the user input and try with it as we can do userspace
         // emulation for x86, but for the kernel we need it to match the hosts architecture.
