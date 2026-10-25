@@ -29,6 +29,22 @@ import NIOPosix
 public struct Builder: Sendable {
     public static let builderContainerId = "buildkit"
 
+    /// The `:authority` sent with every request to the builder shim.
+    ///
+    /// The shim connection is an already-connected socket, so grpc-swift has no target
+    /// address to derive an authority from and would send none. gRPC-Go v1.82.2, v1.83.2
+    /// and v1.84.0 or later reject requests without an `:authority` (grpc-go #9365), which
+    /// leaves the builder unable to answer even the `Info` probe. The shim does not route
+    /// on the authority, so any valid host name works.
+    static let grpcAuthority = Builder.builderContainerId
+
+    /// The transport configuration for the connection to the builder shim.
+    static func transportConfig() -> HTTP2ClientTransport.WrappedChannel.Config {
+        var config = HTTP2ClientTransport.WrappedChannel.Config.defaults
+        config.http2.authority = grpcAuthority
+        return config
+    }
+
     let client: Com_Apple_Container_Build_V1_Builder.Client<HTTP2ClientTransport.WrappedChannel>
     let grpcClient: GRPCClient<HTTP2ClientTransport.WrappedChannel>
     let group: EventLoopGroup
@@ -41,7 +57,7 @@ public struct Builder: Sendable {
         try socket.setRecvBufSize(2 << 20)
 
         let transport = try await HTTP2ClientTransport.WrappedChannel.wrapping(
-            config: .defaults,
+            config: Builder.transportConfig(),
             serviceConfig: .init()
         ) { configure in
             try await withCheckedThrowingContinuation { continuation in
