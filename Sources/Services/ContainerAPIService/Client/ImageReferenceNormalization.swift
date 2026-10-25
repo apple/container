@@ -16,6 +16,7 @@
 
 import ContainerPersistence
 import Containerization
+import ContainerizationOCI
 
 /// How a legacy short-name image reference relates to the fully-qualified
 /// reference current releases store.

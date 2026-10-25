@@ -108,9 +108,9 @@ struct ImageReferenceNormalizationTests {
         )
         #expect(
             ImageReferenceNormalization.legacyShadows(
-                storedReferences: ["docker.io/app:latest", fullyQualified],
+                storedReferences: ["docker.io/finlay-ledger:latest", fullyQualified],
                 containerSystemConfig: config
-            ) == ["docker.io/app:latest"]
+            ) == ["docker.io/finlay-ledger:latest"]
         )
     }
 
