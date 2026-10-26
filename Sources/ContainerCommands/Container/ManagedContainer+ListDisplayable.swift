@@ -32,7 +32,7 @@ extension ManagedContainer: ListDisplayable {
             status.networks.map { $0.ipv4Address.description }.joined(separator: ","),
             "\(configuration.resources.cpus)",
             "\(configuration.resources.memoryInBytes / (1024 * 1024)) MB",
-            status.startedDate?.ISO8601Format() ?? "",
+            status.startedDate?.ISO8601Format(.iso8601(timeZone: .current).timeZone(separator: .colon)) ?? "",
         ]
     }
 
