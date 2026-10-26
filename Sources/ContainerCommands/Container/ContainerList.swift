@@ -26,7 +26,7 @@ extension Application {
         public static let configuration = CommandConfiguration(
             commandName: "list",
             abstract: "List running containers",
-            aliases: ["ls"])
+            aliases: ["ls", "ps"])
 
         @Flag(name: .shortAndLong, help: "Include containers that are not running")
         var all = false
