@@ -15,11 +15,13 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerAPIClient
+import ContainerPlugin
 import ContainerResource
 import ContainerizationError
 import ContainerizationOS
 import Foundation
 import Logging
+import SystemPackage
 
 // MARK: - ClusterHelper
 
@@ -53,6 +55,15 @@ public struct ClusterHelper {
     static let proxyEnvVars = ["HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy"]
 
     public static let clusterContainerPort: UInt16 = 6443
+
+    /// Host socket served by the cluster-hoststore plugin and relayed into each node.
+    public static let hostStoreSocketPath = ApplicationRoot.path.appending("cluster-hoststore.sock")
+    /// Where the host store socket appears inside a node. Must match cluster-shim.
+    static let nodeHostStoreSocketPath = "/opt/cluster-shim/hoststore.sock"
+    /// Where the cluster-shim binary is installed inside a node.
+    static let nodeShimPath = "/usr/local/bin/cluster-shim"
+    /// The kubelet's CRI image service, served by cluster-shim. Must match cluster-shim.
+    static let nodeImageServiceSocketPath = "/run/cluster-shim/cri-image.sock"
 
     public static var nodeEntrypointScript: String {
         """

@@ -57,6 +57,9 @@ public struct ClusterCreate: AsyncParsableCommand {
     @Option(name: .long, help: "Number of worker nodes to create")
     var workers: UInt = 0
 
+    @Flag(help: "Let nodes pull images from the local image store")
+    var sharedImageStore = false
+
     /// Task count is `4 + workers` as an `Int`, so keep `workers` far enough below `Int.max` to avoid overflow.
     static let maxWorkers: UInt = 1024
 
@@ -113,7 +116,8 @@ public struct ClusterCreate: AsyncParsableCommand {
             registryScheme: registryFlags.scheme,
             maxConcurrentDownloads: imageFetchFlags.maxConcurrentDownloads,
             remove: remove,
-            fqdn: fqdn
+            fqdn: fqdn,
+            sharedImageStore: sharedImageStore
         )
 
         progress.set(description: "Starting cluster")
@@ -127,10 +131,11 @@ public struct ClusterCreate: AsyncParsableCommand {
             if let fqdn { sans.append(contentsOf: [vmIP, fqdn]) }
 
             progress.set(description: "Running kubeadm init")
-            try await ClusterHelper.prepareNode(nodeID: name, client: client, log: log)
+            try await ClusterHelper.prepareNode(nodeID: name, sharedImageStore: sharedImageStore, client: client, log: log)
             try await ClusterHelper.bootstrapControlPlane(
                 nodeID: name, nodeImage: nodeImage, apiServerSANs: sans, advertiseAddress: vmIP,
                 schedulable: provisioner.roles.contains(StandardRoles.worker),
+                sharedImageStore: sharedImageStore,
                 cniManifestPath: cni,
                 client: client, log: log)
 
@@ -148,7 +153,8 @@ public struct ClusterCreate: AsyncParsableCommand {
                         memory: resourceFlags.memory,
                         registryScheme: registryFlags.scheme,
                         maxConcurrentDownloads: imageFetchFlags.maxConcurrentDownloads,
-                        remove: remove
+                        remove: remove,
+                        sharedImageStore: sharedImageStore
                     )
                     workerNames.append(workerName)
                     try await workerProvisioner.provision(name: workerName, log: log)

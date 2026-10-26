@@ -23,11 +23,20 @@ import Logging
 
 extension ClusterHelper {
 
-    public static func prepareNode(nodeID: String, client: ContainerClient, log: Logger) async throws {
-        log.info("Preparing node", metadata: ["id": "\(nodeID)"])
+    /// Configures a node. With `sharedImageStore`, it also installs cluster-shim
+    /// so the node can use images from the host image store.
+    public static func prepareNode(nodeID: String, sharedImageStore: Bool, client: ContainerClient, log: Logger) async throws {
+        log.info("Preparing node", metadata: ["id": "\(nodeID)", "sharedImageStore": "\(sharedImageStore)"])
+        var script = nodePrepScript
+        if sharedImageStore {
+            let shim = try await clusterShimURL(log: log)
+            try await client.copyIn(id: nodeID, source: shim.path, destination: nodeShimPath, mode: 0o755)
+            script = hostImagesScript + "\n" + script
+        }
+
         let result = try await execCapture(
             containerId: nodeID, executable: "/bin/sh",
-            arguments: ["-c", nodePrepScript], client: client)
+            arguments: ["-c", script], client: client)
         guard result.code == 0 else {
             throw ContainerizationError(.internalError, message: "node prep failed on \(nodeID): \(result.output)")
         }
@@ -35,9 +44,10 @@ extension ClusterHelper {
 
     static func bootstrapControlPlane(
         nodeID: String, nodeImage: String, apiServerSANs: [String], advertiseAddress: String,
-        schedulable: Bool, cniManifestPath: String? = nil, client: ContainerClient, log: Logger
+        schedulable: Bool, sharedImageStore: Bool, cniManifestPath: String? = nil, client: ContainerClient, log: Logger
     ) async throws {
-        let configYAML = try initConfigYAML(nodeImage: nodeImage, advertiseAddress: advertiseAddress, certSANs: apiServerSANs)
+        let configYAML = try initConfigYAML(
+            nodeImage: nodeImage, advertiseAddress: advertiseAddress, certSANs: apiServerSANs, sharedImageStore: sharedImageStore)
         var r = try await execCapture(
             containerId: nodeID, executable: "/bin/sh",
             arguments: ["-c", "cat > /etc/kubernetes/kubeadm-config.yaml <<'EOF'\n\(configYAML)\nEOF"],
@@ -120,19 +130,74 @@ extension ClusterHelper {
     }
 
     private static func loadKindnetManifest(log: Logger) async throws -> String {
-        let pluginLoader = try await Utility.createPluginLoader(log: log)
-        guard let plugin = pluginLoader.findPlugin(forExecutable: CommandLine.executablePath),
-            let resourceURL = plugin.resourceURL
-        else {
-            throw ContainerizationError(.internalError, message: "unable to locate cluster plugin installation or resources")
-        }
-        let url = resourceURL.appendingPathComponent("kindnet.yaml")
+        let url = try await pluginResourceURL(log: log).appendingPathComponent("kindnet.yaml")
         guard let contents = try? String(contentsOf: url, encoding: .utf8) else {
             throw ContainerizationError(.internalError, message: "kindnet manifest resource missing at \(url.path)")
         }
         return contents
     }
 
+    /// Returns the cluster-shim binary in the cluster plugin's resources.
+    /// Builds made without container services running do not include it.
+    static func clusterShimURL(log: Logger) async throws -> URL {
+        let shim = try await pluginResourceURL(log: log).appendingPathComponent("cluster-shim")
+        guard FileManager.default.fileExists(atPath: shim.path) else {
+            throw ContainerizationError(
+                .notFound,
+                message: "--shared-image-store needs cluster-shim, and this build of container has none at \(shim.path)")
+        }
+        return shim
+    }
+
+    /// Returns the resources directory of the installed cluster plugin.
+    private static func pluginResourceURL(log: Logger) async throws -> URL {
+        let pluginLoader = try await Utility.createPluginLoader(log: log)
+        guard let plugin = pluginLoader.findPlugin(forExecutable: CommandLine.executablePath),
+            let resourceURL = plugin.resourceURL
+        else {
+            throw ContainerizationError(.internalError, message: "unable to locate cluster plugin installation or resources")
+        }
+        return resourceURL
+    }
+
+    /// Makes cluster-shim containerd's content store: writes hoststore.toml,
+    /// imports it from the node image's version 2 config.toml, and starts the
+    /// shim before containerd. Runs before `nodePrepScript`, which restarts
+    /// containerd. The kubelet uses cluster-shim as its image service, set in
+    /// `initConfigYAML`.
+    private static var hostImagesScript: String {
+        """
+        set -e
+        mkdir -p /etc/containerd/conf.d
+        cat > /etc/containerd/conf.d/hoststore.toml <<'EOF'
+        version = 2
+        disabled_plugins = ["io.containerd.content.v1.content"]
+        [proxy_plugins.hoststore]
+          type = "content"
+          address = "/run/cluster-shim/content.sock"
+        [plugins.'io.containerd.metadata.v1.bolt']
+          content_sharing_policy = "shared"
+        EOF
+        grep -q '^imports' /etc/containerd/config.toml || \\
+          sed -i '1i imports = ["/etc/containerd/conf.d/hoststore.toml"]' /etc/containerd/config.toml
+        cat > /etc/systemd/system/cluster-shim.service <<'EOF'
+        [Unit]
+        Description=container cluster host store shim
+        Before=containerd.service
+
+        [Service]
+        ExecStart=\(nodeShimPath)
+        Restart=always
+
+        [Install]
+        WantedBy=multi-user.target
+        EOF
+        systemctl daemon-reload
+        systemctl enable --now cluster-shim
+        """
+    }
+
+    /// Configures containerd, networking and the pause image for the cluster.
     private static var nodePrepScript: String {
         """
         set -e
@@ -151,8 +216,19 @@ extension ClusterHelper {
         """
     }
 
-    private static func initConfigYAML(nodeImage: String, advertiseAddress: String, certSANs: [String]) throws -> String {
+    static func initConfigYAML(
+        nodeImage: String, advertiseAddress: String, certSANs: [String], sharedImageStore: Bool
+    ) throws -> String {
         let sans = certSANs.map { "  - \($0)" }.joined(separator: "\n")
+        var kubelet = """
+            apiVersion: kubelet.config.k8s.io/v1beta1
+            kind: KubeletConfiguration
+            cgroupDriver: systemd
+            failSwapOn: false
+            """
+        if sharedImageStore {
+            kubelet += "\nimageServiceEndpoint: unix://\(nodeImageServiceSocketPath)"
+        }
         return """
             apiVersion: kubeadm.k8s.io/v1beta4
             kind: InitConfiguration
@@ -171,10 +247,7 @@ extension ClusterHelper {
               certSANs:
             \(sans)
             ---
-            apiVersion: kubelet.config.k8s.io/v1beta1
-            kind: KubeletConfiguration
-            cgroupDriver: systemd
-            failSwapOn: false
+            \(kubelet)
             """
     }
 

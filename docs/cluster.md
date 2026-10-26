@@ -2,6 +2,15 @@
 
 Kubernetes is an open-source orchestration platform for automating deployment, scaling, and management of containerized workloads across clusters of machines. With `container`, you can run local Kubernetes clusters for development and testing.
 
+> [!WARNING]
+> `container cluster create --shared-image-store` lets cluster nodes use your local image store, so pods can run images you build or pull with `container` without a registry. Sharing is off by default. With sharing on:
+>
+> - Anything with root on a node, including privileged pods and pods with a `hostPath` mount, can read every image in your local image store, including private images you pulled with your registry credentials.
+> - A local image is used before a registry image with the same name, for every pull policy, and without the pod's pull secrets.
+> - Nodes cannot add, change, or delete images in your local image store.
+>
+> Without `--shared-image-store`, nodes pull every image from a registry, as in a standard Kubernetes cluster.
+
 ## Why Kubernetes on container
 
 Running Kubernetes locally with `container` gives you a streamlined workflow to build and test workloads before deploying to production:
@@ -104,29 +113,15 @@ kubectl --context cluster-dev describe node
 kubectl config use-context staging
 ```
 
-## Load container images into your cluster
+## Use container images in your cluster
 
-Images built with `container build` can be loaded directly into your Kubernetes cluster, so you can test them without pushing to a registry.
-
-### Build and load
-
-Build an image and load it into your cluster:
+A cluster created with `--shared-image-store` can pull the images in your local image store. Build or pull an image with `container`, and reference it by name in a pod spec:
 
 ```bash
-# Build a local image
-container build -t my-app:latest .
-
-# Load the image into every node of the cluster
-container cluster load-image my-app:latest
-
-# Load the image into a single node instead
-container cluster load-image --node cluster-dev-worker-1 my-app:latest
-
-# Load the image into specific nodes only
-container cluster load-image --node cluster-dev-worker-1 --node cluster-dev-worker-2 my-app:latest
+container cluster create --shared-image-store
+container build -t my-app:dev .
+kubectl run my-app --image=my-app:dev
 ```
-
-The image is placed in the `k8s.io` namespace, making it available for pod scheduling:
 
 ```yaml
 apiVersion: v1
@@ -136,28 +131,16 @@ metadata:
 spec:
   containers:
   - name: app
-    image: my-app:latest
-    imagePullPolicy: Never
+    image: my-app:dev
   restartPolicy: Never
 ```
 
-### Load into named clusters
+If the local image store does not have an image, the node pulls it from its registry as usual.
 
-If you have multiple clusters, specify which one to load into:
-
-```bash
-container cluster load-image --name staging my-app:latest
-container cluster load-image --name testing my-app:latest
-```
-
-### Multi-architecture images
-
-When loading multi-architecture images, specify the architecture if needed:
-
-```bash
-# Load the amd64 variant of a multi-arch image
-container cluster load-image --platform linux/amd64 my-app:latest
-```
+> [!NOTE]
+> - Every pull policy works, including `imagePullPolicy: Never`.
+> - Sharing is set when the cluster is created. To change it, delete the cluster and create it again.
+> - After rebuilding a tag, use `imagePullPolicy: Always` or a new tag so the node picks up the new image. With `IfNotPresent`, a node keeps the image it already has.
 
 ## Kubernetes node image
 
@@ -233,11 +216,8 @@ container cluster create --name my-cluster
 # Create a test cluster
 container cluster create --name test
 
-# Build your image locally
+# Build your image locally; the cluster pulls it by name
 container build -t my-service:v1.0 .
-
-# Load it into the test cluster
-container cluster load-image --name test my-service:v1.0
 
 # Deploy to the test cluster
 kubectl --context test apply -f deployment.yaml
@@ -257,8 +237,6 @@ container cluster create --name feature-auth
 container cluster create --name feature-payments
 
 # Work on each feature in isolation, test against its own cluster
-container cluster load-image --name feature-auth my-service:feature-auth
-container cluster load-image --name feature-payments my-service:feature-payments
 ```
 
 ## See also

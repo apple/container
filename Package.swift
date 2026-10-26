@@ -213,6 +213,31 @@ let package = Package(
             exclude: ["config.toml", "Resources"]
         ),
         .executableTarget(
+            name: "cluster-hoststore",
+            dependencies: [
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                .product(name: "Logging", package: "swift-log"),
+                .product(name: "NIOCore", package: "swift-nio"),
+                .product(name: "NIOHTTP1", package: "swift-nio"),
+                .product(name: "NIOPosix", package: "swift-nio"),
+                .product(name: "SystemPackage", package: "swift-system"),
+                .product(name: "Containerization", package: "containerization"),
+                "ContainerAPIClient",
+                "ContainerCluster",
+                "ContainerImagesServiceClient",
+                "ContainerLog",
+                "ContainerPersistence",
+                "ContainerPlugin",
+                "ContainerVersion",
+            ],
+            path: "Sources/Plugins/ClusterHostStore",
+            exclude: ["config.toml"]
+        ),
+        .testTarget(
+            name: "ClusterHostStoreTests",
+            dependencies: ["cluster-hoststore"]
+        ),
+        .executableTarget(
             name: "container-apiserver",
             dependencies: [
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
