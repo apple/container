@@ -89,6 +89,7 @@ You can also output statistics in JSON format for scripting:
     "memoryUsageBytes": 47431680,
     "memoryLimitBytes": 1073741824,
     "cpuUsageUsec": 1234567,
+    "cpuPercent": 12.34,
     "networkRxBytes": 1289011,
     "networkTxBytes": 876544,
     "blockReadBytes": 4718592,

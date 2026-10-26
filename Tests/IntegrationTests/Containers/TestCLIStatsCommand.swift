@@ -31,8 +31,10 @@ struct TestCLIStatsCommand {
                 #expect(stats[0].id == name, "container ID should match")
                 let memoryUsageBytes = try #require(stats[0].memoryUsageBytes)
                 let numProcesses = try #require(stats[0].numProcesses)
+                let cpuPercent = try #require(stats[0].cpuPercent, "json stats should include cpuPercent")
                 #expect(memoryUsageBytes > 0, "memory usage should be non-zero")
                 #expect(numProcesses >= 1, "should have at least one process")
+                #expect(cpuPercent >= 0, "cpuPercent should be non-negative, got \(cpuPercent)")
             }
         }
     }

@@ -102,7 +102,24 @@ extension Application {
 
             let statsData = try await Self.collectStats(client: client, for: containersToShow)
 
-            try Output.render(payload: statsData.map { $0.stats2 }, format: format) {
+            // Non-table formats already wait for the CPU delta in collectStats; include the
+            // percentage the table computes so JSON/YAML consumers are not left with only
+            // the cumulative counter (see apple/container#2144).
+            let payload = statsData.map { snapshot -> ContainerResource.ContainerStats in
+                var stats = snapshot.stats2
+                if let cpuUsageUsec1 = snapshot.stats1.cpuUsageUsec,
+                    let cpuUsageUsec2 = snapshot.stats2.cpuUsageUsec
+                {
+                    stats.cpuPercent = Self.calculateCPUPercent(
+                        cpuUsage1: .microseconds(cpuUsageUsec1),
+                        cpuUsage2: .microseconds(cpuUsageUsec2),
+                        timeInterval: .seconds(2)
+                    )
+                }
+                return stats
+            }
+
+            try Output.render(payload: payload, format: format) {
                 Self.statsTable(statsData)
             }
         }

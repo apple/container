@@ -26,6 +26,9 @@ public struct ContainerStats: Sendable, Codable {
     public var memoryLimitBytes: UInt64?
     /// CPU usage in microseconds
     public var cpuUsageUsec: UInt64?
+    /// CPU percentage over the sampling interval where 100% = one fully utilized core.
+    /// Populated by `container stats` for non-table formats; omitted from the runtime sample itself.
+    public var cpuPercent: Double?
     /// Network received bytes (sum of all interfaces)
     public var networkRxBytes: UInt64?
     /// Network transmitted bytes (sum of all interfaces)
@@ -42,6 +45,7 @@ public struct ContainerStats: Sendable, Codable {
         memoryUsageBytes: UInt64?,
         memoryLimitBytes: UInt64?,
         cpuUsageUsec: UInt64?,
+        cpuPercent: Double? = nil,
         networkRxBytes: UInt64?,
         networkTxBytes: UInt64?,
         blockReadBytes: UInt64?,
@@ -52,6 +56,7 @@ public struct ContainerStats: Sendable, Codable {
         self.memoryUsageBytes = memoryUsageBytes
         self.memoryLimitBytes = memoryLimitBytes
         self.cpuUsageUsec = cpuUsageUsec
+        self.cpuPercent = cpuPercent
         self.networkRxBytes = networkRxBytes
         self.networkTxBytes = networkTxBytes
         self.blockReadBytes = blockReadBytes
