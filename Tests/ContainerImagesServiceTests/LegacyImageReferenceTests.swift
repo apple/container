@@ -130,4 +130,18 @@ struct LegacyImageReferenceTests {
             #expect(Set(listed.map(\.reference)) == [legacy, "ghcr.io/example/other:latest"])
         }
     }
+
+    @Test func listingKeepsDigestReferencesAlongsideTheirQualifiedForms() async throws {
+        try await withStore { service, imageStore in
+            let referenceDigest = digest("e")
+            let shortDigest = "finlay-ledger@\(referenceDigest)"
+            let fullyQualifiedDigest = "docker.io/library/finlay-ledger@\(referenceDigest)"
+            try await store(reference: shortDigest, digest: referenceDigest, in: imageStore)
+            try await store(reference: fullyQualifiedDigest, digest: referenceDigest, in: imageStore)
+
+            let listed = try await service.list()
+
+            #expect(Set(listed.map(\.reference)) == [shortDigest, fullyQualifiedDigest])
+        }
+    }
 }

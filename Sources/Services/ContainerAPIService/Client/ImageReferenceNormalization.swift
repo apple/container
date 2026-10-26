@@ -58,7 +58,8 @@ public enum ImageReferenceNormalization {
         containerSystemConfig: ContainerSystemConfig
     ) -> Plan {
         let aliases = storedReferences.filter { reference in
-            reference != fullyQualified
+            isLegacyTagReference(reference)
+                && reference != fullyQualified
                 && referencesMatch(reference, fullyQualified, containerSystemConfig: containerSystemConfig)
         }
         let renameFrom: String?
@@ -85,7 +86,10 @@ public enum ImageReferenceNormalization {
     ) -> [String] {
         let present = Set(storedReferences)
         return storedReferences.filter { reference in
-            guard let fullyQualified = try? ClientImage.normalizeReference(reference, containerSystemConfig: containerSystemConfig) else {
+            guard
+                isLegacyTagReference(reference),
+                let fullyQualified = try? ClientImage.normalizeReference(reference, containerSystemConfig: containerSystemConfig)
+            else {
                 return false
             }
             return fullyQualified != reference && present.contains(fullyQualified)
@@ -134,6 +138,17 @@ public enum ImageReferenceNormalization {
             return referenced.first
         }
         return referenced.first(where: { $0.reference == normalizedReference }) ?? referenced.first
+    }
+
+    /// Whether a reference can be a legacy tag alias.
+    ///
+    /// Digest references identify immutable content rather than a tag name, so
+    /// they must not be renamed or removed during legacy tag cleanup.
+    private static func isLegacyTagReference(_ reference: String) -> Bool {
+        guard let parsed = try? Reference.parse(reference) else {
+            return false
+        }
+        return parsed.digest == nil
     }
 
     /// Whether two references name the same image after registry and tag normalization.

@@ -28,6 +28,10 @@ struct ImageReferenceNormalizationTests {
         ImageReferenceNormalization.Candidate(reference: reference, annotatedName: annotation ?? reference)
     }
 
+    private func digestReference(_ name: String, character: Character = "a") -> String {
+        "\(name)@sha256:" + String(repeating: character, count: 64)
+    }
+
     @Test func shortNameIsRenamedOntoTheFullyQualifiedReference() {
         let plan = ImageReferenceNormalization.plan(
             storedReferences: [legacy, "ghcr.io/example/other:latest"],
@@ -48,6 +52,17 @@ struct ImageReferenceNormalizationTests {
 
         #expect(plan.renameFrom == nil)
         #expect(plan.drop == [legacy])
+    }
+
+    @Test func canonicalDockerLibraryReferenceNeedsNoMigration() {
+        let plan = ImageReferenceNormalization.plan(
+            storedReferences: [fullyQualified, "ghcr.io/example/other:latest"],
+            fullyQualified: fullyQualified,
+            containerSystemConfig: config
+        )
+
+        #expect(plan.renameFrom == nil)
+        #expect(plan.drop.isEmpty)
     }
 
     @Test func preservedSourceIsNotCopiedBeforeItIsRead() {
@@ -81,6 +96,44 @@ struct ImageReferenceNormalizationTests {
         #expect(planned.drop == ["app:latest"])
     }
 
+    @Test func taglessShortNameIsEquivalentToExplicitLatest() {
+        let tagless = "finlay-ledger"
+        let plan = ImageReferenceNormalization.plan(
+            storedReferences: [tagless],
+            fullyQualified: fullyQualified,
+            containerSystemConfig: config
+        )
+
+        #expect(plan.renameFrom == tagless)
+        #expect(plan.drop == [tagless])
+        #expect(
+            ImageReferenceNormalization.legacyShadows(
+                storedReferences: [tagless, fullyQualified],
+                containerSystemConfig: config
+            ) == [tagless]
+        )
+    }
+
+    @Test func registryHostWithPortUsesTheConfiguredRegistry() {
+        let local = ContainerSystemConfig(registry: RegistryConfig(domain: "localhost:5000"))
+        let fullyQualifiedLocal = "localhost:5000/app:tag"
+        let localPlan = ImageReferenceNormalization.plan(
+            storedReferences: ["app:tag"],
+            fullyQualified: fullyQualifiedLocal,
+            containerSystemConfig: local
+        )
+        #expect(localPlan.renameFrom == "app:tag")
+        #expect(localPlan.drop == ["app:tag"])
+
+        let differentRegistryPlan = ImageReferenceNormalization.plan(
+            storedReferences: ["app:tag"],
+            fullyQualified: fullyQualifiedLocal,
+            containerSystemConfig: config
+        )
+        #expect(differentRegistryPlan.renameFrom == nil)
+        #expect(differentRegistryPlan.drop.isEmpty)
+    }
+
     @Test func unrelatedAndDigestReferencesAreLeftAlone() {
         let digest = "app@sha256:" + String(repeating: "a", count: 64)
         let plan = ImageReferenceNormalization.plan(
@@ -91,6 +144,25 @@ struct ImageReferenceNormalizationTests {
 
         #expect(plan.renameFrom == nil)
         #expect(plan.drop.isEmpty)
+    }
+
+    @Test func digestReferencesAreNotLegacyAliases() {
+        let shortDigest = digestReference("app")
+        let fullyQualifiedDigest = digestReference("docker.io/library/app")
+        let plan = ImageReferenceNormalization.plan(
+            storedReferences: [shortDigest],
+            fullyQualified: fullyQualifiedDigest,
+            containerSystemConfig: config
+        )
+
+        #expect(plan.renameFrom == nil)
+        #expect(plan.drop.isEmpty)
+        #expect(
+            ImageReferenceNormalization.legacyShadows(
+                storedReferences: [shortDigest, fullyQualifiedDigest],
+                containerSystemConfig: config
+            ).isEmpty
+        )
     }
 
     @Test func shadowsAreOnlyShortNamesBesideTheFullyQualifiedImage() {
