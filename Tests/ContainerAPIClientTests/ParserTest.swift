@@ -486,6 +486,17 @@ struct ParserTest {
     }
 
     @Test
+    func testMountTmpfsSizeBelowOneMiB() throws {
+        let result = try Parser.mount("type=tmpfs,dst=/foo,size=512k")
+        switch result {
+        case .filesystem(let fs):
+            #expect(fs.options.contains("size=524288"))
+        case .volume:
+            #expect(Bool(false), "Expected filesystem mount, got volume")
+        }
+    }
+
+    @Test
     func testMountTmpfsSourceRejection() throws {
         #expect(throws: ContainerizationError.self) {
             _ = try Parser.mount("type=tmpfs,source=tmpfs,target=/tmpfsmount1")
