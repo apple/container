@@ -30,6 +30,7 @@ public struct ClusterBootstrapper: Sendable {
     let kubernetesVersion: String
     let cni: String?
     let fqdn: String?
+    let sharedImageStore: Bool
     let controlPlane: any NodeProvisioner
     let workers: [any NodeProvisioner]
 
@@ -38,6 +39,8 @@ public struct ClusterBootstrapper: Sendable {
     ///   - kubernetesVersion: Exact Kubernetes version for kubeadm, e.g. `v1.35.5`. It must match the version installed on the nodes.
     ///   - cni: Path to a CNI manifest, `"NONE"` to skip installing one, or nil for the default.
     ///   - fqdn: DNS name for the API server, added to its certificate SANs.
+    ///   - sharedImageStore: Points the kubelet at cluster-shim's image service. The provisioners
+    ///     must install cluster-shim on the nodes.
     ///   - controlPlane: Provisioner for the control-plane node, whose name must be `name`. Its roles include
     ///     `StandardRoles.worker` when the cluster has no separate workers.
     ///   - workers: Provisioners for the worker nodes to join, in order. Each must be named
@@ -47,6 +50,7 @@ public struct ClusterBootstrapper: Sendable {
         kubernetesVersion: String,
         cni: String?,
         fqdn: String?,
+        sharedImageStore: Bool,
         controlPlane: any NodeProvisioner,
         workers: [any NodeProvisioner]
     ) {
@@ -54,6 +58,7 @@ public struct ClusterBootstrapper: Sendable {
         self.kubernetesVersion = kubernetesVersion
         self.cni = cni
         self.fqdn = fqdn
+        self.sharedImageStore = sharedImageStore
         self.controlPlane = controlPlane
         self.workers = workers
     }
