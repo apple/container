@@ -31,41 +31,18 @@ extension Application.NetworkCommand {
 
         public func run() async throws {
             let networkClient = NetworkClient()
-            let client = ContainerClient()
-            let allContainers = try await client.list()
-            let allNetworks = try await networkClient.list()
+            let result = try await networkClient.prune()
 
-            var networksInUse = Set<String>()
-            for container in allContainers {
-                for network in container.configuration.networks {
-                    networksInUse.insert(network.network)
-                }
+            for failure in result.failed {
+                log.error(
+                    "failed to prune network",
+                    metadata: [
+                        "id": "\(failure.id)",
+                        "error": "\(failure.error)",
+                    ])
             }
 
-            let networksToPrune = allNetworks.filter { network in
-                !network.isBuiltin && !networksInUse.contains(network.id)
-            }
-
-            var prunedNetworks = [String]()
-
-            for network in networksToPrune {
-                do {
-                    try await networkClient.delete(id: network.id)
-                    prunedNetworks.append(network.id)
-                } catch {
-                    // Note: This failure may occur due to a race condition between the network/
-                    // container collection above and a container run command that attaches to a
-                    // network listed in the networksToPrune collection.
-                    log.error(
-                        "failed to prune network",
-                        metadata: [
-                            "id": "\(network.id)",
-                            "error": "\(error)",
-                        ])
-                }
-            }
-
-            for name in prunedNetworks {
+            for name in result.pruned {
                 print(name)
             }
         }
