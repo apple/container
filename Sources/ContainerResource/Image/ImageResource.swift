@@ -30,14 +30,18 @@ public struct ImageResource: ManagedResource {
         public let platform: Platform
         /// The digest of this variant's manifest.
         public let digest: String
+        /// The digest of this variant's image config. This is the image ID that
+        /// container runtimes such as containerd report.
+        public let configDigest: String
         /// The total size of this variant in bytes.
         public let size: Int64
         /// The OCI image config for this variant.
         public let config: ContainerizationOCI.Image
 
-        public init(platform: Platform, digest: String, size: Int64, config: ContainerizationOCI.Image) {
+        public init(platform: Platform, digest: String, configDigest: String, size: Int64, config: ContainerizationOCI.Image) {
             self.platform = platform
             self.digest = digest
+            self.configDigest = configDigest
             self.size = size
             self.config = config
         }

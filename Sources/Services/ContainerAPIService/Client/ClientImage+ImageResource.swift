@@ -45,7 +45,8 @@ extension ClientImage {
                 desc.size + manifest.config.size
                 + manifest.layers.reduce(0) { $0 + $1.size }
 
-            variants.append(.init(platform: platform, digest: desc.digest, size: size, config: config))
+            variants.append(
+                .init(platform: platform, digest: desc.digest, configDigest: manifest.config.digest, size: size, config: config))
 
             // Use the earliest variant's creation timestamp as the image's date.
             if let date = config.created.flatMap(Self.parseCreated) {
