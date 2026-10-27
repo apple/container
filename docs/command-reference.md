@@ -348,6 +348,16 @@ container list [--all] [--filter <filter> ...] [--format <format>] [--quiet] [--
 *   `--format <format>`: Format of the output (values: json, table, yaml, toml; default: table)
 *   `-q, --quiet`: Only output the container ID
 
+**Examples**
+
+```bash
+# list running containers with a specific label value
+container ls --filter label=environment=production
+
+# list all containers with a specific label present
+container ls -a -f label=sandbox
+```
+
 ### `container exec`
 
 Executes a command inside a running container. It uses the same process flags as `container run` to control environment, user, and TTY settings.
