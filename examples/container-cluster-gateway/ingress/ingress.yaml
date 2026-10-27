@@ -1,0 +1,36 @@
+# Routes requests that reach the cluster's ingress controller by host name.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: notepad
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: notepad.gateway.test
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web
+                port:
+                  number: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: notepad-api
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: api.gateway.test
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: api
+                port:
+                  number: 5000
