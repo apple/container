@@ -35,7 +35,7 @@ extension Application {
 
         @Option(
             name: .long,
-            help: "Fetch logs starting from the specified time period (minus the current time); supported formats: m, h, d"
+            help: "Fetch logs starting from the specified time period (minus the current time); supported formats: <number>[m|h|d] (defaults to seconds)"
         )
         var last: String = "5m"
 
@@ -43,6 +43,19 @@ extension Application {
         public var logOptions: Flags.Logging
 
         public init() {}
+
+        public func validate() throws {
+            if follow { return }
+            if let value = Int(last), value > 0 { return }
+            guard let unit = last.last, "mhd".contains(unit),
+                let value = Int(last.dropLast()), value > 0
+            else {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "invalid --last value '\(last)': expected a positive integer (seconds) or a value with suffix m, h, or d (e.g. 30, 5m, 1h, 2d)"
+                )
+            }
+        }
 
         public func run() async throws {
             let process = Process()

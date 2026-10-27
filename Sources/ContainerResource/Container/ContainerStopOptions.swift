@@ -17,15 +17,15 @@
 import Foundation
 
 public struct ContainerStopOptions: Sendable, Codable {
-    public let timeoutInSeconds: Int32
-    public let signal: Int32
+    public var timeoutInSeconds: Int32
+    public var signal: String?
 
     public static let `default` = ContainerStopOptions(
         timeoutInSeconds: 5,
-        signal: SIGTERM
+        signal: nil
     )
 
-    public init(timeoutInSeconds: Int32, signal: Int32) {
+    public init(timeoutInSeconds: Int32, signal: String?) {
         self.timeoutInSeconds = timeoutInSeconds
         self.signal = signal
     }

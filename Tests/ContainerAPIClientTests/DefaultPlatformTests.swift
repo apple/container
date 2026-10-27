@@ -170,74 +170,25 @@ struct DefaultPlatformTests {
         #expect(result?.os == "linux")
     }
 
-    // MARK: - resolveWithDefaults (required os/arch, used by run/create)
-
-    @Test
-    func testResolveWithDefaultsExplicitPlatformWins() throws {
-        let env = ["CONTAINER_DEFAULT_PLATFORM": "linux/arm64"]
-        let result = try DefaultPlatform.resolveWithDefaults(
-            platform: "linux/amd64", os: "linux", arch: "arm64", environment: env
-        )
-        #expect(result.architecture == "amd64")
-    }
-
-    @Test
-    func testResolveWithDefaultsEnvVarOverridesDefaults() throws {
-        let env = ["CONTAINER_DEFAULT_PLATFORM": "linux/amd64"]
-        let result = try DefaultPlatform.resolveWithDefaults(
-            platform: nil, os: "linux", arch: "arm64", environment: env
-        )
-        #expect(result.architecture == "amd64")
-        #expect(result.os == "linux")
-    }
-
-    @Test
-    func testResolveWithDefaultsFallsBackToOsArch() throws {
-        let env: [String: String] = [:]
-        let result = try DefaultPlatform.resolveWithDefaults(
-            platform: nil, os: "linux", arch: "arm64", environment: env
-        )
-        #expect(result.os == "linux")
-        #expect(result.architecture == "arm64")
-    }
-
-    @Test
-    func testResolveWithDefaultsEnvVarWithDifferentOs() throws {
-        let env = ["CONTAINER_DEFAULT_PLATFORM": "linux/amd64"]
-        let result = try DefaultPlatform.resolveWithDefaults(
-            platform: nil, os: "linux", arch: Arch.hostArchitecture().rawValue, environment: env
-        )
-        #expect(result.architecture == "amd64")
-    }
-
-    @Test
-    func testResolveWithDefaultsInvalidEnvVarThrows() throws {
-        let env = ["CONTAINER_DEFAULT_PLATFORM": "garbage"]
-        #expect {
-            _ = try DefaultPlatform.resolveWithDefaults(
-                platform: nil, os: "linux", arch: "arm64", environment: env
-            )
-        } throws: { error in
-            guard let error = error as? ContainerizationError else {
-                return false
-            }
-            return error.description.contains("CONTAINER_DEFAULT_PLATFORM")
-        }
-    }
-
-    @Test
-    func testResolveWithDefaultsExplicitPlatformIgnoresInvalidEnvVar() throws {
-        let env = ["CONTAINER_DEFAULT_PLATFORM": "garbage"]
-        let result = try DefaultPlatform.resolveWithDefaults(
-            platform: "linux/amd64", os: "linux", arch: "arm64", environment: env
-        )
-        #expect(result.architecture == "amd64")
-    }
-
     // MARK: - Environment variable name
 
     @Test
     func testEnvironmentVariableName() {
         #expect(DefaultPlatform.environmentVariable == "CONTAINER_DEFAULT_PLATFORM")
+    }
+
+    // MARK: - fallback (run/create default)
+
+    @Test
+    func testFallbackUsesEnvironment() throws {
+        let env = ["CONTAINER_DEFAULT_PLATFORM": "linux/amd64"]
+        let result = try DefaultPlatform.fallback(environment: env)
+        #expect(result == Platform(arch: "amd64", os: "linux"))
+    }
+
+    @Test
+    func testFallbackDefaultsToLinuxHost() throws {
+        let result = try DefaultPlatform.fallback(environment: [:])
+        #expect(result == Platform(arch: Arch.hostArchitecture().rawValue, os: "linux"))
     }
 }

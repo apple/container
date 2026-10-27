@@ -19,6 +19,7 @@ import ContainerAPIClient
 import ContainerPlugin
 import Darwin
 import Foundation
+import SystemPackage
 
 struct DefaultCommand: AsyncLoggableCommand {
     public static let configuration = CommandConfiguration(
@@ -34,7 +35,7 @@ struct DefaultCommand: AsyncLoggableCommand {
 
     func run() async throws {
         // See if we have a possible plugin command.
-        let pluginLoader = try? await Application.createPluginLoader()
+        let pluginLoader = try? await Utility.createPluginLoader(log: log)
         guard let command = remaining.first else {
             await Application.printModifiedHelpText(pluginLoader: pluginLoader)
             return
@@ -48,17 +49,19 @@ struct DefaultCommand: AsyncLoggableCommand {
         }
 
         // Compute canonical plugin directories to show in helpful errors (avoid hard-coded paths)
-        let installRoot = CommandLine.executablePathUrl
-            .deletingLastPathComponent()
-            .appendingPathComponent("..")
-            .standardized
-        let userPluginsURL = PluginLoader.userPluginsDir(installRoot: installRoot)
-        let installRootPluginsURL =
+        let installRoot = CommandLine.executablePath
+            .removingLastComponent()
+            .removingLastComponent()
+
+        // TODO: Remove when we convert PluginLoader to FilePath
+        let installRootURL = URL(fileURLWithPath: installRoot.string)
+        let userPluginsURL = PluginLoader.userPluginsDir(installRoot: installRootURL)
+        let installRootPluginsPath =
             installRoot
-            .appendingPathComponent("libexec")
-            .appendingPathComponent("container")
-            .appendingPathComponent("plugins")
-            .standardized
+            .appending(FilePath.Component("libexec"))
+            .appending(FilePath.Component("container"))
+            .appending(FilePath.Component("plugins"))
+        let installRootPluginsURL = URL(fileURLWithPath: installRootPluginsPath.string)
         let hintPaths = [userPluginsURL, installRootPluginsURL]
             .map { $0.appendingPathComponent(command).path(percentEncoded: false) }
             .joined(separator: "\n  - ")
@@ -81,12 +84,11 @@ struct DefaultCommand: AsyncLoggableCommand {
         guard let plugin = pluginLoader?.findPlugin(name: command), plugin.config.isCLI else {
             throw ValidationError(
                 """
-                Plugin 'container-\(command)' not found.
+                unknown command '\(command)'
 
                 - If system services are not running, start them with: container system start
-                - If the plugin isn't installed, ensure it exists under:
 
-                Check to see that the plugin exists under:
+                If '\(command)' is a plugin, check that it exists under:
                   - \(hintPaths)
 
                 """

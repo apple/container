@@ -19,6 +19,7 @@ import ContainerAPIClient
 import ContainerPersistence
 import ContainerizationError
 import ContainerizationExtras
+import DNSServer
 import Foundation
 
 extension Application {
@@ -48,6 +49,10 @@ extension Application {
                 }
             }
 
+            guard let domainName = try? DNSName(domainName) else {
+                throw ContainerizationError(.invalidArgument, message: "invalid domain name: \(domainName)")
+            }
+
             let resolver: HostDNSResolver = HostDNSResolver()
             do {
                 try resolver.createDomain(name: domainName, localhost: localhostIP)
@@ -67,7 +72,7 @@ extension Application {
                     throw error
                 }
             }
-            print(domainName)
+            print(domainName.pqdn)
 
             if localhostIP != nil {
                 do {

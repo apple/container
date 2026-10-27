@@ -69,6 +69,32 @@ extension XPCClient {
         xpc_connection_get_pid(self.connection)
     }
 
+    /// Install a handler that is called whenever the connection receives an XPC error event.
+    ///
+    /// This replaces the existing (no-op) event handler. Call this before the first
+    /// `send()` to avoid a disconnect-before-handler race.
+    ///
+    /// ```swift
+    /// let client = XPCClient(service: "com.example.myservice")
+    /// client.setDisconnectHandler {
+    ///     print("service disconnected, cleaning up")
+    /// }
+    /// let response = try await client.send(request)
+    /// ```
+    public func setDisconnectHandler(_ handler: @Sendable @escaping () -> Void) {
+        xpc_connection_set_event_handler(connection) { object in
+            if xpc_get_type(object) == XPC_TYPE_ERROR { handler() }
+        }
+    }
+
+    /// Create a persistent session backed by this client connection.
+    ///
+    /// The session installs a disconnect handler at initialisation time, before
+    /// any messages are sent, ensuring no server-exit event is missed.
+    public func openSession() -> XPCClientSession {
+        XPCClientSession(client: self)
+    }
+
     /// Send the provided message to the service.
     @discardableResult
     public func send(_ message: XPCMessage, responseTimeout: Duration? = nil) async throws -> XPCMessage {

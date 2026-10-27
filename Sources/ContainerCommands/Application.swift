@@ -52,6 +52,9 @@ public struct Application: AsyncLoggableCommand {
             CommandGroup(
                 name: "Container",
                 subcommands: [
+                    ContainerClean.self,
+                    ContainerCommit.self,
+                    ContainerCopy.self,
                     ContainerCreate.self,
                     ContainerDelete.self,
                     ContainerExec.self,
@@ -70,9 +73,14 @@ public struct Application: AsyncLoggableCommand {
             CommandGroup(
                 name: "Image",
                 subcommands: [
-                    BuildCommand.self,
                     ImageCommand.self,
                     RegistryCommand.self,
+                ]
+            ),
+            CommandGroup(
+                name: "Machine",
+                subcommands: [
+                    MachineCommand.self
                 ]
             ),
             CommandGroup(
@@ -91,7 +99,7 @@ public struct Application: AsyncLoggableCommand {
     )
 
     public static func main() async throws {
-        restoreCursorAtExit()
+        ProgressBar.restoreCursorAtExit()
 
         #if DEBUG
         let warning = "Running debug build. Performance may be degraded."
@@ -120,7 +128,7 @@ public struct Application: AsyncLoggableCommand {
             // by ArgumentParser and lands here.
             let containsHelp = fullArgs.contains("-h") || fullArgs.contains("--help")
             if fullArgs.count <= 2 && containsHelp {
-                let pluginLoader = try? await createPluginLoader()
+                let pluginLoader = try? await Utility.createPluginLoader(log: bootstrapLogger)
                 await Self.printModifiedHelpText(pluginLoader: pluginLoader)
                 return
             }
@@ -132,51 +140,6 @@ public struct Application: AsyncLoggableCommand {
                 Application.exit(withError: error)
             }
         }
-    }
-
-    public static func createPluginLoader() async throws -> PluginLoader {
-        let installRoot = CommandLine.executablePathUrl
-            .deletingLastPathComponent()
-            .appendingPathComponent("..")
-            .standardized
-        let pluginsURL = PluginLoader.userPluginsDir(installRoot: installRoot)
-        var directoryExists: ObjCBool = false
-        _ = FileManager.default.fileExists(atPath: pluginsURL.path, isDirectory: &directoryExists)
-        let userPluginsURL = directoryExists.boolValue ? pluginsURL : nil
-
-        // plugins built into the application installed as a macOS app bundle
-        let appBundlePluginsURL = Bundle.main.resourceURL?.appending(path: "plugins")
-
-        // plugins built into the application installed as a Unix-like application
-        let installRootPluginsURL =
-            installRoot
-            .appendingPathComponent("libexec")
-            .appendingPathComponent("container")
-            .appendingPathComponent("plugins")
-            .standardized
-
-        let pluginDirectories = [
-            userPluginsURL,
-            appBundlePluginsURL,
-            installRootPluginsURL,
-        ].compactMap { $0 }
-
-        let pluginFactories: [any PluginFactory] = [
-            DefaultPluginFactory(logger: bootstrapLogger),
-            AppBundlePluginFactory(logger: bootstrapLogger),
-        ]
-
-        guard let systemHealth = try? await ClientHealthCheck.ping(timeout: .seconds(10)) else {
-            throw ContainerizationError(.timeout, message: "unable to retrieve application data root from API server")
-        }
-        return try PluginLoader(
-            appRoot: systemHealth.appRoot,
-            installRoot: systemHealth.installRoot,
-            logRoot: systemHealth.logRoot,
-            pluginDirectories: pluginDirectories,
-            pluginFactories: pluginFactories,
-            log: bootstrapLogger
-        )
     }
 
     public func validate() throws {
@@ -200,35 +163,16 @@ public struct Application: AsyncLoggableCommand {
     private static func otherCommands() -> [any ParsableCommand.Type] {
         guard #available(macOS 26, *) else {
             return [
-                BuilderCommand.self,
-                SystemCommand.self,
+                SystemCommand.self
             ]
         }
 
         return [
-            BuilderCommand.self,
             NetworkCommand.self,
             SystemCommand.self,
         ]
     }
 
-    private static func restoreCursorAtExit() {
-        let signalHandler: @convention(c) (Int32) -> Void = { signal in
-            let exitCode = ExitCode(signal + 128)
-            Application.exit(withError: exitCode)
-        }
-        // Termination by Ctrl+C.
-        signal(SIGINT, signalHandler)
-        // Termination using `kill`.
-        signal(SIGTERM, signalHandler)
-        // Normal and explicit exit.
-        atexit {
-            if let progressConfig = try? ProgressConfig() {
-                let progressBar = ProgressBar(config: progressConfig)
-                progressBar.resetCursor()
-            }
-        }
-    }
 }
 
 extension Application {
@@ -237,12 +181,17 @@ extension Application {
     static func printModifiedHelpText(pluginLoader: PluginLoader?) async {
         let original = Application.helpMessage(for: Application.self)
         guard let pluginLoader else {
-            print(original)
-            print("PLUGINS: not available, run `container system start`")
+            print(addGroupSpacing(original))
+            print("\n[Warning] CLI plugins not available, run `container system start`")
             return
         }
         let altered = pluginLoader.alterCLIHelpText(original: original)
-        print(altered)
+        print(addGroupSpacing(altered))
+    }
+
+    private static func addGroupSpacing(_ text: String) -> String {
+        text
+            .replacingOccurrences(of: "\n([A-Z].+SUBCOMMANDS:)", with: "\n\n$1", options: .regularExpression)
     }
 
     func isTranslated() throws -> Bool {

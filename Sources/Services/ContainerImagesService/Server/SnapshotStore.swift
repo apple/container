@@ -15,9 +15,9 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerAPIClient
-import ContainerPersistence
 import ContainerResource
 import Containerization
+import ContainerizationEXT4
 import ContainerizationError
 import ContainerizationExtras
 import ContainerizationOCI
@@ -35,15 +35,19 @@ public actor SnapshotStore {
     /// If the given platform for the image cannot be unpacked return `nil`.
     public typealias UnpackStrategy = @Sendable (Containerization.Image, Platform) async throws -> Unpacker?
 
-    public static let defaultUnpackStrategy: UnpackStrategy = { image, platform in
-        guard platform.os == "linux" else {
-            return nil
+    public static func defaultUnpackStrategy(initImage: String) -> UnpackStrategy {
+        { image, platform in
+            guard platform.os == "linux" else {
+                return nil
+            }
+            let capacityInBytes: UInt64
+            if image.reference == initImage {
+                capacityInBytes = 512.mib()
+            } else {
+                capacityInBytes = 512.gib()
+            }
+            return EXT4Unpacker(capacityInBytes: capacityInBytes, journal: .init(defaultMode: .ordered))
         }
-        var minBlockSize = 512.gib()
-        if image.reference == DefaultsStore.get(key: .defaultInitImage) {
-            minBlockSize = 512.mib()
-        }
-        return EXT4Unpacker(blockSizeInBytes: minBlockSize)
     }
 
     let path: URL
@@ -68,7 +72,22 @@ public actor SnapshotStore {
             let desc = try await image.descriptor(for: platform)
             toUnpack = [desc]
         } else {
-            toUnpack = try await image.unpackableDescriptors()
+            // The index can list platforms whose content is not in the store, for example when the
+            // image was loaded from an archive saved for a single platform, or pulled for one.
+            // There is nothing to unpack for those.
+            for desc in try await image.unpackableDescriptors() {
+                guard let platform = desc.platform, try await image.hasManifest(for: platform) else {
+                    self.log?.info(
+                        "skipping unpack of a platform with no content",
+                        metadata: [
+                            "image": "\(image.reference)",
+                            "platform": "\(desc.platform?.description ?? "unknown")",
+                            "digest": "\(desc.digest)",
+                        ])
+                    continue
+                }
+                toUnpack.append(desc)
+            }
         }
 
         let taskManager = ProgressTaskCoordinator()
@@ -76,7 +95,7 @@ public actor SnapshotStore {
 
         for desc in toUnpack {
             try Task.checkCancellation()
-            let snapshotDir = self.snapshotDir(desc)
+            let snapshotDir = try self.snapshotDir(desc)
             guard !self.fm.fileExists(atPath: snapshotDir.absolutePath()) else {
                 // We have already unpacked this image + platform. Skip
                 continue
@@ -106,7 +125,7 @@ public actor SnapshotStore {
                 let mount = try await unpacker.unpack(image, for: platform, at: tempSnapshotPath, progress: progress)
                 let fs = Filesystem.block(
                     format: mount.type,
-                    source: self.snapshotPath(desc).absolutePath(),
+                    source: try self.snapshotPath(desc).absolutePath(),
                     destination: mount.destination,
                     options: mount.options
                 )
@@ -137,7 +156,7 @@ public actor SnapshotStore {
             toDelete = try await image.unpackableDescriptors()
         }
         for desc in toDelete {
-            let p = self.snapshotDir(desc)
+            let p = try self.snapshotDir(desc)
             guard self.fm.fileExists(atPath: p.absolutePath()) else {
                 continue
             }
@@ -147,8 +166,8 @@ public actor SnapshotStore {
 
     public func get(for image: Containerization.Image, platform: Platform) async throws -> Filesystem {
         let desc = try await image.descriptor(for: platform)
-        let infoPath = snapshotInfoPath(desc)
-        let fsPath = snapshotPath(desc)
+        let infoPath = try snapshotInfoPath(desc)
+        let fsPath = try snapshotPath(desc)
 
         guard self.fm.fileExists(atPath: infoPath.absolutePath()),
             self.fm.fileExists(atPath: fsPath.absolutePath())
@@ -169,7 +188,7 @@ public actor SnapshotStore {
                     continue
                 }
                 let desc = try await image.descriptor(for: platform)
-                toKeep.append(desc.digest.trimmingDigestPrefix)
+                toKeep.append(try desc.digest.validatedDigestEncoding())
             }
         }
         let all = try self.fm.contentsOfDirectory(at: self.path, includingPropertiesForKeys: [.totalFileAllocatedSizeKey]).map {
@@ -182,25 +201,25 @@ public actor SnapshotStore {
             guard self.fm.fileExists(atPath: unpackedPath.absolutePath()) else {
                 continue
             }
-            deletedBytes += (try? self.fm.directorySize(dir: unpackedPath)) ?? 0
+            deletedBytes += self.fm.allocatedSize(of: unpackedPath)
             try self.fm.removeItem(at: unpackedPath)
         }
         return deletedBytes
     }
 
-    private func snapshotDir(_ desc: Descriptor) -> URL {
-        let p = self.path.appendingPathComponent(desc.digest.trimmingDigestPrefix, isDirectory: true)
+    private func snapshotDir(_ desc: Descriptor) throws -> URL {
+        let p = self.path.appendingPathComponent(try desc.digest.validatedDigestEncoding(), isDirectory: true)
         return p
     }
 
-    private func snapshotPath(_ desc: Descriptor) -> URL {
-        let p = self.snapshotDir(desc)
+    private func snapshotPath(_ desc: Descriptor) throws -> URL {
+        let p = try self.snapshotDir(desc)
             .appendingPathComponent(Self.snapshotFileName, isDirectory: false)
         return p
     }
 
-    private func snapshotInfoPath(_ desc: Descriptor) -> URL {
-        let p = self.snapshotDir(desc)
+    private func snapshotInfoPath(_ desc: Descriptor) throws -> URL {
+        let p = try self.snapshotDir(desc)
             .appendingPathComponent(Self.snapshotInfoFileName, isDirectory: false)
         return p
     }
@@ -213,41 +232,41 @@ public actor SnapshotStore {
 
     /// Get the disk size for a specific snapshot descriptor
     public func getSnapshotSize(descriptor: Descriptor) throws -> UInt64 {
-        let snapshotPath = self.snapshotDir(descriptor)
+        let snapshotPath = try self.snapshotDir(descriptor)
         guard self.fm.fileExists(atPath: snapshotPath.path) else {
             return 0
         }
-        return try self.fm.directorySize(dir: snapshotPath)
+        return self.fm.allocatedSize(of: snapshotPath)
     }
-}
 
-extension FileManager {
-    fileprivate func directorySize(dir: URL) throws -> UInt64 {
-        var size: UInt64 = 0
-        let resourceKeys: [URLResourceKey] = [.totalFileAllocatedSizeKey]
-
-        guard
-            let enumerator = self.enumerator(
-                at: dir,
-                includingPropertiesForKeys: resourceKeys,
-                options: [.skipsHiddenFiles]
-            )
-        else {
-            return 0
+    /// Returns (trimmed digest, size) pairs for every unpackable snapshot owned by the image.
+    public func getSnapshotSizes(for image: Containerization.Image) async throws -> [(digest: String, size: UInt64)] {
+        var results: [(digest: String, size: UInt64)] = []
+        for descriptor in try await image.unpackableDescriptors() {
+            let size = try self.getSnapshotSize(descriptor: descriptor)
+            guard size > 0 else { continue }
+            results.append((try descriptor.digest.validatedDigestEncoding(), size))
         }
+        return results
+    }
 
-        for case let fileURL as URL in enumerator {
-            if let resourceValues = try? fileURL.resourceValues(forKeys: [.totalFileAllocatedSizeKey]),
-                let fileSize = resourceValues.totalFileAllocatedSize
-            {
-                size += UInt64(fileSize)
-            }
-        }
-        return size
+    /// Total allocated bytes across all snapshot storage (including orphans).
+    public func totalAllocatedSize() -> UInt64 {
+        self.fm.allocatedSize(of: self.path)
     }
 }
 
 extension Containerization.Image {
+    /// Whether the manifest for the platform is in the content store.
+    fileprivate func hasManifest(for platform: Platform) async throws -> Bool {
+        do {
+            _ = try await self.manifest(for: platform)
+            return true
+        } catch let error as ContainerizationError where error.code == .notFound {
+            return false
+        }
+    }
+
     fileprivate func unpackableDescriptors() async throws -> [Descriptor] {
         let index = try await self.index()
         return index.manifests.filter { desc in

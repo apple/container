@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerAPIClient
+import ContainerPersistence
 import Containerization
 import ContainerizationOCI
 import ContainerizationOS
@@ -23,13 +24,26 @@ import GRPCCore
 import GRPCNIOTransportHTTP2
 import Logging
 import NIO
-import NIOCore
-import NIOHPACK
-import NIOHTTP2
 import NIOPosix
 
 public struct Builder: Sendable {
     public static let builderContainerId = "buildkit"
+
+    /// The `:authority` sent with every request to the builder shim.
+    ///
+    /// The shim connection is an already-connected socket, so grpc-swift has no target
+    /// address to derive an authority from and would send none. gRPC-Go v1.82.2, v1.83.2
+    /// and v1.84.0 or later reject requests without an `:authority` (grpc-go #9365), which
+    /// leaves the builder unable to answer even the `Info` probe. The shim does not route
+    /// on the authority, so any valid host name works.
+    static let grpcAuthority = Builder.builderContainerId
+
+    /// The transport configuration for the connection to the builder shim.
+    static func transportConfig() -> HTTP2ClientTransport.WrappedChannel.Config {
+        var config = HTTP2ClientTransport.WrappedChannel.Config.defaults
+        config.http2.authority = grpcAuthority
+        return config
+    }
 
     let client: Com_Apple_Container_Build_V1_Builder.Client<HTTP2ClientTransport.WrappedChannel>
     let grpcClient: GRPCClient<HTTP2ClientTransport.WrappedChannel>
@@ -38,22 +52,27 @@ public struct Builder: Sendable {
     let clientTask: Task<Void, any Swift.Error>
     let logger: Logger
 
-    public init(socket: FileHandle, group: EventLoopGroup, logger: Logger) throws {
+    public init(socket: FileHandle, group: EventLoopGroup, logger: Logger) async throws {
         try socket.setSendBufSize(4 << 20)
         try socket.setRecvBufSize(2 << 20)
 
-        let channel = try ClientBootstrap(group: group)
-            .channelInitializer { channel in
-                channel.eventLoop.makeCompletedFuture(withResultOf: {
-                    try channel.pipeline.syncOperations.addHandler(HTTP2ConnectBufferingHandler())
-                })
+        let transport = try await HTTP2ClientTransport.WrappedChannel.wrapping(
+            config: Builder.transportConfig(),
+            serviceConfig: .init()
+        ) { configure in
+            try await withCheckedThrowingContinuation { continuation in
+                ClientBootstrap(group: group)
+                    .channelInitializer { channel in
+                        configure(channel).map { configured in
+                            continuation.resume(returning: configured)
+                        }
+                    }
+                    .withConnectedSocket(socket.fileDescriptor)
+                    .whenFailure { error in
+                        continuation.resume(throwing: error)
+                    }
             }
-            .withConnectedSocket(socket.fileDescriptor)
-            .wait()
-
-        let transport = HTTP2ClientTransport.WrappedChannel.wrapping(
-            channel: channel
-        )
+        }
 
         let grpcClient = GRPCClient(transport: transport)
         self.grpcClient = grpcClient
@@ -105,7 +124,7 @@ public struct Builder: Sendable {
         }
 
         if let terminal = config.terminal {
-            Task {
+            _ = Task {
                 let winchHandler = AsyncSignalHandler.create(notify: [SIGWINCH])
                 let setWinch = { (rows: UInt16, cols: UInt16) in
                     var winch = ClientStream()
@@ -265,6 +284,7 @@ public struct Builder: Sendable {
         public let contentStore: ContentStore
         public let buildArgs: [String]
         public let secrets: [String: Data]
+        public let ssh: String
         public let contextDir: String
         public let dockerfile: Data
         public let dockerignore: Data?
@@ -279,12 +299,14 @@ public struct Builder: Sendable {
         public let cacheIn: [String]
         public let cacheOut: [String]
         public let pull: Bool
+        public let containerSystemConfig: ContainerSystemConfig
 
         public init(
             buildID: String,
             contentStore: ContentStore,
             buildArgs: [String],
             secrets: [String: Data],
+            ssh: String,
             contextDir: String,
             dockerfile: Data,
             dockerignore: Data?,
@@ -298,12 +320,14 @@ public struct Builder: Sendable {
             exports: [BuildExport],
             cacheIn: [String],
             cacheOut: [String],
-            pull: Bool
+            pull: Bool,
+            containerSystemConfig: ContainerSystemConfig
         ) {
             self.buildID = buildID
             self.contentStore = contentStore
             self.buildArgs = buildArgs
             self.secrets = secrets
+            self.ssh = ssh
             self.contextDir = contextDir
             self.dockerfile = dockerfile
             self.dockerignore = dockerignore
@@ -318,6 +342,7 @@ public struct Builder: Sendable {
             self.cacheIn = cacheIn
             self.cacheOut = cacheOut
             self.pull = pull
+            self.containerSystemConfig = containerSystemConfig
         }
     }
 
@@ -349,6 +374,9 @@ public struct Builder: Sendable {
         }
         for (id, data) in config.secrets {
             metadata.addString(id + "=" + data.base64EncodedString(), forKey: "secrets")
+        }
+        if config.ssh == "default" {
+            metadata.addString("default", forKey: "ssh")
         }
         for output in config.exports {
             metadata.addString(try output.stringValue, forKey: "outputs")
@@ -423,51 +451,5 @@ extension FileHandle {
         if res == -1 {
             throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EPERM)
         }
-    }
-}
-
-/// Buffers incoming bytes until the full gRPC HTTP/2 pipeline is configured, then replays them.
-///
-/// See the equivalent in Containerization/Vminitd.swift for a full explanation.
-private final class HTTP2ConnectBufferingHandler: ChannelDuplexHandler, RemovableChannelHandler {
-    typealias InboundIn = ByteBuffer
-    typealias InboundOut = ByteBuffer
-    typealias OutboundIn = ByteBuffer
-    typealias OutboundOut = ByteBuffer
-
-    private var removalScheduled = false
-    private var bufferedReads: [NIOAny] = []
-
-    func channelRead(context: ChannelHandlerContext, data: NIOAny) {
-        bufferedReads.append(data)
-    }
-
-    func channelReadComplete(context: ChannelHandlerContext) {}
-
-    func flush(context: ChannelHandlerContext) {
-        if !removalScheduled {
-            removalScheduled = true
-            context.eventLoop.assumeIsolatedUnsafeUnchecked().execute {
-                context.pipeline.syncOperations.removeHandler(self, promise: nil)
-            }
-        }
-        context.flush()
-    }
-
-    func removeHandler(context: ChannelHandlerContext, removalToken: ChannelHandlerContext.RemovalToken) {
-        var didRead = false
-        while !bufferedReads.isEmpty {
-            context.fireChannelRead(bufferedReads.removeFirst())
-            didRead = true
-        }
-        if didRead {
-            context.fireChannelReadComplete()
-        }
-        context.leavePipeline(removalToken: removalToken)
-    }
-
-    func channelInactive(context: ChannelHandlerContext) {
-        bufferedReads.removeAll()
-        context.fireChannelInactive()
     }
 }

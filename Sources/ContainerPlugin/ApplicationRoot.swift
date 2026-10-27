@@ -15,19 +15,34 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
+import SystemPackage
 
 /// Provides the application data root path.
 public struct ApplicationRoot {
+    /// The environment variable that if set, determines the root directory for the application data store.
+    /// Otherwise, the system uses the default "~/Library/Application Support/com.apple.container".
     public static let environmentName = "CONTAINER_APP_ROOT"
 
-    public static let defaultURL = FileManager.default.urls(
-        for: .applicationSupportDirectory,
-        in: .userDomainMask
-    ).first!.appendingPathComponent("com.apple.container")
+    /// The default root directory used when ``environmentName`` is not set:
+    /// `~/Library/Application Support/com.apple.container`.
+    public static let defaultPath = FilePath(
+        FileManager.default.urls(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask
+        ).first!.path(percentEncoded: false)
+    )
+    .appending(FilePath.Component("com.apple.container"))
 
-    private static let envPath = ProcessInfo.processInfo.environment[Self.environmentName]
+    /// The resolved root directory path, always lexically normalized.
+    ///
+    /// If the environment variable is set to an absolute path, that path is used directly.
+    /// If it is set to a relative path, the path is resolved against the working directory.
+    /// Otherwise, ``defaultPath`` is used.
+    public static let path = FilePath(FileManager.default.currentDirectoryPath).resolve(
+        ProcessInfo.processInfo.environment[environmentName],
+        defaultPath: defaultPath
+    )
 
-    public static let url = envPath.map { URL(fileURLWithPath: $0) } ?? defaultURL
-
-    public static let path = url.path(percentEncoded: false)
+    /// The pathname to the root directory
+    public static let pathname = path.string
 }

@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerAPIClient
+import ContainerPersistence
 import Containerization
 import ContainerizationOCI
 import Foundation
@@ -22,17 +23,28 @@ import GRPCCore
 import Logging
 import TerminalProgress
 
+/// Handles the `resolver` stage of the build protocol.
+///
+/// Resolves image references on behalf of BuildKit: authenticates with
+/// registries, pulls missing base-image manifests and layers, and stores
+/// them in the local content store. BuildKit delegates these operations to
+/// the host because registry credentials and network access live on the
+/// macOS side, not inside the builder VM.
 struct BuildImageResolver: BuildPipelineHandler {
     let contentStore: ContentStore
     let quiet: Bool
     let output: FileHandle
     let pull: Bool
+    let containerSystemConfig: ContainerSystemConfig
 
-    public init(_ contentStore: ContentStore, quiet: Bool = false, output: FileHandle = FileHandle.standardError, pull: Bool = false) throws {
+    public init(_ contentStore: ContentStore, quiet: Bool = false, output: FileHandle = FileHandle.standardError, pull: Bool = false, containerSystemConfig: ContainerSystemConfig)
+        throws
+    {
         self.contentStore = contentStore
         self.quiet = quiet
         self.output = output
         self.pull = pull
+        self.containerSystemConfig = containerSystemConfig
     }
 
     func accept(_ packet: ServerStream) throws -> Bool {
@@ -75,10 +87,10 @@ struct BuildImageResolver: BuildPipelineHandler {
             progress.start()
 
             if self.pull {
-                return try await ClientImage.pull(reference: ref, platform: platform, progressUpdate: progress.handler)
+                return try await ClientImage.pull(reference: ref, platform: platform, containerSystemConfig: containerSystemConfig, progressUpdate: progress.handler)
             }
             // Use fetch() which checks cache first, then pulls if needed
-            return try await ClientImage.fetch(reference: ref, platform: platform, progressUpdate: progress.handler)
+            return try await ClientImage.fetch(reference: ref, platform: platform, containerSystemConfig: containerSystemConfig, progressUpdate: progress.handler)
         }()
 
         let index: Index = try await img.index()

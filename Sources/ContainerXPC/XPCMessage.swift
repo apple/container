@@ -78,12 +78,23 @@ extension XPCMessage {
     public func error() throws {
         let data = data(key: Self.errorKey)
         if let data {
-            let item = try? JSONDecoder().decode(ContainerXPCError.self, from: data)
-            precondition(item != nil, "expected to receive a ContainerXPCXPCError")
+            guard let item = try? JSONDecoder().decode(ContainerXPCError.self, from: data) else {
+                throw ContainerizationError(
+                    .internalError,
+                    message: "received a malformed error payload from the XPC peer"
+                )
+            }
 
-            throw ContainerizationError(item!.code, message: item!.message)
+            throw ContainerizationError(item.code, message: item.message)
         }
     }
+
+    /// Fallback error if `JSONEncoder` fails to encode the original error. In practice this should
+    /// never get used.
+    private static let fallbackErrorData = Data(
+        #"{"code":"\#(ContainerizationError.Code.internalError.description)","message":"the daemon failed to encode the original error"}"#
+            .utf8
+    )
 
     public func set(error: ContainerizationError) {
         var message = error.message
@@ -91,10 +102,12 @@ extension XPCMessage {
             message += " (cause: \"\(cause)\")"
         }
         let serializableError = ContainerXPCError(code: error.code.description, message: message)
-        let data = try? JSONEncoder().encode(serializableError)
-        precondition(data != nil)
+        guard let data = try? JSONEncoder().encode(serializableError) else {
+            set(key: Self.errorKey, value: Self.fallbackErrorData)
+            return
+        }
 
-        set(key: Self.errorKey, value: data!)
+        set(key: Self.errorKey, value: data)
     }
 }
 

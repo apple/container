@@ -17,8 +17,9 @@
 import ContainerizationError
 import Foundation
 import Logging
+import SystemPackage
 
-let metadataFilename: String = "entity.json"
+private let metadataFilename: String = "entity.json"
 
 public protocol EntityStore<T> {
     associatedtype T: Codable & Identifiable<String> & Sendable
@@ -34,13 +35,13 @@ public protocol EntityStore<T> {
 public actor FilesystemEntityStore<T>: EntityStore where T: Codable & Identifiable<String> & Sendable {
     typealias Index = [String: T]
 
-    private let path: URL
+    private let path: FilePath
     private let type: String
     private var index: Index
     private let log: Logger
     private let encoder = JSONEncoder()
 
-    public init(path: URL, type: String, log: Logger) throws {
+    public init(path: FilePath, type: String, log: Logger) throws {
         self.path = path
         self.type = type
         self.log = log
@@ -52,14 +53,15 @@ public actor FilesystemEntityStore<T>: EntityStore where T: Codable & Identifiab
     }
 
     public func create(_ entity: T) async throws {
-        let metadataUrl = metadataUrl(entity.id)
-        guard !FileManager.default.fileExists(atPath: metadataUrl.path) else {
+        let metadataPath = try metadataPath(entity.id)
+        guard !FileManager.default.fileExists(atPath: metadataPath.string) else {
             throw ContainerizationError(.exists, message: "entity \(entity.id) already exist")
         }
 
-        try FileManager.default.createDirectory(at: entityUrl(entity.id), withIntermediateDirectories: true)
+        let entityPath = try entityPath(entity.id)
+        try FileManager.default.createDirectory(atPath: entityPath.string, withIntermediateDirectories: true)
         let data = try encoder.encode(entity)
-        try data.write(to: metadataUrl)
+        try data.write(to: URL(filePath: metadataPath.string))
         index[entity.id] = entity
     }
 
@@ -68,52 +70,57 @@ public actor FilesystemEntityStore<T>: EntityStore where T: Codable & Identifiab
     }
 
     public func update(_ entity: T) async throws {
-        let metadataUrl: URL = metadataUrl(entity.id)
-        guard FileManager.default.fileExists(atPath: metadataUrl.path) else {
+        let metadataPath = try metadataPath(entity.id)
+        guard FileManager.default.fileExists(atPath: metadataPath.string) else {
             throw ContainerizationError(.notFound, message: "entity \(entity.id) not found")
         }
 
         let data = try encoder.encode(entity)
-        try data.write(to: metadataUrl)
+        try data.write(to: URL(filePath: metadataPath.string))
         index[entity.id] = entity
     }
 
     public func upsert(_ entity: T) async throws {
-        let metadataUrl: URL = metadataUrl(entity.id)
+        let entityPath = try entityPath(entity.id)
+        try FileManager.default.createDirectory(atPath: entityPath.string, withIntermediateDirectories: true)
+        let metadataPath = try metadataPath(entity.id)
         let data = try encoder.encode(entity)
-        try data.write(to: metadataUrl)
+        try data.write(to: URL(filePath: metadataPath.string))
         index[entity.id] = entity
     }
 
     public func delete(_ id: String) async throws {
-        let metadataUrl = entityUrl(id)
-        guard FileManager.default.fileExists(atPath: metadataUrl.path) else {
+        let metadataPath = try entityPath(id)
+        guard FileManager.default.fileExists(atPath: metadataPath.string) else {
             throw ContainerizationError(.notFound, message: "entity \(id) not found")
         }
-        try FileManager.default.removeItem(at: metadataUrl)
+        try FileManager.default.removeItem(atPath: metadataPath.string)
         index.removeValue(forKey: id)
     }
 
-    public func entityUrl(_ id: String) -> URL {
-        path.appendingPathComponent(id)
+    public nonisolated func entityPath(_ id: String) throws -> FilePath {
+        guard let component = FilePath.Component(id) else {
+            throw ContainerizationError(.invalidArgument, message: "entity ID \(id) cannot be a path component")
+        }
+        return path.appending(component)
     }
 
-    private static func load(path: URL, log: Logger) throws -> Index {
-        let directories = try FileManager.default.contentsOfDirectory(at: path, includingPropertiesForKeys: nil)
+    private static func load(path: FilePath, log: Logger) throws -> Index {
+        let directories = try FileManager.default.contentsOfDirectory(atPath: path.string)
         var index: FilesystemEntityStore<T>.Index = Index()
         let decoder = JSONDecoder()
 
-        for entityUrl in directories {
+        for filename in directories {
+            let metadataPath = path.appending(filename).appending(metadataFilename)
             do {
-                let metadataUrl = entityUrl.appendingPathComponent(metadataFilename)
-                let data = try Data(contentsOf: metadataUrl)
+                let data = try Data(contentsOf: URL(filePath: metadataPath.string))
                 let entity = try decoder.decode(T.self, from: data)
                 index[entity.id] = entity
             } catch {
                 log.warning(
                     "failed to load entity, ignoring",
                     metadata: [
-                        "path": "\(entityUrl)"
+                        "path": "\(metadataPath.string)"
                     ])
             }
         }
@@ -121,7 +128,7 @@ public actor FilesystemEntityStore<T>: EntityStore where T: Codable & Identifiab
         return index
     }
 
-    private func metadataUrl(_ id: String) -> URL {
-        entityUrl(id).appendingPathComponent(metadataFilename)
+    private func metadataPath(_ id: String) throws -> FilePath {
+        try entityPath(id).appending(metadataFilename)
     }
 }

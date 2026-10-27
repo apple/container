@@ -72,7 +72,7 @@ extension Application.VolumeCommand {
 
             let formatter = ByteCountFormatter()
             let freed = formatter.string(fromByteCount: Int64(totalSize))
-            print("Reclaimed \(freed) in disk space")
+            log.info("Reclaimed \(freed) in disk space")
         }
     }
 }

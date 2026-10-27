@@ -111,4 +111,12 @@ public struct ContentServiceHarness: Sendable {
         reply.set(key: .digests, value: d)
         return reply
     }
+
+    @Sendable
+    public func totalSize(_ message: XPCMessage) async throws -> XPCMessage {
+        let size = try await self.service.totalAllocatedSize()
+        let reply = message.reply()
+        reply.set(key: .imageSize, value: size)
+        return reply
+    }
 }

@@ -156,4 +156,9 @@ public actor ContentStoreService {
 
         return try await self.contentStore.cancelIngestSession(id)
     }
+
+    /// Total bytes allocated on disk for the content store.
+    public func totalAllocatedSize() async throws -> UInt64 {
+        try await self.contentStore.totalAllocatedSize()
+    }
 }
