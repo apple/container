@@ -338,12 +338,13 @@ Lists containers. By default only running containers are shown. Output can be fo
 **Usage**
 
 ```bash
-container list [--all] [--format <format>] [--quiet] [--debug]
+container list [--all] [--filter <filter> ...] [--format <format>] [--quiet] [--debug]
 ```
 
 **Options**
 
 *   `-a, --all`: Include containers that are not running
+*   `-f, --filter <filter>`: Filter output based on conditions provided (format: `label=key` or `label=key=value`)
 *   `--format <format>`: Format of the output (values: json, table, yaml, toml; default: table)
 *   `-q, --quiet`: Only output the container ID
 
