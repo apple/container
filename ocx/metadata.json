@@ -1,0 +1,17 @@
+{
+  "type": "bundle",
+  "version": 1,
+  "env": [
+    {
+      "key": "PATH",
+      "type": "path",
+      "required": true,
+      "value": "${installPath}/bin",
+      "visibility": "public"
+    }
+  ],
+  "binaries": [
+    "container",
+    "container-apiserver"
+  ]
+}

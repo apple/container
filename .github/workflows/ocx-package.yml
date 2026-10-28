@@ -1,0 +1,213 @@
+# SPDX-FileCopyrightText: 2026 Christian Semmelmann
+# SPDX-License-Identifier: Apache-2.0
+
+# Builds the fork revision named in ocx/source-revision and publishes it as the OCX package
+# ghcr.io/extra-code/container:X.Y.Z_NN. Only an ocx-X.Y.Z_NN tag on the ocx-package branch runs it.
+# The signing identity names the tag ref, so it means something only while the ocx-* tag ruleset
+# holds: no update, no deletion, and only maintainers may create the tags.
+name: OCX package
+
+on:
+  push:
+    tags: ['ocx-*']
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build the container package
+    runs-on: xcode-27
+    # The fork builds cold on every tag run.
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    outputs:
+      tag: ${{ steps.check.outputs.tag }}
+      source-revision: ${{ steps.check.outputs.source-revision }}
+      artifact-id: ${{ steps.upload.outputs.artifact-id }}
+      sha256: ${{ steps.digest.outputs.sha256 }}
+      metadata-sha256: ${{ steps.digest.outputs.metadata-sha256 }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+
+      - name: Fetch the parbake and ocx-package branches
+        env:
+          REPOSITORY_URL: ${{ github.server_url }}/${{ github.repository }}
+        run: |
+          git fetch --no-tags "$REPOSITORY_URL" \
+            +refs/heads/parbake:refs/remotes/origin/parbake \
+            +refs/heads/ocx-package:refs/remotes/origin/ocx-package
+
+      # check fetches the apple/container tags itself. The fork's own tags stay as they are.
+      - name: Check the tag and the source revision
+        id: check
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          scripts/ocx-package.sh check "$TAG"
+          echo "tag=${TAG#ocx-}" >> "$GITHUB_OUTPUT"
+          echo "source-revision=$(tr -d '[:space:]' < ocx/source-revision)" >> "$GITHUB_OUTPUT"
+
+      - name: Check out the source revision
+        env:
+          SOURCE_REVISION: ${{ steps.check.outputs.source-revision }}
+        run: git worktree add --detach .build/src "$SOURCE_REVISION"
+
+      - name: Build the container root
+        run: scripts/ocx-package.sh build .build/src .build/root
+
+      - name: Verify the container root
+        run: scripts/ocx-package.sh verify .build/root
+
+      - uses: ocx-sh/setup-ocx@25fa771f8572572dc64528db89560de68a163a0e # v1.4.0
+        with:
+          version: 0.6.5
+          project: ""
+          cache: false
+
+      - name: Create the package archive
+        env:
+          TAG: ${{ github.ref_name }}
+        run: scripts/ocx-package.sh create .build/root "$TAG"
+
+      - name: Compute the archive and metadata SHA-256
+        id: digest
+        env:
+          VERSION: ${{ steps.check.outputs.tag }}
+        run: |
+          archive="out/container-${VERSION}.tar.xz"
+          metadata="out/container-${VERSION}-metadata.json"
+          for file in "$archive" "$metadata"; do
+            if [ ! -f "$file" ]; then
+              echo "error: $file is missing" >&2
+              exit 1
+            fi
+          done
+          echo "sha256=$(shasum -a 256 "$archive" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "metadata-sha256=$(shasum -a 256 "$metadata" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        id: upload
+        with:
+          name: ocx-package
+          path: |
+            out/container-${{ steps.check.outputs.tag }}.tar.xz
+            out/container-${{ steps.check.outputs.tag }}-metadata.json
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: publish the container package
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/ocx-')
+    runs-on: xcode-27
+    timeout-minutes: 30
+    concurrency:
+      group: publish-container
+      cancel-in-progress: false
+    permissions:
+      packages: write
+      id-token: write
+    outputs:
+      tags: ${{ steps.push.outputs.tags }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.build.outputs.artifact-id }}
+          path: ocx-package
+
+      - name: Check the archive and metadata SHA-256
+        env:
+          VERSION: ${{ needs.build.outputs.tag }}
+          EXPECTED_ARCHIVE: ${{ needs.build.outputs.sha256 }}
+          EXPECTED_METADATA: ${{ needs.build.outputs.metadata-sha256 }}
+        run: |
+          archive="ocx-package/container-${VERSION}.tar.xz"
+          metadata="ocx-package/container-${VERSION}-metadata.json"
+          for file in "$archive" "$metadata"; do
+            if [ ! -f "$file" ]; then
+              echo "error: $file is missing from the artifact" >&2
+              exit 1
+            fi
+          done
+          actual="$(shasum -a 256 "$archive" | cut -d' ' -f1)"
+          if [ "$actual" != "$EXPECTED_ARCHIVE" ]; then
+            echo "error: archive SHA-256 $actual does not match the build job's $EXPECTED_ARCHIVE" >&2
+            exit 1
+          fi
+          actual="$(shasum -a 256 "$metadata" | cut -d' ' -f1)"
+          if [ "$actual" != "$EXPECTED_METADATA" ]; then
+            echo "error: metadata SHA-256 $actual does not match the build job's $EXPECTED_METADATA" >&2
+            exit 1
+          fi
+          echo "ARCHIVE=$archive" >> "$GITHUB_ENV"
+          echo "METADATA=$metadata" >> "$GITHUB_ENV"
+
+      # No repository config and no cache reach the job that holds the write tokens.
+      - uses: ocx-sh/setup-ocx@25fa771f8572572dc64528db89560de68a163a0e # v1.4.0
+        with:
+          version: 0.6.5
+          project: ""
+          cache: false
+
+      - name: Push and sign the package
+        id: push
+        env:
+          VERSION: ${{ needs.build.outputs.tag }}
+          SOURCE_REVISION: ${{ needs.build.outputs.source-revision }}
+          OCX_AUTH_ghcr_io_TYPE: basic
+          OCX_AUTH_ghcr_io_USER: ${{ github.actor }}
+          OCX_AUTH_ghcr_io_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          rm -f tags.txt
+          ocx package push -p darwin/arm64 -m "$METADATA" \
+            --ci-annotations=github --sign --cascade --no-keep-tag \
+            --tags-file tags.txt \
+            --annotation "org.extra-code.container.source-revision=${SOURCE_REVISION}" \
+            -i "ghcr.io/extra-code/container:${VERSION}" "$ARCHIVE"
+          echo "tags=$(paste -sd, tags.txt)" >> "$GITHUB_OUTPUT"
+
+      - name: Verify the pushed signature
+        env:
+          VERSION: ${{ needs.build.outputs.tag }}
+          OCX_AUTH_ghcr_io_TYPE: basic
+          OCX_AUTH_ghcr_io_USER: ${{ github.actor }}
+          OCX_AUTH_ghcr_io_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ocx package verify -p darwin/arm64 \
+            --certificate-identity "https://github.com/extra-code/container/.github/workflows/ocx-package.yml@refs/tags/ocx-${VERSION}" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            "ghcr.io/extra-code/container:${VERSION}"
+
+  # OCX_INDEX_ANNOUNCE must be a repository or organization variable. A job-level if cannot see
+  # the variables of the release environment. The tags come from the publish job's tags file, not
+  # from the registry: announcing every registry tag would turn unannounced snapshots into durable rows.
+  announce:
+    name: announce the container tags to the OCX index
+    needs: publish
+    if: startsWith(github.ref, 'refs/tags/ocx-') && vars.OCX_INDEX_ANNOUNCE == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: release
+    permissions: {}
+    steps:
+      - uses: ocx-sh/setup-ocx@25fa771f8572572dc64528db89560de68a163a0e # v1.4.0
+        with:
+          version: 0.6.5
+          project: ""
+          cache: false
+
+      # A row keeps the marker it was first announced with, so --ephemeral is set from the start.
+      - name: Announce the tags as ephemeral
+        env:
+          TAGS: ${{ needs.publish.outputs.tags }}
+          OCX_ANNOUNCE_TOKEN: ${{ secrets.OCX_ANNOUNCE_TOKEN }}
+          OCX_INDEX_FORK: ${{ vars.OCX_INDEX_FORK }}
+        run: |
+          printf '%s\n' "$TAGS" | tr ',' '\n' > tags.txt
+          ocx package announce --tags-file tags.txt --ephemeral --fork "$OCX_INDEX_FORK" extra-code/container

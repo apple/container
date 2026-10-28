@@ -1,0 +1,36 @@
+# SPDX-FileCopyrightText: 2026 Christian Semmelmann
+# SPDX-License-Identifier: Apache-2.0
+
+# Claims extra-code/container in the OCX index. Run once by hand, after the package is public.
+name: OCX claim
+
+on: workflow_dispatch
+
+permissions: {}
+
+jobs:
+  claim:
+    name: claim the container package in the OCX index
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: release
+    permissions: {}
+    steps:
+      - uses: ocx-sh/setup-ocx@25fa771f8572572dc64528db89560de68a163a0e # v1.4.0
+        with:
+          version: 0.6.5
+          project: ""
+          cache: false
+
+      - name: Claim the package
+        env:
+          OCX_ANNOUNCE_TOKEN: ${{ secrets.OCX_ANNOUNCE_TOKEN }}
+          OCX_INDEX_FORK: ${{ vars.OCX_INDEX_FORK }}
+        run: |
+          ocx package claim \
+            --repository oci://ghcr.io/extra-code/container \
+            --fork "$OCX_INDEX_FORK" \
+            --upstream-org apple \
+            --upstream-repository-url https://github.com/apple/container \
+            --upstream-disclaimer "Patched build of apple/container for Parbake. Temporary until upstream ships the patches." \
+            extra-code/container
