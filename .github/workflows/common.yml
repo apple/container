@@ -24,7 +24,7 @@ jobs:
     name: Build and test the project
     if: github.repository == 'apple/container'
     timeout-minutes: 90
-    runs-on: [self-hosted, macos, tahoe, ARM64]
+    runs-on: [self-hosted, macos, goldengate, ARM64]
     permissions:
       contents: read
       packages: read
