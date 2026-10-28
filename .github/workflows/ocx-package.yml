@@ -172,12 +172,11 @@ jobs:
             -i "ghcr.io/extra-code/container:${VERSION}" "$ARCHIVE"
           echo "tags=$(paste -sd, tags.txt)" >> "$GITHUB_OUTPUT"
 
+      # Anonymous on purpose: with GITHUB_TOKEN, ghcr.io answers the referrers endpoint with 401
+      # instead of 404, so ocx never falls back to the sha256-<digest> tag. It also checks what users see.
       - name: Verify the pushed signature
         env:
           VERSION: ${{ needs.build.outputs.tag }}
-          OCX_AUTH_ghcr_io_TYPE: basic
-          OCX_AUTH_ghcr_io_USER: ${{ github.actor }}
-          OCX_AUTH_ghcr_io_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           ocx package verify -p darwin/arm64 \
             --certificate-identity "https://github.com/extra-code/container/.github/workflows/ocx-package.yml@refs/tags/ocx-${VERSION}" \
