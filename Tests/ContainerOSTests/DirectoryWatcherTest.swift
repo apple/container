@@ -152,6 +152,23 @@ struct DirectoryWatcherTest {
         }
     }
 
+    @Test func testOpenFailureIncludesErrno() async throws {
+        try await withTempDir { tempPath in
+            let missingPath = tempPath.appending("missing")
+            let watcher = DirectoryWatcher(directoryPath: missingPath, log: nil)
+            do {
+                try await watcher._startWatching { _ in
+                    Issue.record("handler must not run when open fails")
+                }
+                Issue.record("expected opening a missing directory to fail")
+            } catch let error as ContainerizationError {
+                let description = String(describing: error)
+                #expect(description.contains("cannot open \(missingPath.string)"))
+                #expect(description.contains("error=\(ENOENT)"))
+            }
+        }
+    }
+
     @Test func testFailingHandlerDoesNotLeakDescriptors() async throws {
         try await withTempDir { tempPath in
             let watcher = DirectoryWatcher(directoryPath: tempPath, log: nil)
@@ -165,8 +182,10 @@ struct DirectoryWatcherTest {
                         throw ContainerizationError(.internalError, message: "intentional test failure")
                     }
                     Issue.record("expected the failing watch handler to throw")
-                } catch is ContainerizationError {
-                    // Expected.
+                } catch let error as ContainerizationError {
+                    let description = String(describing: error)
+                    #expect(description.contains("failed to run handler for \(tempPath.string)"))
+                    #expect(description.contains("intentional test failure"))
                 }
             }
 
