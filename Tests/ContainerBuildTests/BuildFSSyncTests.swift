@@ -534,6 +534,53 @@ import Testing
         let secretLeak = infos.first { $0.name.hasSuffix("secret.txt") }
         #expect(secretLeak == nil, "no entry for the external file should appear in walk() results: \(infos.map { $0.name })")
     }
+
+    // MARK: - walk(): empty or omitted followpaths requests entire context
+    //
+    // BuildKit omits followpaths when a build step needs the whole context
+    // (for example, RUN --mount=type=tmpfs). An empty or omitted followpaths
+    // must result in the entire context being served rather than an empty
+    // result.
+
+    @Test func testWalkJSONEmptyFollowPathsIncludesEntireContext() async throws {
+        try write("hello", to: contextDir.appendingPathComponent("a.txt"))
+        try write("world", to: contextDir.appendingPathComponent("b.txt"))
+
+        let fssync = try BuildFSSync(contextDir)
+        let infos = try await walkJSON(fssync, followPaths: [])
+
+        #expect(infos.contains { $0.name == "a.txt" }, "a.txt should be included when followpaths is empty")
+        #expect(infos.contains { $0.name == "b.txt" }, "b.txt should be included when followpaths is empty")
+    }
+
+    @Test func testWalkJSONMissingFollowPathsMetadataIncludesEntireContext() async throws {
+        try write("hello", to: contextDir.appendingPathComponent("a.txt"))
+        try write("world", to: contextDir.appendingPathComponent("b.txt"))
+
+        let fssync = try BuildFSSync(contextDir)
+        var p = BuildTransfer()
+        p.id = UUID().uuidString
+        p.source = "."
+        p.metadata = [
+            "mode": "json"
+        ]
+
+        var continuation: AsyncStream<ClientStream>.Continuation!
+        let stream = AsyncStream<ClientStream> { continuation = $0 }
+        try await fssync.walk(continuation, p, "build-0")
+        continuation.finish()
+
+        var fileInfos: [BuildFSSync.FileInfo] = []
+        for await resp in stream {
+            let data = resp.buildTransfer.data
+            if !data.isEmpty {
+                fileInfos += try JSONDecoder().decode([BuildFSSync.FileInfo].self, from: data)
+            }
+        }
+
+        #expect(fileInfos.contains { $0.name == "a.txt" }, "a.txt should be included when followpaths metadata is omitted")
+        #expect(fileInfos.contains { $0.name == "b.txt" }, "b.txt should be included when followpaths metadata is omitted")
+    }
 }
 
 private final class ManagedAtomicFlag: @unchecked Sendable {
