@@ -39,16 +39,25 @@ public struct ContainerSnapshot: Codable, Sendable {
     public var networks: [Attachment]
     /// When the container was started.
     public var startedDate: Date?
+    /// The most recently observed health of the container.
+    ///
+    /// At present the daemon does not run a container-level healthcheck
+    /// observer, so this field is always `nil`. The shape is reserved so that
+    /// downstream tools (e.g. `compose`) have a stable type to read from once
+    /// a healthcheck observer is wired into the API server.
+    public var health: HealthStatus?
 
     public init(
         configuration: ContainerConfiguration,
         status: RuntimeStatus,
         networks: [Attachment],
-        startedDate: Date? = nil
+        startedDate: Date? = nil,
+        health: HealthStatus? = nil
     ) {
         self.configuration = configuration
         self.status = status
         self.networks = networks
         self.startedDate = startedDate
+        self.health = health
     }
 }
