@@ -14,6 +14,8 @@ Container machine provides a highly integrated Linux environment that works seam
 
 ## Why container machines
 
+Both regular containers and container machines retain changes to their root filesystem across stop and start operations, until you delete them. A regular container started with `--rm` is deleted automatically when it exits.
+
 Containers are typically modeled after an application. A container machine is modeled after a complete Linux environment. It runs the image's init system, so you can register long-running services or test your application under a process supervisor. It also maps your macOS username and home directory into the Linux environment. Your repositories and dotfiles are available on both platforms, so that you can:
 
 - **Edit on the Mac, build inside.** Your repo lives in `$HOME` on macOS and is mounted at `/Users/<username>` inside the container machine. Use your macOS editor or IDE; compile and run inside your container machine.
