@@ -110,7 +110,8 @@ public actor DirectoryWatcher {
     ) throws {
         let descriptor = open(directoryPath.string, O_EVTONLY)
         guard descriptor >= 0 else {
-            throw ContainerizationError(.internalError, message: "cannot open \(directoryPath.string), descriptor=\(descriptor)")
+            let err = errno
+            throw ContainerizationError(.internalError, message: "cannot open \(directoryPath.string), error=\(err)")
         }
 
         do {
@@ -118,7 +119,7 @@ public actor DirectoryWatcher {
             try handler(files.map { directoryPath.appending($0) })
         } catch {
             close(descriptor)
-            throw ContainerizationError(.internalError, message: "failed to run handler for \(directoryPath.string)")
+            throw ContainerizationError(.internalError, message: "failed to run handler for \(directoryPath.string), error=\"\(error)\"")
         }
 
         log?.info("starting directory watcher", metadata: ["path": "\(directoryPath.string)"])
