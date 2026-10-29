@@ -29,16 +29,28 @@ public actor KernelService {
 
     private let log: Logger
     private let kernelDirectory: URL
+    private let kernelDownloadDirectory: URL
 
     private struct ExpectedDigest {
         let algorithm: String
         let hex: String
     }
 
+    private struct InstalledKernelMetadata: Codable {
+        let archiveDigest: String
+        let kernelFilePath: String
+        let platformOS: SystemPlatform.OS
+        let platformArchitecture: SystemPlatform.Architecture
+        let installedFileName: String
+        let kernelDigest: String
+    }
+
     public init(log: Logger, appRoot: URL) throws {
         self.log = log
         self.kernelDirectory = appRoot.appending(path: "kernels")
+        self.kernelDownloadDirectory = appRoot.appending(path: "downloads").appending(path: "kernels")
         try FileManager.default.createDirectory(at: self.kernelDirectory, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: self.kernelDownloadDirectory, withIntermediateDirectories: true)
     }
 
     /// Copies a kernel binary from a local path on disk into the managed kernels directory
@@ -73,6 +85,11 @@ public actor KernelService {
                     throw error
                 }
             }
+        } else if FileManager.default.fileExists(atPath: destPath.path),
+            try Self.sha256Hex(of: kFile) == Self.sha256Hex(of: destPath)
+        {
+            try self.setDefaultKernel(name: kFile.lastPathComponent, platform: platform)
+            return
         }
         try FileManager.default.copyItem(at: kFile, to: destPath)
         try Task.checkCancellation()
@@ -130,38 +147,83 @@ public actor KernelService {
         }
         let expectedDigest = try expectedDigest.map(Self.parseExpectedDigest)
 
+        if !isLocalTar, !force, let expectedDigest,
+            try self.reuseInstalledKernel(
+                expectedArchiveDigest: expectedDigest,
+                kernelFilePath: kernelFilePath,
+                platform: platform)
+        {
+            await progressUpdate?([
+                .setDescription("Using installed kernel"),
+                .addTasks(3),
+            ])
+            return
+        }
+
+        var archiveReady = false
         let tempDir = FileManager.default.uniqueTemporaryDirectory()
         defer {
             try? FileManager.default.removeItem(at: tempDir)
         }
 
-        await progressUpdate?([
-            .setDescription(isLocalTar ? "Reading kernel archive" : "Downloading kernel")
-        ])
-        if !isLocalTar {
-            let taskManager = ProgressTaskCoordinator()
-            let downloadTask = await taskManager.startTask()
-            self.log.debug("KernelService: start download", metadata: ["tar": "\(tar)"])
-            tarFile = tempDir.appendingPathComponent(tar.lastPathComponent)
-            var downloadProgressUpdate: ProgressUpdateHandler?
-            if let progressUpdate {
-                downloadProgressUpdate = ProgressTaskCoordinator.handler(for: downloadTask, from: progressUpdate)
+        if isLocalTar {
+            await progressUpdate?([
+                .setDescription("Reading kernel archive")
+            ])
+        } else {
+            guard let expectedDigest else {
+                throw ContainerizationError(.invalidState, message: "missing parsed digest for remote kernel archive")
             }
-            try await ContainerAPIClient.FileDownloader.downloadFile(
-                url: tar,
-                to: tarFile,
-                progressUpdate: downloadProgressUpdate)
-            await taskManager.finish()
+            tarFile = self.kernelDownloadDirectory.appendingPathComponent("\(expectedDigest.hex).partial")
+            if let fileType = try Self.fileType(of: tarFile), fileType != .typeRegular {
+                try FileManager.default.removeItem(at: tarFile)
+            }
+            if try Self.fileType(of: tarFile) == .typeRegular {
+                do {
+                    try Self.verifyDigest(of: tarFile, expected: expectedDigest)
+                    archiveReady = true
+                } catch is ContainerizationError {
+                    archiveReady = false
+                }
+            }
+            if !archiveReady {
+                await progressUpdate?([
+                    .setDescription("Downloading kernel")
+                ])
+                let taskManager = ProgressTaskCoordinator()
+                let downloadTask = await taskManager.startTask()
+                self.log.debug("KernelService: start download", metadata: ["tar": "\(tar)"])
+                var downloadProgressUpdate: ProgressUpdateHandler?
+                if let progressUpdate {
+                    downloadProgressUpdate = ProgressTaskCoordinator.handler(for: downloadTask, from: progressUpdate)
+                }
+                try await ContainerAPIClient.FileDownloader.downloadFile(
+                    url: tar,
+                    to: tarFile,
+                    progressUpdate: downloadProgressUpdate)
+                await taskManager.finish()
+            } else {
+                await progressUpdate?([
+                    .setDescription("Using cached kernel archive")
+                ])
+            }
         }
         await progressUpdate?([
             .addTasks(1)
         ])
 
-        if let expectedDigest {
+        if let expectedDigest, !archiveReady {
             await progressUpdate?([
                 .setDescription("Verifying kernel archive")
             ])
-            try Self.verifyDigest(of: tarFile, expected: expectedDigest)
+            do {
+                try Self.verifyDigest(of: tarFile, expected: expectedDigest)
+            } catch {
+                if !isLocalTar {
+                    try? FileManager.default.removeItem(at: tarFile)
+                }
+                throw error
+            }
             await progressUpdate?([
                 .addTasks(1)
             ])
@@ -172,6 +234,19 @@ public actor KernelService {
         ])
         let kernelFile = try self.extractFile(tarFile: tarFile, at: kernelFilePath, to: tempDir)
         try self.installKernel(kernelFile: kernelFile, platform: platform, force: force)
+        if !isLocalTar, let expectedDigest {
+            do {
+                try self.saveInstalledKernelMetadata(
+                    expectedArchiveDigest: expectedDigest,
+                    kernelFilePath: kernelFilePath,
+                    kernelFile: kernelFile,
+                    platform: platform)
+            } catch {
+                self.log.warning(
+                    "KernelService: failed to save installed kernel metadata",
+                    metadata: ["error": "\(error)"])
+            }
+        }
         await progressUpdate?([
             .addTasks(1)
         ])
@@ -218,6 +293,86 @@ public actor KernelService {
             hasher.update(data: data)
         }
         return hasher.finalize().map { String(format: "%02x", $0) }.joined()
+    }
+
+    private static func fileType(of file: URL) throws -> FileAttributeType? {
+        do {
+            let attributes = try FileManager.default.attributesOfItem(atPath: file.path)
+            return attributes[.type] as? FileAttributeType
+        } catch let error as NSError
+            where error.code == NSFileNoSuchFileError || error.code == NSFileReadNoSuchFileError
+        {
+            return nil
+        }
+    }
+
+    private func reuseInstalledKernel(
+        expectedArchiveDigest: ExpectedDigest,
+        kernelFilePath: String,
+        platform: SystemPlatform
+    ) throws -> Bool {
+        let metadataURL = self.installedKernelMetadataURL(for: expectedArchiveDigest)
+        guard try Self.fileType(of: metadataURL) == .typeRegular else {
+            try? FileManager.default.removeItem(at: metadataURL)
+            return false
+        }
+
+        guard
+            let data = try? Data(contentsOf: metadataURL),
+            let metadata = try? JSONDecoder().decode(InstalledKernelMetadata.self, from: data),
+            metadata.archiveDigest == expectedArchiveDigest.hex,
+            metadata.kernelFilePath == kernelFilePath,
+            metadata.platformOS == platform.os,
+            metadata.platformArchitecture == platform.architecture,
+            metadata.installedFileName == URL(filePath: metadata.installedFileName).lastPathComponent,
+            metadata.installedFileName != ".",
+            metadata.installedFileName != ".."
+        else {
+            try? FileManager.default.removeItem(at: metadataURL)
+            return false
+        }
+
+        let kernelURL = self.kernelDirectory.appendingPathComponent(metadata.installedFileName)
+        guard try Self.fileType(of: kernelURL) == .typeRegular else {
+            try? FileManager.default.removeItem(at: metadataURL)
+            return false
+        }
+        let actualDigest = try Self.sha256Hex(of: kernelURL)
+        guard actualDigest == metadata.kernelDigest else {
+            throw ContainerizationError(
+                .invalidState,
+                message:
+                    "installed kernel digest mismatch at '\(kernelURL.path)': expected sha256:\(metadata.kernelDigest), got sha256:\(actualDigest); use --force to replace it"
+            )
+        }
+
+        try self.setDefaultKernel(name: metadata.installedFileName, platform: platform)
+        return true
+    }
+
+    private func saveInstalledKernelMetadata(
+        expectedArchiveDigest: ExpectedDigest,
+        kernelFilePath: String,
+        kernelFile: URL,
+        platform: SystemPlatform
+    ) throws {
+        let metadata = InstalledKernelMetadata(
+            archiveDigest: expectedArchiveDigest.hex,
+            kernelFilePath: kernelFilePath,
+            platformOS: platform.os,
+            platformArchitecture: platform.architecture,
+            installedFileName: kernelFile.lastPathComponent,
+            kernelDigest: try Self.sha256Hex(of: kernelFile))
+        let data = try JSONEncoder().encode(metadata)
+        let metadataURL = self.installedKernelMetadataURL(for: expectedArchiveDigest)
+        if let fileType = try Self.fileType(of: metadataURL), fileType != .typeRegular {
+            try FileManager.default.removeItem(at: metadataURL)
+        }
+        try data.write(to: metadataURL, options: .atomic)
+    }
+
+    private func installedKernelMetadataURL(for expectedArchiveDigest: ExpectedDigest) -> URL {
+        self.kernelDownloadDirectory.appendingPathComponent("\(expectedArchiveDigest.hex).json")
     }
 
     private func setDefaultKernel(name: String, platform: SystemPlatform) throws {
