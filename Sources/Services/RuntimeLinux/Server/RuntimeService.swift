@@ -1007,6 +1007,12 @@ public actor RuntimeService {
             if let err = processInfo.io[2] {
                 try self.closeHandle(err.fileDescriptor)
             }
+            if let inp = processInfo.io[0] {
+                // stdin may still have a readabilityHandler from the stdin relay;
+                // FileHandle.close() waits for that dispatch source to cancel
+                // before closing the descriptor, unlike a raw close(2).
+                try inp.close()
+            }
             return code
         }
         try await self.monitor.track(id: id, waitingOn: waitFunc)
