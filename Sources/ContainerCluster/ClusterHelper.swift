@@ -18,12 +18,27 @@ import ContainerAPIClient
 import ContainerResource
 import ContainerizationError
 import ContainerizationOS
+import Darwin
+import Dispatch
 import Foundation
 import Logging
+import Synchronization
 
 // MARK: - ClusterHelper
 
 public struct ClusterHelper {
+    public enum StandardInput: Sendable {
+        case data(Data)
+        case file(URL)
+    }
+
+    struct ExecProcess: Sendable {
+        let start: @Sendable () async throws -> Void
+        let wait: @Sendable () async throws -> Int32
+    }
+
+    typealias ProcessCreator = @Sendable (ProcessConfiguration, [FileHandle?]) async throws -> ExecProcess
+
     public static let pluginName: String = "cluster"
     public static let defaultName: String = "cluster-dev"
     public static let controlPlaneRoleName: String = "control-plane"
@@ -142,20 +157,143 @@ public struct ClusterHelper {
     // Shared exec helper used by bootstrap, readiness, and kubeconfig extensions.
     public static func execCapture(
         containerId: String, executable: String, arguments: [String],
+        environment: [String] = [], standardInput: StandardInput? = nil,
         client: ContainerClient
     ) async throws -> (code: Int32, output: String) {
-        let pipe = Pipe()
+        try await execCapture(
+            executable: executable,
+            arguments: arguments,
+            environment: environment,
+            standardInput: standardInput,
+            processCreator: { configuration, stdio in
+                let process = try await client.createProcess(
+                    containerId: containerId,
+                    processId: UUID().uuidString.lowercased(),
+                    configuration: configuration,
+                    stdio: stdio)
+                return ExecProcess(
+                    start: { try await process.start() },
+                    wait: { try await process.wait() })
+            })
+    }
+
+    static func execCapture(
+        executable: String, arguments: [String], environment: [String] = [],
+        standardInput: StandardInput? = nil, processCreator: ProcessCreator
+    ) async throws -> (code: Int32, output: String) {
+        let outputPipe = Pipe()
+        let outputReader = OutputReader(outputPipe.fileHandleForReading)
+        let outputDescriptor = outputPipe.fileHandleForWriting.fileDescriptor
+        let stdoutDescriptor = dup(outputDescriptor)
+        guard stdoutDescriptor >= 0 else {
+            throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+        }
+        let stderrDescriptor = dup(outputDescriptor)
+        guard stderrDescriptor >= 0 else {
+            close(stdoutDescriptor)
+            throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+        }
+        do {
+            try outputPipe.fileHandleForWriting.close()
+        } catch {
+            close(stdoutDescriptor)
+            close(stderrDescriptor)
+            throw error
+        }
+
+        let preparedInput: PreparedInput
+        do {
+            preparedInput = try prepareStandardInput(standardInput)
+        } catch {
+            close(stdoutDescriptor)
+            close(stderrDescriptor)
+            outputReader.close()
+            throw error
+        }
+
+        let stdoutHandle = FileHandle(fileDescriptor: stdoutDescriptor, closeOnDealloc: false)
+        let stderrHandle = FileHandle(fileDescriptor: stderrDescriptor, closeOnDealloc: false)
         let config = ProcessConfiguration(
-            executable: executable, arguments: arguments, environment: [], terminal: false)
-        let proc = try await client.createProcess(
-            containerId: containerId, processId: UUID().uuidString.lowercased(),
-            configuration: config, stdio: [nil, pipe.fileHandleForWriting, pipe.fileHandleForWriting])
-        try await proc.start()
-        pipe.fileHandleForWriting.closeFile()
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        try? pipe.fileHandleForReading.close()
-        let code = try await proc.wait()
-        return (code, String(data: data, encoding: .utf8) ?? "")
+            executable: executable, arguments: arguments, environment: environment, terminal: false)
+        let process: ExecProcess
+        do {
+            process = try await processCreator(
+                config, [preparedInput.transferredHandle, stdoutHandle, stderrHandle])
+        } catch {
+            preparedInput.closeWriter()
+            outputReader.close()
+            throw error
+        }
+
+        let inputTask = preparedInput.writer.map { writer in
+            Task { try await writer.write() }
+        }
+        let outputTask = Task { try await outputReader.read() }
+
+        do {
+            try await process.start()
+            let code = try await process.wait()
+            try await inputTask?.value
+            let data = try await outputTask.value
+            return (code, String(data: data, encoding: .utf8) ?? "")
+        } catch {
+            inputTask?.cancel()
+            outputTask.cancel()
+            preparedInput.closeWriter()
+            outputReader.close()
+            throw error
+        }
+    }
+
+    private static func prepareStandardInput(_ input: StandardInput?) throws -> PreparedInput {
+        guard let input else {
+            return PreparedInput(transferredHandle: nil, writer: nil)
+        }
+
+        switch input {
+        case .data(let data):
+            let pipe = Pipe()
+            let inputDescriptor = dup(pipe.fileHandleForReading.fileDescriptor)
+            guard inputDescriptor >= 0 else {
+                throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+            }
+            do {
+                try pipe.fileHandleForReading.close()
+            } catch {
+                close(inputDescriptor)
+                throw error
+            }
+            return PreparedInput(
+                transferredHandle: FileHandle(fileDescriptor: inputDescriptor, closeOnDealloc: false),
+                writer: InputWriter(handle: pipe.fileHandleForWriting, data: data))
+        case .file(let url):
+            let inputDescriptor = open(url.path, O_RDONLY | O_CLOEXEC)
+            guard inputDescriptor >= 0 else {
+                let cause = POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "failed to open standard input at \(url.path)",
+                    cause: cause)
+            }
+            var status = stat()
+            guard fstat(inputDescriptor, &status) == 0 else {
+                let cause = POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+                close(inputDescriptor)
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "failed to inspect standard input at \(url.path)",
+                    cause: cause)
+            }
+            guard (status.st_mode & S_IFMT) == S_IFREG else {
+                close(inputDescriptor)
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "standard input at \(url.path) is not a regular file")
+            }
+            return PreparedInput(
+                transferredHandle: FileHandle(fileDescriptor: inputDescriptor, closeOnDealloc: false),
+                writer: nil)
+        }
     }
 
     // MARK: - Node enumeration
@@ -231,6 +369,85 @@ public struct ClusterHelper {
             rows.append(item.tableRow)
         }
         return TableOutput(rows: rows).format()
+    }
+}
+
+private struct PreparedInput: Sendable {
+    let transferredHandle: FileHandle?
+    let writer: InputWriter?
+
+    func closeWriter() {
+        writer?.close()
+    }
+}
+
+private final class InputWriter: Sendable {
+    private let handle: FileHandle
+    private let data: Data
+    private let closed = Mutex(false)
+
+    init(handle: FileHandle, data: Data) {
+        self.handle = handle
+        self.data = data
+    }
+
+    func write() async throws {
+        try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.global(qos: .utility).async {
+                do {
+                    try self.handle.write(contentsOf: self.data)
+                    self.close()
+                    continuation.resume(returning: ())
+                } catch {
+                    self.close()
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
+
+    func close() {
+        let shouldClose = closed.withLock { closed in
+            guard !closed else { return false }
+            closed = true
+            return true
+        }
+        guard shouldClose else { return }
+        try? handle.close()
+    }
+}
+
+private final class OutputReader: Sendable {
+    private let handle: FileHandle
+    private let closed = Mutex(false)
+
+    init(_ handle: FileHandle) {
+        self.handle = handle
+    }
+
+    func read() async throws -> Data {
+        try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.global(qos: .utility).async {
+                do {
+                    let data = try self.handle.readToEnd() ?? Data()
+                    self.close()
+                    continuation.resume(returning: data)
+                } catch {
+                    self.close()
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
+
+    func close() {
+        let shouldClose = closed.withLock { closed in
+            guard !closed else { return false }
+            closed = true
+            return true
+        }
+        guard shouldClose else { return }
+        try? handle.close()
     }
 }
 
