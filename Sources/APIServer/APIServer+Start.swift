@@ -64,9 +64,13 @@ extension APIServer {
                 let pluginLoader = try initializePluginLoader(log: log)
 
                 try await initializePlugins(pluginLoader: pluginLoader, log: log, routes: &routes, debug: debug)
+                // Shared by the containers and volumes services so a volume's secret is written,
+                // read, and removed through the same keychain domain.
+                let credentialStore = KeychainVolumeCredentialStore()
                 let containersService = try initializeContainersService(
                     pluginLoader: pluginLoader,
                     containerSystemConfig: containerSystemConfig,
+                    credentialStore: credentialStore,
                     log: log,
                     routes: &routes
                 )
@@ -80,7 +84,12 @@ extension APIServer {
                 await containersService.setNetworksService(networkService)
                 initializeHealthCheckService(log: log, routes: &routes)
                 try initializeKernelService(log: log, routes: &routes)
-                let volumesService = try await initializeVolumeService(containersService: containersService, log: log, routes: &routes)
+                let volumesService = try await initializeVolumeService(
+                    containersService: containersService,
+                    credentialStore: credentialStore,
+                    log: log,
+                    routes: &routes
+                )
                 try initializeDiskUsageService(
                     containersService: containersService,
                     volumesService: volumesService,
@@ -274,6 +283,7 @@ extension APIServer {
         private func initializeContainersService(
             pluginLoader: PluginLoader,
             containerSystemConfig: ContainerSystemConfig,
+            credentialStore: VolumeCredentialStore,
             log: Logger,
             routes: inout [XPCRoute: XPCServer.RouteHandler]
         ) throws -> ContainersService {
@@ -286,7 +296,8 @@ extension APIServer {
                 pluginLoader: pluginLoader,
                 containerSystemConfig: containerSystemConfig,
                 log: log,
-                debugHelpers: debug
+                debugHelpers: debug,
+                credentialStore: credentialStore
             )
             let harness = ContainersHarness(service: service, log: log)
 
@@ -360,13 +371,19 @@ extension APIServer {
 
         private func initializeVolumeService(
             containersService: ContainersService,
+            credentialStore: VolumeCredentialStore,
             log: Logger,
             routes: inout [XPCRoute: XPCServer.RouteHandler]
         ) async throws -> VolumesService {
             log.info("initializing volume service")
 
             let resourceRoot = appRoot.appending(FilePath.Component("volumes"))
-            let service = try await VolumesService(resourceRoot: resourceRoot, containersService: containersService, log: log)
+            let service = try await VolumesService(
+                resourceRoot: resourceRoot,
+                containersService: containersService,
+                log: log,
+                credentialStore: credentialStore
+            )
             let harness = VolumesHarness(service: service, log: log)
 
             routes[XPCRoute.volumeCreate] = XPCServer.route(harness.create)
