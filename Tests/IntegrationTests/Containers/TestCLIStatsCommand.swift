@@ -109,7 +109,7 @@ struct TestCLIStatsCommand {
                     let ids = stats.map { $0.id }
                     #expect(ids.contains(name1), "should include first container")
                     #expect(ids.contains(name2), "should include second container")
-                    for row in stats where ids.contains(row.id) {
+                    for row in stats where [name1, name2].contains(row.id) {
                         let cpuUtilization = try #require(row.cpuUtilization, "json should include cpuUtilization for \(row.id)")
                         #expect(cpuUtilization >= 0, "cpuUtilization should be non-negative, got \(cpuUtilization)")
                     }
