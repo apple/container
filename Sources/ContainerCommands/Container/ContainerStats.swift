@@ -153,7 +153,7 @@ extension Application {
             }
         }
 
-        fileprivate struct StatsSnapshot {
+        struct StatsSnapshot {
             let container: ContainerSnapshot
             let stats1: ContainerResource.ContainerStats
             let sampledAt1: ContinuousClock.Instant
@@ -200,7 +200,7 @@ extension Application {
             let stats: ContainerResource.ContainerStats
             let cpuUtilization: Double?
 
-            fileprivate init(snapshot: StatsSnapshot) {
+            init(snapshot: StatsSnapshot) {
                 self.init(stats: snapshot.stats2, cpuUtilization: snapshot.cpuUtilization)
             }
 

@@ -44,6 +44,29 @@ private func makeSampleStats(
     )
 }
 
+private func makeContainerSnapshot(id: String = "busy") -> ContainerSnapshot {
+    let image = ImageDescription(
+        reference: "docker.io/library/alpine:latest",
+        descriptor: .init(
+            mediaType: "application/vnd.oci.image.manifest.v1+json",
+            digest: "sha256:" + String(repeating: "0", count: 64),
+            size: 0
+        )
+    )
+    let process = ProcessConfiguration(
+        executable: "/bin/sh",
+        arguments: [],
+        environment: [],
+        workingDirectory: "/",
+        terminal: false,
+        user: .id(uid: 0, gid: 0),
+        supplementalGroups: [],
+        rlimits: []
+    )
+    let configuration = ContainerConfiguration(id: id, image: image, process: process)
+    return ContainerSnapshot(configuration: configuration, status: .running, networks: [])
+}
+
 private func jsonObject(from report: Application.ContainerStats.StatsReport) throws -> [String: Any] {
     let data = try JSONEncoder().encode(report)
     return try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
@@ -98,6 +121,56 @@ struct CalculateCPUUtilizationTests {
             timeInterval: .seconds(2)
         )
         #expect(utilization == 0.0)
+    }
+}
+
+struct StatsSnapshotTests {
+    private let start = ContinuousClock.now
+
+    private func makeSnapshot(
+        cpuUsageUsec1: UInt64?,
+        cpuUsageUsec2: UInt64?,
+        elapsed: Duration
+    ) -> Application.ContainerStats.StatsSnapshot {
+        Application.ContainerStats.StatsSnapshot(
+            container: makeContainerSnapshot(),
+            stats1: makeSampleStats(cpuUsageUsec: cpuUsageUsec1),
+            sampledAt1: start,
+            stats2: makeSampleStats(cpuUsageUsec: cpuUsageUsec2),
+            sampledAt2: start.advanced(by: elapsed)
+        )
+    }
+
+    @Test
+    func utilizationUsesTheMeasuredInterval() {
+        let snapshot = makeSnapshot(cpuUsageUsec1: 0, cpuUsageUsec2: 2_000_000, elapsed: .milliseconds(2500))
+        #expect(snapshot.cpuUtilization == 0.8)
+    }
+
+    @Test
+    func utilizationIsNilWithoutASecondSample() {
+        let snapshot = makeSnapshot(cpuUsageUsec1: 1_000_000, cpuUsageUsec2: 1_000_000, elapsed: .zero)
+        #expect(snapshot.cpuUtilization == nil)
+    }
+
+    @Test
+    func utilizationIsNilWhenTheFirstSampleHasNoCPUUsage() {
+        let snapshot = makeSnapshot(cpuUsageUsec1: nil, cpuUsageUsec2: 2_000_000, elapsed: .seconds(2))
+        #expect(snapshot.cpuUtilization == nil)
+    }
+
+    @Test
+    func utilizationIsNilWhenTheSecondSampleHasNoCPUUsage() {
+        let snapshot = makeSnapshot(cpuUsageUsec1: 0, cpuUsageUsec2: nil, elapsed: .seconds(2))
+        #expect(snapshot.cpuUtilization == nil)
+    }
+
+    @Test
+    func reportOmitsCpuUtilizationWithoutASecondSample() throws {
+        let snapshot = makeSnapshot(cpuUsageUsec1: 1_000_000, cpuUsageUsec2: 1_000_000, elapsed: .zero)
+        let encoded = try jsonObject(from: Application.ContainerStats.StatsReport(snapshot: snapshot))
+        #expect(encoded["cpuUtilization"] == nil)
+        #expect(encoded["id"] as? String == "busy")
     }
 }
 
