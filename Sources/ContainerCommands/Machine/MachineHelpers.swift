@@ -76,10 +76,14 @@ func bootMachine(
             try? io.close()
         }
 
+        let homeIsMounted = snapshot.bootConfig.mounts.contains {
+            $0.destination == snapshot.configuration.home
+        }
         let processConfig = ProcessConfiguration(
             executable: "/bin/sh",
             arguments: ["-c", MachineUserSetup.script],
-            environment: snapshot.configuration.processEnvironment,
+            environment: snapshot.configuration.processEnvironment
+                + (homeIsMounted ? ["CONTAINER_HOME_MOUNTED=1"] : []),
             terminal: false
         )
 
