@@ -544,4 +544,59 @@ struct TestCLICopyCommand {
             }
         }
     }
+
+    // MARK: - Symbolic links
+
+    @Test func testCopyOutToSymlinkedDirectoryFails() async throws {
+        try await ContainerFixture.with { f in
+            let image = WarmupImage.alpine320.rawValue
+            try await f.withContainer(image: image) { name in
+                try f.doExec(name, cmd: ["sh", "-c", "mkdir -p /tmp/app && echo -n 'x' > /tmp/app/file.txt"])
+                let target = f.testDir.appending("target")
+                try FileManager.default.createDirectory(atPath: target.string, withIntermediateDirectories: true, attributes: nil)
+                let link = f.testDir.appending("link")
+                try FileManager.default.createSymbolicLink(atPath: link.string, withDestinationPath: target.string)
+                for dest in [link.string, link.string + "/", link.string + "/."] {
+                    let result = try f.run(["copy", "\(name):/tmp/app/.", dest])
+                    #expect(result.status != 0, "expected copy to symlink \(dest) to fail")
+                }
+                #expect(try FileManager.default.contentsOfDirectory(atPath: target.string).isEmpty)
+            }
+        }
+    }
+
+    @Test func testCopyOutIntoSymlinkedEntryFails() async throws {
+        try await ContainerFixture.with { f in
+            let image = WarmupImage.alpine320.rawValue
+            try await f.withContainer(image: image) { name in
+                try f.doExec(name, cmd: ["sh", "-c", "mkdir -p /tmp/app && echo -n 'x' > /tmp/app/file.txt"])
+                let target = f.testDir.appending("target")
+                try FileManager.default.createDirectory(atPath: target.string, withIntermediateDirectories: true, attributes: nil)
+                let dest = f.testDir.appending("dest")
+                try FileManager.default.createDirectory(atPath: dest.string, withIntermediateDirectories: true, attributes: nil)
+                try FileManager.default.createSymbolicLink(atPath: dest.appending("app").string, withDestinationPath: target.string)
+                let result = try f.run(["copy", "\(name):/tmp/app", dest.string])
+                #expect(result.status != 0, "expected copy into symlinked entry to fail")
+                #expect(try FileManager.default.contentsOfDirectory(atPath: target.string).isEmpty)
+            }
+        }
+    }
+
+    @Test func testCopyInFromSymlinkedDirectoryFails() async throws {
+        try await ContainerFixture.with { f in
+            let image = WarmupImage.alpine320.rawValue
+            try await f.withContainer(image: image) { name in
+                let target = f.testDir.appending("target")
+                try FileManager.default.createDirectory(atPath: target.string, withIntermediateDirectories: true, attributes: nil)
+                try "x".write(toFile: target.appending("file.txt").string, atomically: true, encoding: .utf8)
+                let link = f.testDir.appending("link")
+                try FileManager.default.createSymbolicLink(atPath: link.string, withDestinationPath: target.string)
+                for src in [link.string, link.string + "/", link.string + "/."] {
+                    let result = try f.run(["copy", src, "\(name):/tmp/stolen"])
+                    #expect(result.status != 0, "expected copy from symlink \(src) to fail")
+                }
+                try f.doExec(name, cmd: ["test", "!", "-e", "/tmp/stolen"])
+            }
+        }
+    }
 }
