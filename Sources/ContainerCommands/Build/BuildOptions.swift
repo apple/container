@@ -144,6 +144,13 @@ public struct BuildOptions: ParsableArguments {
         return logger
     }
 
+    /// `FileManager.fileExists` is false both for a path that is not there and for one the
+    /// process is not allowed to look at. This tells the second case apart.
+    static func isPermissionDenied(_ path: String) -> Bool {
+        var info = stat()
+        return stat(path, &info) != 0 && (errno == EACCES || errno == EPERM)
+    }
+
     public mutating func validate() throws {
         guard FileManager.default.fileExists(atPath: contextDir) else {
             throw ValidationError("context dir does not exist \(contextDir)")
@@ -157,6 +164,9 @@ public struct BuildOptions: ParsableArguments {
         if let filepath = file, filepath != "-" {
             let fileURL = URL(fileURLWithPath: filepath, relativeTo: .currentDirectory())
             guard FileManager.default.fileExists(atPath: fileURL.path) else {
+                if Self.isPermissionDenied(fileURL.path) {
+                    throw ValidationError("cannot read file \(filepath): permission denied")
+                }
                 throw ValidationError("file does not exist \(filepath)")
             }
         }
