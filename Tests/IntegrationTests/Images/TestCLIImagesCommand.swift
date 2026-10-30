@@ -281,6 +281,34 @@ struct TestCLIImagesCommand {
         }
     }
 
+    @Test func testImageAttestationVariantsHaveOwnConfig() async throws {
+        try await ContainerFixture.with { f in
+            try f.doPull(alpine)
+            let result = try f.run(["image", "inspect", alpine]).check()
+            guard let json = try JSONSerialization.jsonObject(with: result.outputData) as? [[String: Any]],
+                let image = json.first
+            else {
+                Issue.record("failed to parse image inspect JSON")
+                return
+            }
+            let variants = image["variants"] as? [[String: Any]] ?? []
+            // Attestation manifests all have the platform unknown/unknown, so each
+            // one must be read by its own descriptor rather than by platform.
+            let attestationLayers = variants.compactMap { variant -> [String]? in
+                guard let platform = variant["platform"] as? [String: Any],
+                    platform["os"] as? String == "unknown",
+                    let config = variant["config"] as? [String: Any],
+                    let rootfs = config["rootfs"] as? [String: Any]
+                else {
+                    return nil
+                }
+                return rootfs["diff_ids"] as? [String]
+            }
+            #expect(attestationLayers.count > 1, "expected several attestation variants")
+            #expect(Set(attestationLayers).count == attestationLayers.count, "attestation variants share a config")
+        }
+    }
+
     @Test func testImageListTableFormat() async throws {
         try await ContainerFixture.with { f in
             try f.doPull(alpine)

@@ -36,8 +36,11 @@ extension ClientImage {
             let config: ContainerizationOCI.Image
             let manifest: ContainerizationOCI.Manifest
             do {
-                config = try await self.config(for: platform)
-                manifest = try await self.manifest(for: platform)
+                // Read the manifest this descriptor points to. Looking it up by
+                // platform would return the first index entry with that platform,
+                // so every unknown/unknown attestation would get the first one's data.
+                manifest = try await self.manifest(at: desc)
+                config = try await self.config(of: manifest)
             } catch {
                 continue
             }
