@@ -35,6 +35,7 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
     private let maxConcurrentDownloads: Int
     private let remove: Bool
     private let fqdn: String?
+    private let sharedImageStore: Bool
 
     public init(
         clusterName: String,
@@ -45,7 +46,8 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
         registryScheme: String = "https",
         maxConcurrentDownloads: Int = 3,
         remove: Bool = false,
-        fqdn: String? = nil
+        fqdn: String? = nil,
+        sharedImageStore: Bool = false
     ) throws {
         guard !roles.isEmpty else {
             throw ContainerizationError(.invalidArgument, message: "LinuxNode roles must not be empty")
@@ -66,11 +68,22 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
         self.maxConcurrentDownloads = maxConcurrentDownloads
         self.remove = remove
         self.fqdn = fqdn
+        self.sharedImageStore = sharedImageStore
     }
 
     public func provision(name: String, log: Logger) async throws {
         let containerSystemConfig: ContainerSystemConfig = try await ConfigurationLoader.load()
         let resolvedImage = nodeImage ?? ClusterHelper.nodeImage
+        var volumes: [String] = []
+        if sharedImageStore {
+            _ = try await ClusterHelper.clusterShimURL(log: log)
+            let hostStoreSocket = ClusterHelper.hostStoreSocketPath.string
+            guard FileManager.default.fileExists(atPath: hostStoreSocket) else {
+                throw ContainerizationError(
+                    .notFound, message: "host store socket \(hostStoreSocket) not found; is the cluster-hoststore plugin installed and running?")
+            }
+            volumes.append("\(hostStoreSocket):\(ClusterHelper.nodeHostStoreSocketPath)")
+        }
         try await ClusterHelper.ensureImage(nodeImage: resolvedImage, log: log, containerSystemConfig: containerSystemConfig)
 
         let isControlPlane = roles.contains(StandardRoles.controlPlane)
@@ -115,7 +128,7 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
             tmpFs: [],
             useInit: false,
             virtualization: false,
-            volumes: []
+            volumes: volumes
         )
 
         let updatedResource = ClusterHelper.defaultedResourceFlags(Flags.Resource(cpus: cpus, memory: memory))
@@ -187,7 +200,7 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
         log: Logger
     ) async throws {
         let client = ContainerClient()
-        try await ClusterHelper.prepareNode(nodeID: name, client: client, log: log)
+        try await ClusterHelper.prepareNode(nodeID: name, sharedImageStore: sharedImageStore, client: client, log: log)
 
         let (code, output) = try await ClusterHelper.execCapture(
             containerId: name,

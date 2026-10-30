@@ -18,6 +18,19 @@ import ContainerTestSupport
 import Foundation
 
 extension ContainerFixture {
+    /// Whether the build under test ships cluster-shim, next to the CLI in libexec.
+    static var clusterShimInstalled: Bool {
+        let cli: URL
+        if let path = ProcessInfo.processInfo.environment["CONTAINER_CLI_PATH"] {
+            cli = URL(filePath: path)
+        } else {
+            cli = URL(filePath: FileManager.default.currentDirectoryPath).appending(path: "bin/container")
+        }
+        let root = cli.deletingLastPathComponent().deletingLastPathComponent()
+        let shim = root.appending(path: "libexec/container/plugins/cluster/resources/cluster-shim")
+        return FileManager.default.fileExists(atPath: shim.path)
+    }
+
     @discardableResult
     func kubectl(node: String, args: [String]) throws -> (output: String, status: Int32) {
         print("[cluster] kubectl \(args.joined(separator: " ")) (node: \(node))")
