@@ -49,53 +49,63 @@ private func jsonObject(from report: Application.ContainerStats.StatsReport) thr
     return try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
 }
 
-struct CalculateCPUPercentTests {
+struct CalculateCPUUtilizationTests {
     @Test
-    func oneCoreFullyUtilizedIs100Percent() {
-        let percent = Application.ContainerStats.calculateCPUPercent(
+    func oneCoreFullyUtilizedIsOne() {
+        let utilization = Application.ContainerStats.calculateCPUUtilization(
             cpuUsage1: .seconds(0),
             cpuUsage2: .seconds(2),
-            timeInterval: Application.ContainerStats.sampleInterval
+            timeInterval: .seconds(2)
         )
-        #expect(percent == 100.0)
+        #expect(utilization == 1.0)
     }
 
     @Test
-    func fourCoresSaturatedIs400Percent() {
-        let percent = Application.ContainerStats.calculateCPUPercent(
+    func fourCoresSaturatedIsFour() {
+        let utilization = Application.ContainerStats.calculateCPUUtilization(
             cpuUsage1: .seconds(0),
             cpuUsage2: .seconds(8),
-            timeInterval: Application.ContainerStats.sampleInterval
+            timeInterval: .seconds(2)
         )
-        #expect(percent == 400.0)
+        #expect(utilization == 4.0)
+    }
+
+    @Test
+    func dividesByTheMeasuredInterval() {
+        let utilization = Application.ContainerStats.calculateCPUUtilization(
+            cpuUsage1: .seconds(0),
+            cpuUsage2: .seconds(2),
+            timeInterval: .milliseconds(2500)
+        )
+        #expect(utilization == 0.8)
     }
 
     @Test
     func unchangedUsageIsZero() {
-        let percent = Application.ContainerStats.calculateCPUPercent(
+        let utilization = Application.ContainerStats.calculateCPUUtilization(
             cpuUsage1: .milliseconds(500),
             cpuUsage2: .milliseconds(500),
-            timeInterval: Application.ContainerStats.sampleInterval
+            timeInterval: .seconds(2)
         )
-        #expect(percent == 0.0)
+        #expect(utilization == 0.0)
     }
 
     @Test
     func usageDecreaseIsTreatedAsZero() {
-        let percent = Application.ContainerStats.calculateCPUPercent(
+        let utilization = Application.ContainerStats.calculateCPUUtilization(
             cpuUsage1: .seconds(4),
             cpuUsage2: .seconds(1),
-            timeInterval: Application.ContainerStats.sampleInterval
+            timeInterval: .seconds(2)
         )
-        #expect(percent == 0.0)
+        #expect(utilization == 0.0)
     }
 }
 
 struct StatsReportEncodingTests {
     @Test
-    func jsonIncludesCpuPercentAndForwardsEverySampleField() throws {
+    func jsonIncludesCpuUtilizationAndForwardsEverySampleField() throws {
         let stats = makeSampleStats()
-        let report = Application.ContainerStats.StatsReport(stats: stats, cpuPercent: 42.5)
+        let report = Application.ContainerStats.StatsReport(stats: stats, cpuUtilization: 0.425)
         let sample = try #require(
             JSONSerialization.jsonObject(with: JSONEncoder().encode(stats)) as? [String: Any]
         )
@@ -105,7 +115,8 @@ struct StatsReportEncodingTests {
             #expect(encoded[key] != nil, "StatsReport dropped sample field \(key)")
         }
         #expect(encoded["stats"] == nil, "sample should be flattened, not nested under stats")
-        #expect(encoded["cpuPercent"] as? Double == 42.5)
+        #expect(encoded["cpuUtilization"] as? Double == 0.425)
+        #expect(encoded["cpuPercent"] == nil, "percentages are a table-only presentation")
         #expect(encoded["id"] as? String == "busy")
 
         let decoded = try JSONDecoder().decode(
@@ -118,36 +129,36 @@ struct StatsReportEncodingTests {
     }
 
     @Test
-    func jsonOmitsNilCpuPercent() throws {
-        let report = Application.ContainerStats.StatsReport(stats: makeSampleStats(), cpuPercent: nil)
+    func jsonOmitsNilCpuUtilization() throws {
+        let report = Application.ContainerStats.StatsReport(stats: makeSampleStats(), cpuUtilization: nil)
         let encoded = try jsonObject(from: report)
-        #expect(encoded["cpuPercent"] == nil)
+        #expect(encoded["cpuUtilization"] == nil)
         #expect(encoded["id"] as? String == "busy")
     }
 
     @Test
-    func renderJSONIncludesCpuPercent() throws {
-        let report = Application.ContainerStats.StatsReport(stats: makeSampleStats(), cpuPercent: 12.25)
+    func renderJSONIncludesCpuUtilization() throws {
+        let report = Application.ContainerStats.StatsReport(stats: makeSampleStats(), cpuUtilization: 0.125)
         let json = try Output.renderJSON([report])
-        #expect(json.contains("\"cpuPercent\":12.25"))
+        #expect(json.contains("\"cpuUtilization\":0.125"))
         #expect(json.contains("\"id\":\"busy\""))
     }
 
     @Test
-    func renderYAMLIncludesCpuPercent() throws {
-        let report = Application.ContainerStats.StatsReport(stats: makeSampleStats(), cpuPercent: 12.25)
+    func renderYAMLIncludesCpuUtilization() throws {
+        let report = Application.ContainerStats.StatsReport(stats: makeSampleStats(), cpuUtilization: 0.125)
         let yaml = try Output.renderYAML([report])
-        #expect(yaml.contains("cpuPercent"))
+        #expect(yaml.contains("cpuUtilization"))
         #expect(yaml.contains("busy"))
         #expect(yaml.contains("memoryUsageBytes"))
     }
 
     @Test
-    func renderTOMLIncludesCpuPercent() throws {
-        let report = Application.ContainerStats.StatsReport(stats: makeSampleStats(), cpuPercent: 12.25)
+    func renderTOMLIncludesCpuUtilization() throws {
+        let report = Application.ContainerStats.StatsReport(stats: makeSampleStats(), cpuUtilization: 0.125)
         let toml = try Output.renderTOML([report])
-        #expect(toml.contains("cpuPercent"))
-        #expect(toml.contains("12.25"))
+        #expect(toml.contains("cpuUtilization"))
+        #expect(toml.contains("0.125"))
         #expect(toml.contains("busy"))
         #expect(toml.contains("memoryUsageBytes"))
     }

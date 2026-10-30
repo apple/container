@@ -156,48 +156,57 @@ extension Application {
         fileprivate struct StatsSnapshot {
             let container: ContainerSnapshot
             let stats1: ContainerResource.ContainerStats
+            let sampledAt1: ContinuousClock.Instant
             let stats2: ContainerResource.ContainerStats
+            let sampledAt2: ContinuousClock.Instant
 
-            /// Percent of one core, matching `top` and `docker stats`: 400% is four cores
-            /// saturated. Deliberately not divided by the container's CPU allocation.
-            var cpuPercent: Double? {
+            /// Fraction of one core, matching `top` and `docker stats` once shown as a
+            /// percentage: 4.0 is four cores saturated. Deliberately not divided by the
+            /// container's CPU allocation. Nil when there is no second sample to compare.
+            var cpuUtilization: Double? {
                 guard let first = stats1.cpuUsageUsec, let second = stats2.cpuUsageUsec else {
                     return nil
                 }
-                return ContainerStats.calculateCPUPercent(
+                let elapsed = sampledAt2 - sampledAt1
+                guard elapsed > .zero else {
+                    return nil
+                }
+                return ContainerStats.calculateCPUUtilization(
                     cpuUsage1: .microseconds(first),
                     cpuUsage2: .microseconds(second),
-                    timeInterval: ContainerStats.sampleInterval
+                    timeInterval: elapsed
                 )
             }
         }
 
-        /// `collectStats` sleeps for this between samples and the percentage divides by it,
-        /// so the two must not drift apart.
         static let sampleInterval: Duration = .seconds(2)
 
         /// The payload for the machine-readable formats: the second sample plus the CPU
-        /// percentage derived from both.
+        /// utilization derived from both.
+        ///
+        /// `cpuUtilization` is a fraction of one core (1.0 is one core fully used, 2.5 is
+        /// two and a half cores). Formatting it, for example as a percentage, is left to
+        /// the consumer; only the table output renders a percentage.
         ///
         /// `ContainerResource.ContainerStats` models a single sample, and a rate is not a
         /// property of one sample, so the derived value lives here rather than widening that
         /// type. The sample is wrapped and flattened on encode so the stored shape stays
-        /// additive (`cpuPercent` only) without copying every sample field onto this type.
+        /// additive (`cpuUtilization` only) without copying every sample field onto this type.
         ///
         /// Encoding goes through one keyed container. TOMLEncoder replaces `encoder.value`
         /// on each `container(keyedBy:)` call, so `stats.encode(to:)` followed by a second
         /// container would drop the sample fields.
         struct StatsReport: Encodable {
             let stats: ContainerResource.ContainerStats
-            let cpuPercent: Double?
+            let cpuUtilization: Double?
 
             fileprivate init(snapshot: StatsSnapshot) {
-                self.init(stats: snapshot.stats2, cpuPercent: snapshot.cpuPercent)
+                self.init(stats: snapshot.stats2, cpuUtilization: snapshot.cpuUtilization)
             }
 
-            init(stats: ContainerResource.ContainerStats, cpuPercent: Double?) {
+            init(stats: ContainerResource.ContainerStats, cpuUtilization: Double?) {
                 self.stats = stats
-                self.cpuPercent = cpuPercent
+                self.cpuUtilization = cpuUtilization
             }
 
             func encode(to encoder: Encoder) throws {
@@ -211,12 +220,12 @@ extension Application {
                 try container.encodeIfPresent(stats.blockReadBytes, forKey: .blockReadBytes)
                 try container.encodeIfPresent(stats.blockWriteBytes, forKey: .blockWriteBytes)
                 try container.encodeIfPresent(stats.numProcesses, forKey: .numProcesses)
-                try container.encodeIfPresent(cpuPercent, forKey: .cpuPercent)
+                try container.encodeIfPresent(cpuUtilization, forKey: .cpuUtilization)
             }
 
             private enum CodingKeys: String, CodingKey {
                 case id
-                case cpuPercent
+                case cpuUtilization
                 case cpuUsageUsec
                 case memoryUsageBytes
                 case memoryLimitBytes
@@ -230,13 +239,22 @@ extension Application {
 
         private static func collectStats(client: ContainerClient, for containers: [ContainerSnapshot]) async throws -> [StatsSnapshot] {
             var snapshots: [StatsSnapshot] = []
+            let clock = ContinuousClock()
 
             // First sample
             for container in containers {
                 guard container.status == .running else { continue }
                 do {
                     let stats1 = try await client.stats(id: container.id)
-                    snapshots.append(StatsSnapshot(container: container, stats1: stats1, stats2: stats1))
+                    let sampledAt = clock.now
+                    snapshots.append(
+                        StatsSnapshot(
+                            container: container,
+                            stats1: stats1,
+                            sampledAt1: sampledAt,
+                            stats2: stats1,
+                            sampledAt2: sampledAt
+                        ))
                 } catch {
                     // Skip containers that error out
                     continue
@@ -254,7 +272,9 @@ extension Application {
                         snapshots[i] = StatsSnapshot(
                             container: snapshots[i].container,
                             stats1: snapshots[i].stats1,
-                            stats2: stats2
+                            sampledAt1: snapshots[i].sampledAt1,
+                            stats2: stats2,
+                            sampledAt2: clock.now
                         )
                     } catch {
                         // Keep the original stats if second sample fails
@@ -266,13 +286,13 @@ extension Application {
             return snapshots
         }
 
-        /// Calculate CPU percentage from two stat snapshots
+        /// Calculate CPU utilization from two stat snapshots
         /// - Parameters:
         ///   - cpuUsage1: CPU usage from the first sample
         ///   - cpuUsage2: CPU usage from the second sample
-        ///   - timeInterval: Wall-clock interval between samples
-        /// - Returns: CPU percentage where 100% = one fully utilized core
-        static func calculateCPUPercent(
+        ///   - timeInterval: Measured interval between the two samples
+        /// - Returns: Fractional CPU utilization where 1.0 = one fully utilized core
+        static func calculateCPUUtilization(
             cpuUsage1: Duration,
             cpuUsage2: Duration,
             timeInterval: Duration
@@ -281,7 +301,7 @@ extension Application {
                 cpuUsage2 > cpuUsage1
                 ? cpuUsage2 - cpuUsage1
                 : .seconds(0)
-            return (cpuDelta / timeInterval) * 100.0
+            return cpuDelta / timeInterval
         }
 
         static func formatBytes(_ bytes: UInt64) -> String {
@@ -309,8 +329,8 @@ extension Application {
                 var row = [snapshot.container.id]
                 let stats2 = snapshot.stats2
 
-                if let cpuPercent = snapshot.cpuPercent {
-                    row.append(String(format: "%.2f%%", cpuPercent))
+                if let cpuUtilization = snapshot.cpuUtilization {
+                    row.append(String(format: "%.2f%%", cpuUtilization * 100.0))
                 } else {
                     row.append(notAvailable)
                 }

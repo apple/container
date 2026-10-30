@@ -93,7 +93,8 @@ You can also output statistics in JSON format for scripting:
     "networkTxBytes": 876544,
     "blockReadBytes": 4718592,
     "blockWriteBytes": 2202009,
-    "numProcesses": 3
+    "numProcesses": 3,
+    "cpuUtilization": 0.0312
   }
 ]
 ```
@@ -101,6 +102,7 @@ You can also output statistics in JSON format for scripting:
 **Understanding the metrics:**
 
 - **Cpu %**: Percentage of CPU usage. ~100% = one fully utilized core. A multi-core container can show > 100%.
+- **cpuUtilization** (JSON, YAML, TOML): The same measurement as a fraction of one core. `1.0` is one fully utilized core, `2.5` is two and a half. Format it as you need; `Cpu %` in the table is this value times 100.
 - **Memory Usage**: Current memory usage vs. the container's memory limit.
 - **Net Rx/Tx**: Network bytes received and transmitted.
 - **Block I/O**: Disk bytes read and written.

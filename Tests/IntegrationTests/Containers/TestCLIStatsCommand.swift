@@ -18,11 +18,11 @@ import ContainerTestSupport
 import Foundation
 import Testing
 
-/// Machine-readable stats payload, including the derived `cpuPercent` that
+/// Machine-readable stats payload, including the derived `cpuUtilization` that
 /// `ContainerResource.ContainerStats` does not carry.
 private struct StatsJSON: Decodable {
     let id: String
-    let cpuPercent: Double?
+    let cpuUtilization: Double?
     let memoryUsageBytes: UInt64?
     let numProcesses: UInt64?
 }
@@ -39,10 +39,10 @@ struct TestCLIStatsCommand {
                 #expect(stats[0].id == name, "container ID should match")
                 let memoryUsageBytes = try #require(stats[0].memoryUsageBytes)
                 let numProcesses = try #require(stats[0].numProcesses)
-                let cpuPercent = try #require(stats[0].cpuPercent, "json should include cpuPercent")
+                let cpuUtilization = try #require(stats[0].cpuUtilization, "json should include cpuUtilization")
                 #expect(memoryUsageBytes > 0, "memory usage should be non-zero")
                 #expect(numProcesses >= 1, "should have at least one process")
-                #expect(cpuPercent >= 0, "cpuPercent should be non-negative, got \(cpuPercent)")
+                #expect(cpuUtilization >= 0, "cpuUtilization should be non-negative, got \(cpuUtilization)")
             }
         }
     }
@@ -110,8 +110,8 @@ struct TestCLIStatsCommand {
                     #expect(ids.contains(name1), "should include first container")
                     #expect(ids.contains(name2), "should include second container")
                     for row in stats where ids.contains(row.id) {
-                        let cpuPercent = try #require(row.cpuPercent, "json should include cpuPercent for \(row.id)")
-                        #expect(cpuPercent >= 0, "cpuPercent should be non-negative, got \(cpuPercent)")
+                        let cpuUtilization = try #require(row.cpuUtilization, "json should include cpuUtilization for \(row.id)")
+                        #expect(cpuUtilization >= 0, "cpuUtilization should be non-negative, got \(cpuUtilization)")
                     }
                 }
             }
