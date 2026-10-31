@@ -20,6 +20,7 @@ import ContainerPersistence
 import ContainerPlugin
 import ContainerResource
 import Foundation
+import SystemPackage
 
 enum ListOutputFormat: String, Decodable, ExpressibleByArgument {
     case json
@@ -44,10 +45,14 @@ extension Application {
 
         public func run() async throws {
             let containerSystemConfig: ContainerSystemConfig = try await ClientHealthCheck.loadContainerSystemConfig()
+            let properties = try SystemProperties(
+                config: containerSystemConfig,
+                plugin: PluginProperties.load()
+            )
             let output =
                 switch format {
-                case .json: try Output.renderJSON(containerSystemConfig)
-                case .toml: try Output.renderTOML(containerSystemConfig)
+                case .json: try Output.renderJSON(properties)
+                case .toml: try Output.renderTOML(properties)
                 }
             Output.emit(output)
         }
