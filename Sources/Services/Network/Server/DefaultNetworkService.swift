@@ -60,6 +60,7 @@ public actor DefaultNetworkService: NetworkService {
         hostname: String,
         macAddress: MACAddress?,
         aliases: [String],
+        requestedAddress: IPv4Address?,
         session: XPCServerSession
     ) async throws -> (attachment: Attachment, additionalData: XPCMessage?) {
         log.debug("enter", metadata: ["func": "\(#function)"])
@@ -69,7 +70,7 @@ public actor DefaultNetworkService: NetworkService {
             throw ContainerizationError(.invalidState, message: "network \(network.id) must be running")
         }
 
-        let macAddress = macAddress ?? MACAddress((UInt64.random(in: 0...UInt64.max) & 0x0cff_ffff_ffff) | 0xf200_0000_0000)
+        let macAddress = macAddress ?? .generate()
         // The aliases come over XPC, so check them against the same rules as the API server does,
         // instead of trusting that the caller did.
         let rules: [DNSMatchRule]
@@ -79,7 +80,15 @@ public actor DefaultNetworkService: NetworkService {
         } catch {
             throw ContainerizationError(.invalidArgument, message: "invalid aliases for \(hostname): \(error)")
         }
-        let index = try await allocator.allocate(hostname: hostname, aliases: rules)
+        let index: UInt32
+        do {
+            index = try await allocator.allocate(hostname: hostname, aliases: rules, requested: requestedAddress?.value)
+        } catch AllocatorError.allocatorFull {
+            throw ContainerizationError(
+                .invalidState,
+                message: "network \(network.id) (\(status.ipv4Subnet)) has no free IP addresses"
+            )
+        }
         let ipv6Address = try status.ipv6Subnet
             .map { try CIDRv6(macAddress.ipv6Address(network: $0.lower), prefix: $0.prefix) }
         let ip = IPv4Address(index)

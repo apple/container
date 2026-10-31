@@ -24,5 +24,6 @@ public enum NetworkKeys: String {
     case matchKind
     case name
     case network
+    case requestedAddress
     case status
 }

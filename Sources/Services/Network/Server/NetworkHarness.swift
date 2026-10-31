@@ -41,6 +41,9 @@ public actor NetworkHarness: Sendable {
         let macAddress =
             try message.string(key: NetworkKeys.macAddress.rawValue)
             .map { try MACAddress($0) }
+        let requestedAddress =
+            try message.string(key: NetworkKeys.requestedAddress.rawValue)
+            .map { try IPv4Address($0) }
 
         let aliases = try message.aliases()
 
@@ -48,6 +51,7 @@ public actor NetworkHarness: Sendable {
             hostname: hostname,
             macAddress: macAddress,
             aliases: aliases,
+            requestedAddress: requestedAddress,
             session: session
         )
 

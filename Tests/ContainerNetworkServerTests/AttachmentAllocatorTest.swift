@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerizationExtras
 import DNSServer
 import Testing
 
@@ -155,6 +156,91 @@ struct AttachmentAllocatorTest {
         // Second deallocation should return nil since it's already deallocated
         let secondDeallocate = try await allocator.deallocate(hostname: "test-host")
         #expect(secondDeallocate == nil)
+    }
+
+    @Test func testRequestedAddressIsReserved() async throws {
+        let allocator = try AttachmentAllocator(lower: 100, size: 10)
+        let address: UInt32 = 105  // any address within [100, 110)
+
+        let reserved = try await allocator.allocate(hostname: "test-host", requested: address)
+        #expect(reserved == address)
+        #expect(try await allocator.lookup(hostname: "test-host") == address)
+
+        // Same hostname returns the existing address (dedup).
+        let again = try await allocator.allocate(hostname: "test-host", requested: address)
+        #expect(again == address)
+    }
+
+    @Test func testReservedAddressExcludedFromAllocate() async throws {
+        let allocator = try AttachmentAllocator(lower: 100, size: 3)  // pool [100, 103)
+        let reserved: UInt32 = 101
+
+        _ = try await allocator.allocate(hostname: "pinned", requested: reserved)
+
+        let a = try await allocator.allocate(hostname: "host-a")
+        let b = try await allocator.allocate(hostname: "host-b")
+        #expect(a != reserved)
+        #expect(b != reserved)
+        #expect(a != b)
+
+        // Pool now full (1 reserved + 2 allocated of 3): next allocate must fail.
+        await #expect(throws: AllocatorError.allocatorFull) {
+            try await allocator.allocate(hostname: "host-c")
+        }
+    }
+
+    @Test func testReservedAddressIsReleasedOnDeallocate() async throws {
+        // If the requested path skips hostnames[hostname], release never runs and the address leaks.
+        let allocator = try AttachmentAllocator(lower: 100, size: 1)
+        let only: UInt32 = 100  // the pool's sole address
+
+        _ = try await allocator.allocate(hostname: "sticky", requested: only)
+
+        await #expect(throws: AllocatorError.allocatorFull) {
+            try await allocator.allocate(hostname: "other")
+        }
+
+        // deallocate = the stop / session-disconnect release path.
+        let released = try #require(
+            try await allocator.deallocate(hostname: "sticky"),
+            "deallocate must return the reserved address; nil means release never ran"
+        )
+        #expect(released == only)
+
+        // Requesting the same address must now succeed - proves release ran.
+        let again = try await allocator.allocate(hostname: "sticky", requested: only)
+        #expect(again == only)
+    }
+
+    @Test func testRequestedFallsBackWhenTaken() async throws {
+        let allocator = try AttachmentAllocator(lower: 100, size: 10)
+        let taken = try await allocator.allocate(hostname: "owner")
+
+        let address = try await allocator.allocate(hostname: "sticky", requested: taken)
+
+        #expect(address != taken)
+        #expect(address >= 100)
+        #expect(address < 110)
+    }
+
+    @Test func testRequestedFallsBackWhenRequestOutOfRange() async throws {
+        // A sticky address from a previous, different subnet must not fail the start.
+        let allocator = try AttachmentAllocator(lower: 100, size: 10)
+
+        let address = try await allocator.allocate(hostname: "sticky", requested: 5_000)
+
+        #expect(address >= 100)
+        #expect(address < 110)
+    }
+
+    @Test func testRequestedStillFailsWhenPoolFull() async throws {
+        // Fallback must not mask exhaustion: taken + full pool fails loud.
+        let allocator = try AttachmentAllocator(lower: 100, size: 1)
+        let only = try await allocator.allocate(hostname: "owner")
+
+        await #expect(throws: AllocatorError.allocatorFull) {
+            try await allocator.allocate(hostname: "sticky", requested: only)
+        }
     }
 
     @Test func testLookupIgnoresCase() async throws {
