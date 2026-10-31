@@ -225,30 +225,24 @@ extension ClientImage {
     }
 
     private static func _search(reference: String, in all: [ClientImage], containerSystemConfig: ContainerSystemConfig) throws -> ClientImage? {
-        let locallyBuiltImage = try {
-            // Check if we have an image whose index descriptor contains the image name
-            // as an annotation. Prefer this in all cases, since these are locally built images.
-            let r = try Reference.parse(reference)
-            r.normalize()
-            let withDefaultTag = r.description
-
-            let localImageMatches = all.filter { $0.description.nameFromAnnotation() == withDefaultTag }
-            guard localImageMatches.count > 1 else {
-                return localImageMatches.first
-            }
-            // More than one image matched. Check against the tagged reference
-            return localImageMatches.first { $0.reference == withDefaultTag }
-        }()
-        if let locallyBuiltImage {
-            return locallyBuiltImage
+        let candidates = all.map { image in
+            ImageReferenceNormalization.Candidate(
+                reference: image.reference,
+                annotatedName: image.description.nameFromAnnotation()
+            )
         }
-        // If we don't find a match, try matching `ImageDescription.name` against the given
-        // input string, while also checking against its normalized form.
-        // Return the first match.
-        let normalizedReference = try Self.normalizeReference(reference, containerSystemConfig: containerSystemConfig)
-        return all.first(where: { image in
-            image.reference == reference || image.reference == normalizedReference
-        })
+        guard
+            let selected = try ImageReferenceNormalization.select(
+                reference: reference,
+                candidates: candidates,
+                containerSystemConfig: containerSystemConfig
+            )
+        else {
+            return nil
+        }
+        return all.first { image in
+            image.reference == selected.reference && image.description.nameFromAnnotation() == selected.annotatedName
+        }
     }
 
     public static func pull(
