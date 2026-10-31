@@ -76,6 +76,8 @@ Create a domain for host connection:
 sudo container system dns create host.container.internal --localhost 203.0.113.113
 ```
 
+DNS flags on `container run` and `container create`, such as `--dns-domain` and `--dns-option`, only configure the guest container's `/etc/resolv.conf`. They do not create DNS records or make names like `name.<domain>` resolve from the host or from a guest. Use `container system dns create` to create local DNS domains, and set the default local container DNS domain with the `domain` key in the `[dns]` table of the [system configuration](./container-system-config.md).
+
 Test access to the host HTTP server from a container:
 
 ```console
