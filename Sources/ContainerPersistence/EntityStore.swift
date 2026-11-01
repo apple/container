@@ -61,7 +61,7 @@ public actor FilesystemEntityStore<T>: EntityStore where T: Codable & Identifiab
         let entityPath = try entityPath(entity.id)
         try FileManager.default.createDirectory(atPath: entityPath.string, withIntermediateDirectories: true)
         let data = try encoder.encode(entity)
-        try data.write(to: URL(filePath: metadataPath.string))
+        try data.write(to: URL(filePath: metadataPath.string), options: .atomic)
         index[entity.id] = entity
     }
 
@@ -76,7 +76,7 @@ public actor FilesystemEntityStore<T>: EntityStore where T: Codable & Identifiab
         }
 
         let data = try encoder.encode(entity)
-        try data.write(to: URL(filePath: metadataPath.string))
+        try data.write(to: URL(filePath: metadataPath.string), options: .atomic)
         index[entity.id] = entity
     }
 
@@ -85,7 +85,7 @@ public actor FilesystemEntityStore<T>: EntityStore where T: Codable & Identifiab
         try FileManager.default.createDirectory(atPath: entityPath.string, withIntermediateDirectories: true)
         let metadataPath = try metadataPath(entity.id)
         let data = try encoder.encode(entity)
-        try data.write(to: URL(filePath: metadataPath.string))
+        try data.write(to: URL(filePath: metadataPath.string), options: .atomic)
         index[entity.id] = entity
     }
 
