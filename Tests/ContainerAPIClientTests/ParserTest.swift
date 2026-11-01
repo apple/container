@@ -331,6 +331,27 @@ struct ParserTest {
     }
 
     @Test
+    func testPublishSocketExistingDirectoryIsNotRemoved() throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("test-publish-socket-dir-\(UUID().uuidString)")
+        let tempFile = tempDir.appendingPathComponent("keep.txt")
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        try "test content".write(to: tempFile, atomically: true, encoding: .utf8)
+        defer {
+            try? FileManager.default.removeItem(at: tempDir)
+        }
+
+        #expect {
+            _ = try Parser.publishSocket("\(tempDir.path):/var/run/app.sock")
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("is a directory")
+        }
+        #expect(FileManager.default.fileExists(atPath: tempFile.path))
+    }
+
+    @Test
     func testRelativePaths() throws {
         // Test bind mount with relative path "."
         do {
