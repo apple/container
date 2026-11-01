@@ -114,6 +114,27 @@ struct UtilityTests {
     }
 
     @Test
+    func testValidEntityName() throws {
+        try Utility.validEntityName("my-container")
+        try Utility.validEntityName("test.container")
+        try Utility.validEntityName("abc123")
+        try Utility.validEntityName("a1")
+        try Utility.validEntityName("container_1.test-abc")
+    }
+
+    @Test
+    func testInvalidEntityName() {
+        #expect(throws: Error.self) { try Utility.validEntityName("../../tmp/evil") }
+        #expect(throws: Error.self) { try Utility.validEntityName("../foo") }
+        #expect(throws: Error.self) { try Utility.validEntityName("foo/bar") }
+        #expect(throws: Error.self) { try Utility.validEntityName("/tmp/evil") }
+        #expect(throws: Error.self) { try Utility.validEntityName("") }
+        #expect(throws: Error.self) { try Utility.validEntityName(".hidden") }
+        #expect(throws: Error.self) { try Utility.validEntityName("-bad") }
+        #expect(throws: Error.self) { try Utility.validEntityName("a") }
+    }
+
+    @Test
     func testPublishPortParser() throws {
         let ports = try Parser.publishPorts([
             "127.0.0.1:8000:9080",
