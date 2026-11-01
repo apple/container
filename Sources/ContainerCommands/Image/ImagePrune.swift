@@ -88,7 +88,7 @@ extension Application {
         private func hasTag(_ reference: String) -> Bool {
             do {
                 let ref = try ContainerizationOCI.Reference.parse(reference)
-                return ref.tag != nil && !ref.tag!.isEmpty
+                return ref.tag?.isEmpty == false
             } catch {
                 return false
             }
