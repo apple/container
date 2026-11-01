@@ -27,15 +27,13 @@ public struct MachineConfig: Codable, Sendable {
     public static let `default`: MachineConfig = try! .init(
         cpus: nil, memory: nil, homeMount: nil, virtualization: nil, kernelPath: nil)
 
-    public static var defaultCPUs: Int {
-        max(ProcessInfo.processInfo.processorCount / 2, 4)
-    }
+    public static let defaultCPUs: Int = max(ProcessInfo.processInfo.processorCount / 2, 4)
 
-    public static var defaultMemory: MemorySize {
+    public static let defaultMemory: MemorySize = {
         let bytes = max(ProcessInfo.processInfo.physicalMemory / 2, 1024 * 1024 * 1024)
         let gb = bytes / (1024 * 1024 * 1024)
         return try! MemorySize("\(gb)gb")
-    }
+    }()
 
     public static let defaultHomeMount: HomeMountOption = .rw
 
