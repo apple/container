@@ -192,6 +192,16 @@ public struct XPCServer: Sendable {
             return
         }
 
+        let request = XPCMessage(object: object)
+        guard request.canReply else {
+            log.error(
+                "ignoring message with no reply context - sender used fire-and-forget delivery",
+                metadata: [
+                    "route": "\(object.route ?? "none")"
+                ])
+            return
+        }
+
         guard let route = object.route else {
             log.error("invalid request - empty route")
             Self.replyWithError(
@@ -246,6 +256,11 @@ public struct XPCServer: Sendable {
 
     private static func replyWithError(connection: xpc_connection_t, object: xpc_object_t, err: ContainerizationError) {
         let message = XPCMessage(object: object)
+        guard message.canReply else {
+            // Caller already logged the offending message; there is no
+            // peer waiting, so answering would only emit an orphan event.
+            return
+        }
         let reply = message.reply()
         reply.set(error: err)
         xpc_connection_send_message(connection, reply.underlying)
