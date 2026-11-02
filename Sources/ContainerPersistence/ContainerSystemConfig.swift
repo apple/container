@@ -165,10 +165,10 @@ final public class VminitConfig: Codable, Sendable {
 }
 
 final public class KernelConfig: Codable, Sendable {
-    public static let defaultBinaryPath = "opt/kata/share/kata-containers/vmlinux-6.18.35-197-debug"
+    public static let defaultBinaryPath = "opt/kata/share/kata-containers/vmlinux-6.18.56-208-debug"
     public static let defaultURL: URL =
-        URL(string: "https://github.com/kata-containers/kata-containers/releases/download/3.32.0/kata-static-3.32.0-arm64.tar.zst")!
-    public static let defaultDigest = "sha256:8736c054d9223974735394f822000823baef509e1c33405ec798240fa9b6e4b5"
+        URL(string: "https://github.com/kata-containers/kata-containers/releases/download/4.3.1/kata-static-4.3.1-arm64.tar.zst")!
+    public static let defaultDigest = "sha256:2c5bf7cde334ad5307d482f45cceda496f91c9b6b96f5278c47f4f4eac1bbae6"
 
     private enum CodingKeys: String, CodingKey {
         case binaryPath
