@@ -32,6 +32,7 @@ import TerminalProgress
 
 public struct Utility {
     static let publishedPortCountLimit = 64
+    private static let runtimePrefix = "container-runtime-"
 
     public static func createContainerID(name: String?) -> String {
         guard let name else {
@@ -78,13 +79,18 @@ public struct Utility {
         progressUpdate: @escaping ProgressUpdateHandler,
         log: Logger
     ) async throws -> (ContainerConfiguration, Kernel, String?) {
-        let requestedPlatform = try DefaultPlatform.resolveWithDefaults(
-            platform: management.platform,
+        let scheme = try RequestScheme(registry.scheme)
+        let candidates = try await ClientImage.platforms(reference: image, scheme: scheme, containerSystemConfig: containerSystemConfig)
+        let platform = try management.platform.map(Parser.platform(from:))
+
+        let requestedPlatform = try PlatformResolver.resolve(
+            platform: platform,
             os: management.os,
             arch: management.arch,
+            candidates: candidates,
+            reference: image,
             log: log
         )
-        let scheme = try RequestScheme(registry.scheme)
 
         await progressUpdate([
             .setDescription("Fetching image"),
@@ -260,9 +266,7 @@ public struct Utility {
         config.readonlyPaths = try Parser.readonlyPaths(management.readonlyPaths)
         config.stopSignal = imageConfig?.stopSignal
 
-        if let runtime = management.runtime {
-            config.runtimeHandler = runtime
-        }
+        config.runtimeHandler = management.runtime ?? "\(runtimePrefix)\(requestedPlatform.os)"
 
         return (config, kernel, management.initImage)
     }
