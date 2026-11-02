@@ -273,11 +273,20 @@ public actor ImagesService {
         let loaded = try await self.imageStore.load(from: tempDir)
         var images: [ImageDescription] = []
         for image in loaded {
+            // Digest references are immutable names, not legacy tag aliases.
+            guard try Reference.parse(image.reference).digest == nil else {
+                images.append(image.description.fromCZ)
+                continue
+            }
             let fullyQualified = try ClientImage.normalizeReference(image.reference, containerSystemConfig: self.containerSystemConfig)
-            let plan = try await self.legacyPlan(for: fullyQualified, preserving: image.reference)
-            try await self.renameLegacyReference(plan, to: fullyQualified)
-            try await self.dropLegacyReferences(plan, preserving: image.reference)
-            images.append(image.description.fromCZ)
+            let plan = try await self.legacyPlan(for: fullyQualified, preserving: nil)
+            // An import replaces this tag even when a fully-qualified entry already
+            // exists. Retain the imported descriptor before removing legacy aliases.
+            let retained = try await self.imageStore.create(
+                description: Containerization.Image.Description(reference: fullyQualified, descriptor: image.descriptor)
+            )
+            try await self.dropLegacyReferences(plan)
+            images.append(retained.description.fromCZ)
         }
         return (images, rejectedMembers)
     }
