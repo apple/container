@@ -17,6 +17,9 @@ my-web-server
 %
 </pre>
 
+Use `--follow` (or `-f`) to display existing output and follow new log output.
+If the log is empty, the command waits for output instead of exiting.
+
 Use the `--boot` option to see the logs for the virtual machine boot and init process:
 
 <pre>

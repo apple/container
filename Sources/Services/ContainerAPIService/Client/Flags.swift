@@ -166,7 +166,7 @@ public struct Flags {
         public init() {}
 
         public init(
-            arch: String,
+            arch: String?,
             capAdd: [String],
             capDrop: [String],
             cidfile: String,
@@ -182,7 +182,7 @@ public struct Flags {
             mounts: [String],
             name: String?,
             networks: [String],
-            os: String,
+            os: String?,
             platform: String?,
             publishPorts: [String],
             publishSockets: [String],
@@ -231,8 +231,8 @@ public struct Flags {
             self.volumes = volumes
         }
 
-        @Option(name: .shortAndLong, help: "Set arch if image can target multiple architectures")
-        public var arch: String = Arch.hostArchitecture().rawValue
+        @Option(name: .shortAndLong, help: "Set arch if image can target multiple architectures (default: from image, else host architecture)")
+        public var arch: String?
 
         @Option(
             name: .customLong("cap-add"),
@@ -317,8 +317,8 @@ public struct Flags {
         @Flag(name: [.customLong("no-dns")], help: "Do not configure DNS in the container")
         public var dnsDisabled = false
 
-        @Option(name: .long, help: "Set OS if image can target multiple operating systems")
-        public var os = "linux"
+        @Option(name: .long, help: "Set OS if image can target multiple operating systems (default: from image, else linux)")
+        public var os: String?
 
         @Option(
             name: [.customShort("p"), .customLong("publish")],
@@ -329,7 +329,7 @@ public struct Flags {
         )
         public var publishPorts: [String] = []
 
-        @Option(name: .long, help: "Platform for the image if it's multi-platform. This takes precedence over --os and --arch [environment: CONTAINER_DEFAULT_PLATFORM]")
+        @Option(name: .long, help: "Platform for the image if it's multi-platform. This takes precedence over --os and --arch; CONTAINER_DEFAULT_PLATFORM sets the default")
         public var platform: String?
 
         @Option(
@@ -360,7 +360,7 @@ public struct Flags {
         @Flag(name: .long, help: "Enable Rosetta in the container")
         public var rosetta = false
 
-        @Option(name: .long, help: "Set the runtime handler for the container (default: container-runtime-linux)")
+        @Option(name: .long, help: "Set the runtime handler for the container (default: container-runtime-<os>)")
         public var runtime: String?
 
         @Flag(name: .long, help: "Forward SSH agent socket to container")
