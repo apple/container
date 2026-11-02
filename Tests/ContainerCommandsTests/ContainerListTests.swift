@@ -85,11 +85,12 @@ struct ContainerListTests {
             "--filter", "label=tier=backend",
             "-f", "label=orchestrator",
         ])
-        #expect(cmd.filter == [
-            "label=env=production",
-            "label=tier=backend",
-            "label=orchestrator",
-        ])
+        #expect(
+            cmd.filter == [
+                "label=env=production",
+                "label=tier=backend",
+                "label=orchestrator",
+            ])
     }
 
     @Test func parseFilterWithAllFlag() throws {

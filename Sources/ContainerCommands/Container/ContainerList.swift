@@ -62,16 +62,15 @@ extension Application {
             guard !spec.isEmpty else {
                 throw ValidationError("Invalid filter '\(filterString)': label key cannot be empty")
             }
-            if let equalIndex = spec.firstIndex(of: "=") {
-                let key = String(spec[..<equalIndex])
-                let value = String(spec[spec.index(after: equalIndex)...])
-                guard !key.isEmpty else {
-                    throw ValidationError("Invalid filter '\(filterString)': label key cannot be empty")
-                }
-                return .exact(key: key, value: value)
-            } else {
+            guard let equalIndex = spec.firstIndex(of: "=") else {
                 return .presence(key: spec)
             }
+            let key = String(spec[..<equalIndex])
+            let value = String(spec[spec.index(after: equalIndex)...])
+            guard !key.isEmpty else {
+                throw ValidationError("Invalid filter '\(filterString)': label key cannot be empty")
+            }
+            return .exact(key: key, value: value)
         }
 
         public static func matches(container: ContainerSnapshot, filters: [LabelFilter]) -> Bool {
