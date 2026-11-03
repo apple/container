@@ -35,6 +35,7 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
     private let registryScheme: String
     private let maxConcurrentDownloads: Int
     private let remove: Bool
+    private let containerSystemConfig: ContainerSystemConfig
     private let fqdn: String?
     private let sharedImageStore: Bool
 
@@ -52,6 +53,7 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
         registryScheme: String = "https",
         maxConcurrentDownloads: Int = 3,
         remove: Bool = false,
+        containerSystemConfig: ContainerSystemConfig,
         fqdn: String? = nil,
         sharedImageStore: Bool = false
     ) throws {
@@ -74,12 +76,12 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
         self.registryScheme = registryScheme
         self.maxConcurrentDownloads = maxConcurrentDownloads
         self.remove = remove
+        self.containerSystemConfig = containerSystemConfig
         self.fqdn = fqdn
         self.sharedImageStore = sharedImageStore
     }
 
     public func provision(log: Logger) async throws {
-        let containerSystemConfig: ContainerSystemConfig = try await ConfigurationLoader.load()
         let resolvedImage = nodeImage ?? ClusterHelper.nodeImage
         var volumes: [String] = []
         if sharedImageStore {

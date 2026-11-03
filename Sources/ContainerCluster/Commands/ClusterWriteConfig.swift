@@ -17,6 +17,7 @@
 import ArgumentParser
 import ContainerAPIClient
 import ContainerLog
+import ContainerPersistence
 import Foundation
 import Logging
 import SystemPackage
@@ -41,7 +42,8 @@ public struct ClusterWriteConfig: AsyncParsableCommand {
 
         let targetPath = kubeconfig.map { FilePath($0) }
         let client = ContainerClient()
-        let fqdn = await ClusterHelper.detectFQDN(name: name)
+        let containerSystemConfig: ContainerSystemConfig = try await ClientHealthCheck.loadContainerSystemConfig()
+        let fqdn = ClusterHelper.fqdn(for: name, domain: containerSystemConfig.dns.domain)
         let rawConfig = try await ClusterHelper.fetchConfig(containerId: name, client: client, log: log)
         let config = try await ClusterHelper.transformConfig(rawConfig, containerId: name, fqdn: fqdn, client: client)
         try ClusterHelper.mergeConfig(config, containerId: name, targetPath: targetPath, log: log)

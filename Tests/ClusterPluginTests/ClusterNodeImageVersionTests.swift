@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerResource
 import Testing
 
 @testable import ContainerCluster
@@ -21,24 +22,24 @@ import Testing
 struct ClusterNodeImageVersionTests {
     @Test
     func versionComesFromTheGivenImage() throws {
-        #expect(try ClusterHelper.kubernetesVersion(nodeImage: "docker.io/kindest/node:v1.34.11") == "v1.34.11")
+        #expect(try ClusterConfiguration.kubernetesVersion(nodeImage: "docker.io/kindest/node:v1.34.11") == "v1.34.11")
     }
 
     @Test
     func versionComesFromTagWhenDigestIsPresent() throws {
         let image = "docker.io/kindest/node:v1.34.11@sha256:0000000000000000000000000000000000000000000000000000000000000000"
-        #expect(try ClusterHelper.kubernetesVersion(nodeImage: image) == "v1.34.11")
+        #expect(try ClusterConfiguration.kubernetesVersion(nodeImage: image) == "v1.34.11")
     }
 
     @Test
     func defaultImageStillResolves() throws {
-        #expect(try ClusterHelper.kubernetesVersion(nodeImage: ClusterHelper.nodeImage) == "v1.35.5")
+        #expect(try ClusterConfiguration.kubernetesVersion(nodeImage: ClusterHelper.nodeImage) == "v1.35.5")
     }
 
     @Test
     func untaggedImageThrows() {
         #expect(throws: (any Error).self) {
-            try ClusterHelper.kubernetesVersion(nodeImage: "docker.io/kindest/node")
+            try ClusterConfiguration.kubernetesVersion(nodeImage: "docker.io/kindest/node")
         }
     }
 
@@ -46,7 +47,7 @@ struct ClusterNodeImageVersionTests {
     func digestOnlyImageThrows() {
         let image = "docker.io/kindest/node@sha256:0000000000000000000000000000000000000000000000000000000000000000"
         #expect(throws: (any Error).self) {
-            try ClusterHelper.kubernetesVersion(nodeImage: image)
+            try ClusterConfiguration.kubernetesVersion(nodeImage: image)
         }
     }
 }

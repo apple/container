@@ -1713,19 +1713,31 @@ container cluster rm --name my-cluster
 
 ### `container cluster list (ls)`
 
-Lists all Kubernetes clusters with their status and node image.
+Lists Kubernetes clusters created with this version of the plugin. By default the output has one row per cluster with its name, status, node count, and Kubernetes version. Use `--nodes` to show one row per node instead. Use `-q` to print only cluster names (node names with `--nodes`).
+
+With `--format json` (or `yaml`/`toml`), each cluster is reported with an `id`, its `configuration` (the settings it was created with), and its `status`. The `status` has a `state` (`running`, `degraded` or `stopped`, derived from the state of its node containers) and `nodes` (per-node state).
+
+Clusters created by earlier versions have no stored configuration and do not appear. Cluster records are kept by the `container-core-clusters` helper service, so the container system must be running (`container system start`).
 
 **Usage**
 
 ```bash
-container cluster list [--debug]
+container cluster list [--nodes] [--format json|table|yaml|toml] [-q] [--debug]
 ```
+
+**Options**
+
+*   `--nodes`: Show one row per node instead of one row per cluster.
+*   `--format <format>`: Format of the output (`json`, `table`, `yaml`, `toml`; default `table`).
+*   `-q, --quiet`: Only output the cluster name (the node name with `--nodes`).
 
 **Examples**
 
 ```bash
-container cluster list
 container cluster ls
+container cluster ls --nodes
+container cluster ls --format json
+container cluster ls -q
 ```
 
 ### `container cluster write-config`

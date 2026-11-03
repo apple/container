@@ -16,6 +16,7 @@
 
 import ArgumentParser
 import ContainerAPIClient
+import ContainerClusterServiceClient
 import ContainerLog
 import ContainerPersistence
 import ContainerResource
@@ -60,22 +61,15 @@ public struct ClusterCreate: AsyncParsableCommand {
     @Flag(help: "Let nodes pull images from the local image store")
     var sharedImageStore = false
 
-    /// Task count is `4 + workers` as an `Int`, so keep `workers` far enough below `Int.max` to avoid overflow.
-    static let maxWorkers: UInt = 1024
-
     public func validate() throws {
-        guard workers <= Self.maxWorkers else {
-            throw ValidationError("--workers must be at most \(Self.maxWorkers)")
+        guard workers <= ClusterConfiguration.maxWorkers else {
+            throw ValidationError("--workers must be at most \(ClusterConfiguration.maxWorkers)")
         }
     }
 
     public func run() async throws {
         LoggingSystem.bootstrap { _ in StderrLogHandler() }
         let log = Logger(label: ClusterHelper.pluginName)
-
-        guard ManagedContainer.nameValid(name) else {
-            throw ContainerizationError(.invalidArgument, message: "cluster name \(name) is not a valid container ID")
-        }
 
         let skipCNI = cni?.uppercased() == ClusterHelper.noCNIName
         if let cni, !skipCNI {
@@ -84,8 +78,19 @@ public struct ClusterCreate: AsyncParsableCommand {
             }
         }
 
-        // Fail before provisioning the node VM.
-        let kubernetesVersion = try ClusterHelper.kubernetesVersion(nodeImage: nodeImage)
+        let containerSystemConfig: ContainerSystemConfig = try await ClientHealthCheck.loadContainerSystemConfig()
+        let fqdn = ClusterHelper.fqdn(for: name, domain: containerSystemConfig.dns.domain)
+
+        // Validates the name, node image and worker count; fails before provisioning the node VM.
+        let configuration = try ClusterConfiguration.make(
+            name: name,
+            nodeImage: nodeImage,
+            remove: remove,
+            sharedImageStore: sharedImageStore,
+            workers: workers,
+            cni: cni,
+            fqdn: fqdn
+        )
 
         let isTTY = isatty(FileHandle.standardError.fileDescriptor) == 1
         // TotalTasks include:
@@ -104,9 +109,6 @@ public struct ClusterCreate: AsyncParsableCommand {
         defer { progress.finish() }
         progress.start()
 
-        let containerSystemConfig: ContainerSystemConfig = try await ConfigurationLoader.load()
-        let fqdn = ClusterHelper.fqdn(for: name, domain: containerSystemConfig.dns.domain)
-
         let controlPlane = try LinuxNodeProvisioner(
             name: name,
             clusterName: name,
@@ -117,6 +119,7 @@ public struct ClusterCreate: AsyncParsableCommand {
             registryScheme: registryFlags.scheme,
             maxConcurrentDownloads: imageFetchFlags.maxConcurrentDownloads,
             remove: remove,
+            containerSystemConfig: containerSystemConfig,
             fqdn: fqdn,
             sharedImageStore: sharedImageStore
         )
@@ -131,13 +134,14 @@ public struct ClusterCreate: AsyncParsableCommand {
                 registryScheme: registryFlags.scheme,
                 maxConcurrentDownloads: imageFetchFlags.maxConcurrentDownloads,
                 remove: remove,
+                containerSystemConfig: containerSystemConfig,
                 sharedImageStore: sharedImageStore
             )
         }
 
         let clusterBootstrapper = ClusterBootstrapper(
             name: name,
-            kubernetesVersion: kubernetesVersion,
+            kubernetesVersion: configuration.kubernetesVersion,
             cni: cni,
             fqdn: fqdn,
             sharedImageStore: sharedImageStore,
@@ -145,7 +149,17 @@ public struct ClusterCreate: AsyncParsableCommand {
             workers: workerNodes
         )
 
-        try await clusterBootstrapper.create(progress: { progress.set(description: $0) }, log: log)
+        // Record the cluster before provisioning. Fails `.exists` for a live duplicate and replaces stale records.
+        let clusterClient = ClusterClient()
+        try await clusterClient.create(configuration)
+
+        do {
+            try await clusterBootstrapper.create(progress: { progress.set(description: $0) }, log: log)
+        } catch {
+            // `.exists` means a container with this name is already there; the record may belong to another live create.
+            if (error as? ContainerizationError)?.code != .exists { try? await clusterClient.delete(name: name) }
+            throw error
+        }
 
         progress.finish()
         print(name)

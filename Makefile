@@ -156,6 +156,7 @@ $(STAGING_DIR):
 	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/container-runtime-linux/bin)"
 	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/container-network-vmnet/bin)"
 	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/container-core-images/bin)"
+	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/container-core-clusters/bin)"
 	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/machine-apiserver/bin)"
 	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/machine-apiserver/resources)"
 	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/cluster/bin)"
@@ -171,7 +172,9 @@ $(STAGING_DIR):
 	@install "$(BUILD_BIN_DIR)/container-network-vmnet" "$(join $(STAGING_DIR), libexec/container/plugins/container-network-vmnet/bin/container-network-vmnet)"
 	@install Sources/Plugins/NetworkVmnet/config.toml "$(join $(STAGING_DIR), libexec/container/plugins/container-network-vmnet/config.toml)"
 	@install "$(BUILD_BIN_DIR)/container-core-images" "$(join $(STAGING_DIR), libexec/container/plugins/container-core-images/bin/container-core-images)"
+	@install "$(BUILD_BIN_DIR)/container-core-clusters" "$(join $(STAGING_DIR), libexec/container/plugins/container-core-clusters/bin/container-core-clusters)"
 	@install Sources/Plugins/CoreImages/config.toml "$(join $(STAGING_DIR), libexec/container/plugins/container-core-images/config.toml)"
+	@install Sources/Plugins/CoreClusters/config.toml "$(join $(STAGING_DIR), libexec/container/plugins/container-core-clusters/config.toml)"
 	@install "$(BUILD_BIN_DIR)/machine-apiserver" "$(join $(STAGING_DIR), libexec/container/plugins/machine-apiserver/bin/machine-apiserver)"
 	@install Sources/Plugins/MachineAPIServer/config.toml "$(join $(STAGING_DIR), libexec/container/plugins/machine-apiserver/config.toml)"
 	@install Sources/Plugins/MachineAPIServer/Resources/init "$(join $(STAGING_DIR), libexec/container/plugins/machine-apiserver/resources/init)"
@@ -201,6 +204,7 @@ installer-pkg: $(STAGING_DIR)
 	@codesign $(CODESIGN_OPTS) --identifier com.apple.container.cli "$(join $(STAGING_DIR), bin/container)"
 	@codesign $(CODESIGN_OPTS) --identifier com.apple.container.apiserver "$(join $(STAGING_DIR), bin/container-apiserver)"
 	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. "$(join $(STAGING_DIR), libexec/container/plugins/container-core-images/bin/container-core-images)"
+	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. "$(join $(STAGING_DIR), libexec/container/plugins/container-core-clusters/bin/container-core-clusters)"
 	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. --entitlements=signing/container-runtime-linux.entitlements "$(join $(STAGING_DIR), libexec/container/plugins/container-runtime-linux/bin/container-runtime-linux)"
 	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. --entitlements=signing/container-network-vmnet.entitlements "$(join $(STAGING_DIR), libexec/container/plugins/container-network-vmnet/bin/container-network-vmnet)"
 	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. "$(join $(STAGING_DIR), libexec/container/plugins/machine-apiserver/bin/machine-apiserver)"
@@ -254,6 +258,7 @@ COV_BINARIES := \
 	$(BUILD_BIN_DIR)/container-runtime-linux \
 	$(BUILD_BIN_DIR)/container-network-vmnet \
 	$(BUILD_BIN_DIR)/container-core-images \
+	$(BUILD_BIN_DIR)/container-core-clusters \
 	$(BUILD_BIN_DIR)/machine-apiserver \
 	$(BUILD_BIN_DIR)/container-build \
 	$(BUILD_BIN_DIR)/container-builder

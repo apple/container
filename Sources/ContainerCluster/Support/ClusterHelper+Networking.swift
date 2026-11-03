@@ -83,9 +83,4 @@ extension ClusterHelper {
         guard let domain, !domain.isEmpty else { return nil }
         return "\(name).\(domain)"
     }
-
-    static func detectFQDN(name: String) async -> String? {
-        let domain = try? await ConfigurationLoader.load().dns.domain
-        return fqdn(for: name, domain: domain)
-    }
 }
