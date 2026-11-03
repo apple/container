@@ -31,9 +31,9 @@ memory = "1gb"
 domain = "test"
 
 [kernel]
-binaryPath = "opt/kata/share/kata-containers/vmlinux-6.18.35-197-debug"
-url = "https://github.com/kata-containers/kata-containers/releases/download/3.32.0/kata-static-3.32.0-arm64.tar.zst"
-digest = "sha256:8736c054d9223974735394f822000823baef509e1c33405ec798240fa9b6e4b5"
+binaryPath = "opt/kata/share/kata-containers/vmlinux-6.18.56-208-debug"
+url = "https://github.com/kata-containers/kata-containers/releases/download/4.3.1/kata-static-4.3.1-arm64.tar.zst"
+digest = "sha256:2c5bf7cde334ad5307d482f45cceda496f91c9b6b96f5278c47f4f4eac1bbae6"
 
 [network]
 
@@ -103,9 +103,9 @@ Guest kernel used when launching container VMs. Defaults change per release as k
 
 | Key          | Type      | Default                                                                                                | Description                                                                  |
 |--------------|-----------|--------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------|
-| `binaryPath` | `String`  | `"opt/kata/share/kata-containers/vmlinux-6.18.35-197-debug"`                                           | Path **inside** the downloaded kernel archive that points to the kernel binary. |
-| `url`        | `URL`     | `"https://github.com/kata-containers/kata-containers/releases/download/3.32.0/kata-static-3.32.0-arm64.tar.zst"` | Archive to download when no kernel is installed. Encoded and decoded as a plain string in TOML. |
-| `digest`     | `String`  | `"sha256:8736c054d9223974735394f822000823baef509e1c33405ec798240fa9b6e4b5"`                             | Expected digest for the archive, for example `sha256:<hex>`. Required when configuring a custom `url`. |
+| `binaryPath` | `String`  | `"opt/kata/share/kata-containers/vmlinux-6.18.56-208-debug"`                                           | Path **inside** the downloaded kernel archive that points to the kernel binary. |
+| `url`        | `URL`     | `"https://github.com/kata-containers/kata-containers/releases/download/4.3.1/kata-static-4.3.1-arm64.tar.zst"` | Archive to download when no kernel is installed. Encoded and decoded as a plain string in TOML. |
+| `digest`     | `String`  | `"sha256:2c5bf7cde334ad5307d482f45cceda496f91c9b6b96f5278c47f4f4eac1bbae6"`                             | Expected digest for the archive, for example `sha256:<hex>`. Required when configuring a custom `url`. |
 
 ## `[network]`
 
