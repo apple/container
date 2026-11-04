@@ -170,6 +170,18 @@ public final class ReservedVmnetNetwork: ContainerNetworkServer.Network {
         let runningSubnet = try CIDRv4(lower: lower, upper: upper)
         let runningGateway = IPv4Address(runningSubnet.lower.value + 1)
 
+        // `vmnet_network_create` only installs an interface-scoped default route
+        // for this subnet, not an explicit non-scoped one — so routing to
+        // containers is entirely dependent on which *global* default route
+        // currently wins on the host. Any other tool that installs its own
+        // default route (a VPN client, a Tailscale exit node, etc.) can shadow
+        // it and break container connectivity even though this subnet's own
+        // route would normally win under standard longest-prefix-match rules.
+        // Install an explicit route ourselves so container traffic doesn't
+        // depend on default-route ordering at all. Best-effort: failure here
+        // shouldn't prevent the network from otherwise starting successfully.
+        Self.installExplicitSubnetRoute(subnet: lower, mask: IPv4Address(maskValue), gateway: runningGateway, log: log)
+
         var prefixAddr = in6_addr()
         var prefixLength = UInt8(0)
         vmnet_network_get_ipv6_prefix(network, &prefixAddr, &prefixLength)
@@ -198,5 +210,49 @@ public final class ReservedVmnetNetwork: ContainerNetworkServer.Network {
             ipv4Gateway: runningGateway,
             ipv6Subnet: runningV6Subnet,
         )
+    }
+
+    /// Installs an explicit, non-scoped route for `subnet` via `gateway`, so
+    /// routing to this network's containers doesn't depend on which default
+    /// route currently wins on the host (see the call site for why). This is
+    /// a defense-in-depth measure, not a hard requirement — some other tool
+    /// can still remove or shadow the route later (see apple/container#1881
+    /// and tailscale/tailscale#18653 for one such case), so failures here are
+    /// logged rather than thrown; they shouldn't prevent the network from
+    /// otherwise starting successfully.
+    private static func installExplicitSubnetRoute(subnet: IPv4Address, mask: IPv4Address, gateway: IPv4Address, log: Logger) {
+        let process = Foundation.Process()
+        process.executableURL = URL(fileURLWithPath: "/sbin/route")
+        process.arguments = [
+            "add", "-net", subnet.description,
+            "-netmask", mask.description,
+            "-interface", gateway.description,
+        ]
+        let stderr = Pipe()
+        process.standardOutput = Pipe()
+        process.standardError = stderr
+
+        do {
+            try process.run()
+        } catch {
+            log.warning(
+                "failed to launch route(8) to install explicit subnet route",
+                metadata: ["subnet": "\(subnet)", "mask": "\(mask)", "gateway": "\(gateway)", "error": "\(error)"]
+            )
+            return
+        }
+        process.waitUntilExit()
+
+        guard process.terminationStatus == 0 else {
+            let message = String(data: stderr.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+            log.warning(
+                "route(8) failed to install explicit subnet route",
+                metadata: [
+                    "subnet": "\(subnet)", "mask": "\(mask)", "gateway": "\(gateway)",
+                    "status": "\(process.terminationStatus)", "message": "\(message)",
+                ]
+            )
+            return
+        }
     }
 }
