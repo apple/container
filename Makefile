@@ -18,7 +18,18 @@ WARNINGS_AS_ERRORS ?= true
 # Extra swift build flags, appended last so callers can add to (rather than
 # replace) the configuration above.
 SWIFT_CONFIGURATION_EXTRA ?=
-SWIFT_CONFIGURATION := $(if $(filter-out false,$(WARNINGS_AS_ERRORS)),-Xswiftc -warnings-as-errors) -Xswiftc -enable-testing $(SWIFT_CONFIGURATION_EXTRA)
+# Testability lets the unit tests `@testable import` internal symbols. SwiftPM
+# already enables it for debug builds. In a release build it keeps every internal
+# symbol exported and out of reach of dead-stripping, which makes the shipped
+# binaries larger, so release builds leave it off unless a goal needs it (the
+# test goals below turn it back on). Set ENABLE_TESTING=true or false to force it.
+ENABLE_TESTING ?= $(if $(filter release,$(BUILD_CONFIGURATION)),false,true)
+SWIFT_TESTING_FLAGS = $(if $(filter true,$(ENABLE_TESTING)),-Xswiftc -enable-testing)
+# Recursively expanded so the release goal's BUILD_CONFIGURATION and the test
+# goals' ENABLE_TESTING, both target-specific, take effect.
+SWIFT_CONFIGURATION = $(if $(filter-out false,$(WARNINGS_AS_ERRORS)),-Xswiftc -warnings-as-errors) $(SWIFT_TESTING_FLAGS) $(SWIFT_CONFIGURATION_EXTRA)
+# Goals that build or run tests need testability in every configuration.
+build-tests test integration integration-only coverage coverage-all coverage-unit coverage-integration: ENABLE_TESTING = true
 # Code-coverage instrumentation, layered onto the shared build stages. Empty for
 # ordinary builds; the coverage-* targets opt in via a target-specific value so
 # only those goals compile instrumented binaries.
@@ -38,6 +49,39 @@ PKG_PATH := bin/$(BUILD_CONFIGURATION)/container-installer-unsigned.pkg
 DSYM_DIR := bin/$(BUILD_CONFIGURATION)/bundle/container-dSYM
 DSYM_PATH := bin/$(BUILD_CONFIGURATION)/bundle/container-dSYM.zip
 CODESIGN_OPTS ?= --force --sign - --timestamp=none
+
+# Strip the staged copies of the executables, never the build products, so the
+# .dSYM bundles that `dsym` collects still match the stripped binaries (strip
+# keeps the UUID). Releases strip by default; debug installs keep their symbols
+# so lldb and backtraces stay useful during development. `-x` removes local
+# symbols only. Plain `strip` (STRIP_OPTS=) shrinks the binaries further but
+# also drops global symbols that dynamic linking does not need.
+STRIP_BINARIES ?= $(if $(filter release,$(BUILD_CONFIGURATION)),true,false)
+STRIP_OPTS ?= -x
+# Executables the installer ships, relative to the staging directory.
+STAGED_EXECUTABLES := \
+	bin/container \
+	bin/container-apiserver \
+	libexec/container/plugins/container-runtime-linux/bin/container-runtime-linux \
+	libexec/container/plugins/container-network-vmnet/bin/container-network-vmnet \
+	libexec/container/plugins/container-core-images/bin/container-core-images \
+	libexec/container/plugins/machine-apiserver/bin/machine-apiserver \
+	libexec/container/plugins/cluster/bin/cluster \
+	libexec/container/plugins/build/bin/build \
+	libexec/container/plugins/builder/bin/builder
+# The build products those executables are installed from, by product name.
+# Keep in sync with the install steps in $(STAGING_DIR): `dsym` archives a dSYM
+# for each one.
+DSYM_PRODUCTS := \
+	container \
+	container-apiserver \
+	container-runtime-linux \
+	container-network-vmnet \
+	container-core-images \
+	machine-apiserver \
+	cluster \
+	container-build \
+	container-builder
 
 # Default isolated application data root under the project directory so test runs do not touch your
 # own installation. Override with APP_ROOT=/your/path, or APP_ROOT= (empty) to run against
@@ -174,6 +218,12 @@ $(STAGING_DIR):
 
 .PHONY: installer-pkg
 installer-pkg: $(STAGING_DIR)
+	@if [ "$(STRIP_BINARIES)" = "true" ]; then \
+		echo Stripping container binaries...; \
+		for bin in $(STAGED_EXECUTABLES); do \
+			strip $(STRIP_OPTS) "$(STAGING_DIR)$$bin" || exit 1; \
+		done; \
+	fi
 	@echo Signing container binaries...
 	@codesign $(CODESIGN_OPTS) --identifier com.apple.container.cli "$(join $(STAGING_DIR), bin/container)"
 	@codesign $(CODESIGN_OPTS) --identifier com.apple.container.apiserver "$(join $(STAGING_DIR), bin/container-apiserver)"
@@ -191,14 +241,24 @@ installer-pkg: $(STAGING_DIR)
 
 .PHONY: dsym
 dsym:
-	@echo Copying debug symbols...
+	@echo Collecting debug symbols...
 	@rm -rf "$(DSYM_DIR)"
 	@mkdir -p "$(DSYM_DIR)"
-	@cp -a "$(BUILD_BIN_DIR)/container-runtime-linux.dSYM" "$(DSYM_DIR)"
-	@cp -a "$(BUILD_BIN_DIR)/container-network-vmnet.dSYM" "$(DSYM_DIR)"
-	@cp -a "$(BUILD_BIN_DIR)/container-core-images.dSYM" "$(DSYM_DIR)"
-	@cp -a "$(BUILD_BIN_DIR)/container-apiserver.dSYM" "$(DSYM_DIR)"
-	@cp -a "$(BUILD_BIN_DIR)/container.dSYM" "$(DSYM_DIR)"
+	@bin_dir="$(BUILD_BIN_DIR)"; \
+	for product in $(DSYM_PRODUCTS); do \
+		if [ -d "$$bin_dir/$$product.dSYM" ]; then \
+			cp -a "$$bin_dir/$$product.dSYM" "$(DSYM_DIR)" || exit 1; \
+		else \
+			echo "The build produced no dSYM for $$product, generating one..."; \
+			dsymutil "$$bin_dir/$$product" -o "$(DSYM_DIR)/$$product.dSYM" || exit 1; \
+		fi; \
+		built=$$(dwarfdump --uuid "$$bin_dir/$$product" | awk '{print $$2}' | sort); \
+		archived=$$(dwarfdump --uuid "$(DSYM_DIR)/$$product.dSYM" | awk '{print $$2}' | sort); \
+		if [ -z "$$built" ] || [ "$$built" != "$$archived" ]; then \
+			echo "error: the dSYM for $$product does not match the built binary"; \
+			exit 1; \
+		fi; \
+	done
 
 	@echo Packaging the debug symbols...
 	@(cd "$(dir $(DSYM_DIR))" ; zip -r $(notdir $(DSYM_PATH)) $(notdir $(DSYM_DIR)))
@@ -321,9 +381,9 @@ define RUN_INTEGRATION
 		echo "==> Starting warmup tests" && \
 		$(SWIFT) test $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter "$(WARMUP_FILTER)" && \
 		echo "==> Starting $(words $(CONCURRENT_TEST_SUITES)) test suites concurrently (width=$(PARALLEL_WIDTH))" && \
-		$(SWIFT) test $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) $(CONCURRENT_EVENT_STREAM_OPTS) --experimental-maximum-parallelization-width $(PARALLEL_WIDTH) --filter "$(CONCURRENT_FILTER)" && \
+		$(SWIFT) test --skip-build $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) $(CONCURRENT_EVENT_STREAM_OPTS) --experimental-maximum-parallelization-width $(PARALLEL_WIDTH) --filter "$(CONCURRENT_FILTER)" && \
 		echo "==> Starting $(words $(SERIAL_TEST_SUITES)) test suites serially" && \
-		$(SWIFT) test $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) $(GLOBAL_EVENT_STREAM_OPTS) --experimental-maximum-parallelization-width 1 --filter "$(SERIAL_FILTER)" ; \
+		$(SWIFT) test --skip-build $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) $(GLOBAL_EVENT_STREAM_OPTS) --experimental-maximum-parallelization-width 1 --filter "$(SERIAL_FILTER)" ; \
 		exit_code=$$? ; \
 		$(INTEGRATION_POST_TEST) \
 		echo Ensuring apiserver stopped after the CLI integration tests ; \
