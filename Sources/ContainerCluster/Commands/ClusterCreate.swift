@@ -151,7 +151,7 @@ public struct ClusterCreate: AsyncParsableCommand {
 
         // Record the cluster before provisioning. Fails `.exists` for a live duplicate and replaces stale records.
         let clusterClient = ClusterClient()
-        try await clusterClient.create(configuration)
+        _ = try await clusterClient.create(configuration: configuration)
 
         do {
             try await clusterBootstrapper.create(progress: { progress.set(description: $0) }, log: log)

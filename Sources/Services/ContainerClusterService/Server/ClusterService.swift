@@ -37,14 +37,19 @@ public actor ClusterService {
         self.log = log
     }
 
-    public func create(_ configuration: ClusterConfiguration) async throws {
-        guard let existing = try await store.retrieve(configuration.name) else {
+    /// Records the cluster and returns it. No node containers exist yet, so every node is reported stopped.
+    public func create(configuration: ClusterConfiguration) async throws -> ClusterResource {
+        if let existing = try await store.retrieve(configuration.name) {
+            try await ensureReplaceable(existing)
+            log.info("replacing stale cluster record", metadata: ["name": "\(configuration.name)"])
+            try await store.upsert(configuration)
+        } else {
             try await store.create(configuration)
-            return
         }
-        try await ensureReplaceable(existing)
-        log.info("replacing stale cluster record", metadata: ["name": "\(configuration.name)"])
-        try await store.upsert(configuration)
+        guard let cluster = Self.resources(configurations: [configuration], snapshots: []).first else {
+            throw ContainerizationError(.internalError, message: "failed to build cluster \(configuration.name)")
+        }
+        return cluster
     }
 
     /// Throws `.exists` unless `record` is stale: none of its node containers exist any more (e.g. a `--rm` cluster).
@@ -66,7 +71,11 @@ public actor ClusterService {
         guard let configuration = try await store.retrieve(name) else {
             throw ContainerizationError(.notFound, message: "cluster \(name) not found")
         }
-        return Self.resources(configurations: [configuration], snapshots: try await listContainers())[0]
+        let snapshots = try await listContainers()
+        guard let cluster = Self.resources(configurations: [configuration], snapshots: snapshots).first else {
+            throw ContainerizationError(.internalError, message: "failed to build cluster \(name)")
+        }
+        return cluster
     }
 
     public func list() async throws -> [ClusterResource] {
@@ -79,7 +88,9 @@ public actor ClusterService {
         guard ClusterResource.nameValid(name) else {
             throw ContainerizationError(.invalidArgument, message: "invalid cluster name \(name)")
         }
-        guard try await store.retrieve(name) != nil else { return }
+        guard try await store.retrieve(name) != nil else {
+            throw ContainerizationError(.notFound, message: "cluster \(name) not found")
+        }
         try await store.delete(name)
     }
 

@@ -203,7 +203,7 @@ To have a cluster automatically remove itself when stopped, create it with `--rm
 container cluster create --name temp-cluster --rm
 ```
 
-The node containers are removed when they stop, but the cluster's stored configuration remains, so the cluster shows as `Stopped` in `container cluster list` until you run `container cluster delete --name temp-cluster` or create a cluster with the same name again (which clears the stale configuration).
+The node containers are removed when they stop, but the cluster's stored configuration remains, so the cluster shows as `stopped` in `container cluster list` until you run `container cluster delete --name temp-cluster` or create a cluster with the same name again (which clears the stale configuration).
 
 ### Recovering a stopped cluster
 

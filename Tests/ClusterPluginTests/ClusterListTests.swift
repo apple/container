@@ -88,12 +88,12 @@ struct ClusterResourceTableTests {
             status: ClusterStatus(
                 state: .running,
                 nodes: [ClusterNodeState(name: "dev", status: .running)]))
-        #expect(ClusterResource.tableHeader == ["NAME", "STATUS", "NODES", "K8S VERSION"])
-        #expect(info.tableRow == ["dev", "Running", "1", "v1.35.5"])
+        #expect(ClusterResource.tableHeader == ["NAME", "NODES", "K8S VERSION", "STATE"])
+        #expect(info.tableRow == ["dev", "1", "v1.35.5", "running"])
         #expect(info.quietValue == "dev")
     }
 
-    @Test func degradedAndStoppedStatusText() throws {
+    @Test func degradedAndStoppedStateText() throws {
         let degraded = ClusterResource(
             configuration: try makeConfig("dev", workers: 1),
             status: ClusterStatus(
@@ -102,13 +102,13 @@ struct ClusterResourceTableTests {
                     ClusterNodeState(name: "dev", status: .running),
                     ClusterNodeState(name: "dev-worker-1", status: .stopped),
                 ]))
-        #expect(degraded.tableRow[1] == "Degraded (1 of 2 up)")
+        #expect(degraded.tableRow[3] == "degraded (1 of 2 up)")
         let stopped = ClusterResource(
             configuration: try makeConfig("dev"),
             status: ClusterStatus(
                 state: .stopped,
                 nodes: [ClusterNodeState(name: "dev", status: .stopped)]))
-        #expect(stopped.tableRow[1] == "Stopped")
+        #expect(stopped.tableRow[3] == "stopped")
     }
 }
 

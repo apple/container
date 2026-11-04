@@ -55,8 +55,10 @@ public struct ClusterServiceHarness: Sendable {
     @Sendable
     public func create(_ message: XPCMessage) async throws -> XPCMessage {
         let configuration = try Self.decodeConfiguration(message)
-        try await service.create(configuration)
-        return message.reply()
+        let cluster = try await service.create(configuration: configuration)
+        let reply = message.reply()
+        reply.set(key: .cluster, value: try Self.encode(cluster))
+        return reply
     }
 
     @Sendable

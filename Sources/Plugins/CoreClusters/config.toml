@@ -1,4 +1,4 @@
-abstract = "Core cluster management plugin"
+abstract = "Core cluster management plugin (EXPERIMENTAL)"
 author = "Apple"
 version = 0.1
 

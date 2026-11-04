@@ -270,21 +270,21 @@ public struct ClusterHelper {
 }
 
 extension ClusterResource: ListDisplayable {
-    static var tableHeader: [String] { ["NAME", "STATUS", "NODES", "K8S VERSION"] }
+    static var tableHeader: [String] { ["NAME", "NODES", "K8S VERSION", "STATE"] }
 
-    var statusText: String {
+    var stateText: String {
         switch status.state {
-        case .running: return "Running"
-        case .stopped: return "Stopped"
+        case .running, .stopped:
+            return status.state.rawValue
         case .degraded:
             let nodes = status.nodes
             let up = nodes.filter { $0.status == .running }.count
-            return "Degraded (\(up) of \(nodes.count) up)"
+            return "\(status.state.rawValue) (\(up) of \(nodes.count) up)"
         }
     }
 
     var tableRow: [String] {
-        [configuration.name, statusText, "\(status.nodes.count)", configuration.kubernetesVersion]
+        [configuration.name, "\(status.nodes.count)", configuration.kubernetesVersion, stateText]
     }
 
     var quietValue: String { configuration.name }

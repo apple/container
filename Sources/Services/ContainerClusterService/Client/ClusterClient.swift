@@ -43,11 +43,15 @@ public struct ClusterClient: Sendable {
         }
     }
 
-    /// Records a new cluster. Throws `.exists` if a live cluster with that name is already recorded.
-    public func create(_ configuration: ClusterConfiguration) async throws {
+    /// Records a new cluster and returns it. Throws `.exists` if a live cluster with that name is already recorded.
+    public func create(configuration: ClusterConfiguration) async throws -> ClusterResource {
         let request = XPCMessage(route: .clusterCreate)
         request.set(key: .configuration, value: try JSONEncoder().encode(configuration))
-        try await send(request)
+        let reply = try await send(request)
+        guard let data = reply.dataNoCopy(key: .cluster) else {
+            throw ContainerizationError(.internalError, message: "missing cluster in reply")
+        }
+        return try JSONDecoder().decode(ClusterResource.self, from: data)
     }
 
     /// Throws `.notFound` if no cluster with that name is recorded.
@@ -69,7 +73,7 @@ public struct ClusterClient: Sendable {
         return try JSONDecoder().decode([ClusterResource].self, from: data)
     }
 
-    /// Removes the cluster record. A no-op if it does not exist.
+    /// Removes the cluster record. Throws `.notFound` if no cluster with that name is recorded.
     public func delete(name: String) async throws {
         let request = XPCMessage(route: .clusterDelete)
         request.set(key: .name, value: name)

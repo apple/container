@@ -54,7 +54,9 @@ struct ClusterServiceTests {
         defer { removeRoot(root) }
         let service = try makeService(root: root, snapshots: [try makeControlPlane("dev")])
         let config = makeConfig("dev")
-        try await service.create(config)
+        let created = try await service.create(configuration: config)
+        #expect(created.configuration == config)
+        #expect(created.status.state == .stopped)
         let info = try await service.get(name: "dev")
         #expect(info.status.state == .running)
         #expect(info.configuration == config)
@@ -65,9 +67,9 @@ struct ClusterServiceTests {
         defer { removeRoot(root) }
         let service = try makeService(root: root, snapshots: [try makeControlPlane("dev")])
         let config = makeConfig("dev")
-        try await service.create(config)
+        _ = try await service.create(configuration: config)
         do {
-            try await service.create(makeConfig("dev", workers: 1))
+            _ = try await service.create(configuration: makeConfig("dev", workers: 1))
             Issue.record("expected error")
         } catch let error as ContainerizationError {
             #expect(error.code == .exists)
@@ -99,9 +101,9 @@ struct ClusterServiceTests {
                 return []
             }, log: Logger(label: "test"))
         await box.set(service)
-        try await service.create(makeConfig("dev"))
+        _ = try await service.create(configuration: makeConfig("dev"))
         let replacement = makeConfig("dev", workers: 1)
-        try await service.create(replacement)
+        _ = try await service.create(configuration: replacement)
         #expect(try await service.get(name: "dev").configuration == replacement)
     }
 
@@ -109,9 +111,9 @@ struct ClusterServiceTests {
         let root = makeRoot()
         defer { removeRoot(root) }
         let service = try makeService(root: root)
-        try await service.create(makeConfig("dev"))
+        _ = try await service.create(configuration: makeConfig("dev"))
         let replacement = makeConfig("dev", workers: 1)
-        try await service.create(replacement)
+        _ = try await service.create(configuration: replacement)
         #expect(try await service.get(name: "dev").configuration == replacement)
     }
 
@@ -121,10 +123,10 @@ struct ClusterServiceTests {
         let root = makeRoot()
         defer { removeRoot(root) }
         let config = makeConfig("dev")
-        try await makeService(root: root).create(config)
+        _ = try await makeService(root: root).create(configuration: config)
         let failing = try ClusterService(root: root, listContainers: { throw ListFailure() }, log: Logger(label: "test"))
         do {
-            try await failing.create(makeConfig("dev", workers: 1))
+            _ = try await failing.create(configuration: makeConfig("dev", workers: 1))
             Issue.record("expected error")
         } catch is ListFailure {
         }
@@ -142,22 +144,22 @@ struct ClusterServiceTests {
         let root = makeRoot()
         defer { removeRoot(root) }
         let service = try makeService(root: root, snapshots: [try makeControlPlane("bb")])
-        try await service.create(makeConfig("bb"))
-        try await service.create(makeConfig("aa"))
+        _ = try await service.create(configuration: makeConfig("bb"))
+        _ = try await service.create(configuration: makeConfig("aa"))
         let infos = try await service.list()
         #expect(infos.map(\.configuration.name) == ["aa", "bb"])
         #expect(infos[0].status.state != .running)
         #expect(infos[1].status.state == .running)
     }
 
-    @Test func deleteRemovesAndIsIdempotent() async throws {
+    @Test func deleteRemovesRecordThenReportsNotFound() async throws {
         let root = makeRoot()
         defer { removeRoot(root) }
         let service = try makeService(root: root)
-        try await service.create(makeConfig("dev"))
-        try await service.delete(name: "dev")
+        _ = try await service.create(configuration: makeConfig("dev"))
         try await service.delete(name: "dev")
         #expect(try await service.list().isEmpty)
+        await expectCode(.notFound) { try await service.delete(name: "dev") }
     }
 
     @Test func deleteLeavesNonClusterEntriesAlone() async throws {
@@ -168,9 +170,9 @@ struct ClusterServiceTests {
         try Data("x".utf8).write(to: URL(filePath: lock.string))
         let plain = root.appending("plain")
         try FileManager.default.createDirectory(atPath: plain.string, withIntermediateDirectories: true)
-        try await service.delete(name: "port.lock")
-        try await service.delete(name: "plain")
-        try await service.delete(name: "missing")
+        await expectCode(.notFound) { try await service.delete(name: "port.lock") }
+        await expectCode(.notFound) { try await service.delete(name: "plain") }
+        await expectCode(.notFound) { try await service.delete(name: "missing") }
         #expect(FileManager.default.fileExists(atPath: lock.string))
         #expect(FileManager.default.fileExists(atPath: plain.string))
     }
@@ -180,7 +182,7 @@ struct ClusterServiceTests {
         defer { removeRoot(root) }
         let service = try makeService(root: root)
         let config = makeConfig("dev")
-        try await service.create(config)
+        _ = try await service.create(configuration: config)
         let sibling = root.removingLastComponent().appending("sibling-\(UUID().uuidString)")
         try Data("x".utf8).write(to: URL(filePath: sibling.string))
         defer { try? FileManager.default.removeItem(atPath: sibling.string) }
