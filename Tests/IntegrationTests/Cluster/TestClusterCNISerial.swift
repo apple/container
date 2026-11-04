@@ -24,18 +24,7 @@ struct TestClusterCNISerial {
     @Test func testCreateWithCNINoneSkipsCNIInstallation() async throws {
         try await ContainerFixture.with { f in
             let name = "cluster-\(f.testID)"
-            f.addCleanup { _ = try? f.run(["cluster", "delete", "--name", name]) }
-
-            try f.restoreWarmupImage(.kindestNodeV1_35_5)
-            print("[cluster-cni] cluster create --name \(name) --cni NONE")
-            let result = try f.run(["cluster", "create", "--name", name, "--cni", "NONE"])
-            print("[cluster-cni] cluster create exit=\(result.status)")
-            if result.status != 0 {
-                print("[cluster-cni] cluster create stderr: \(result.error)")
-                f.dumpNodeDiagnostics(node: name)
-            }
-
-            try result.check()
+            let result = try f.createCluster(name: name, args: ["--cni", "NONE"])
             #expect(result.output.contains(name))
             #expect(try f.getContainerStatus(name) == "running")
 

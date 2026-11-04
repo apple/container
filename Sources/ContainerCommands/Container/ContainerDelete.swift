@@ -57,9 +57,10 @@ extension Application {
             let client = ContainerClient()
             let force = self.force
 
+            var errors: [any Error] = []
             let containers: [String]
             if all {
-                let filters = ContainerListFilters().withoutMachines()
+                let filters = ContainerListFilters().withoutPlugins([ResourcePluginValues.machine, ResourcePluginValues.cluster])
                 containers = try await client.list(filters: filters).compactMap { c in
                     // Skip running containers when using --all without --force
                     if c.status == .running && !force {
@@ -68,10 +69,13 @@ extension Application {
                     return c.id
                 }
             } else {
-                containers = Array(Set(containerIds))
+                // Cluster nodes are managed by `container cluster`, so naming one reports it as not found.
+                let filters = ContainerListFilters().withoutPlugins([ResourcePluginValues.cluster])
+                let (found, notFoundErrors) = try await Application.findContainers(named: Array(Set(containerIds)), filters: filters, client: client)
+                containers = found.map { $0.id }
+                errors += notFoundErrors
             }
 
-            var errors: [any Error] = []
             try await withThrowingTaskGroup(of: (any Error)?.self) { group in
                 for container in containers {
                     group.addTask {
