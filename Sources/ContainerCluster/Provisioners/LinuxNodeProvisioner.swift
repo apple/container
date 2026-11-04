@@ -36,6 +36,7 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
     private let maxConcurrentDownloads: Int
     private let remove: Bool
     private let fqdn: String?
+    private let sharedImageStore: Bool
 
     /// - Parameters:
     ///   - name: Name of this node. The control plane is named after the cluster;
@@ -51,7 +52,8 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
         registryScheme: String = "https",
         maxConcurrentDownloads: Int = 3,
         remove: Bool = false,
-        fqdn: String? = nil
+        fqdn: String? = nil,
+        sharedImageStore: Bool = false
     ) throws {
         guard !roles.isEmpty else {
             throw ContainerizationError(.invalidArgument, message: "LinuxNode roles must not be empty")
@@ -73,11 +75,22 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
         self.maxConcurrentDownloads = maxConcurrentDownloads
         self.remove = remove
         self.fqdn = fqdn
+        self.sharedImageStore = sharedImageStore
     }
 
     public func provision(log: Logger) async throws {
         let containerSystemConfig: ContainerSystemConfig = try await ConfigurationLoader.load()
         let resolvedImage = nodeImage ?? ClusterHelper.nodeImage
+        var volumes: [String] = []
+        if sharedImageStore {
+            _ = try await ClusterHelper.clusterShimURL(log: log)
+            let hostStoreSocket = ClusterHelper.hostStoreSocketPath.string
+            guard FileManager.default.fileExists(atPath: hostStoreSocket) else {
+                throw ContainerizationError(
+                    .notFound, message: "host store socket \(hostStoreSocket) not found; is the cluster-hoststore plugin installed and running?")
+            }
+            volumes.append("\(hostStoreSocket):\(ClusterHelper.nodeHostStoreSocketPath)")
+        }
         try await ClusterHelper.ensureImage(nodeImage: resolvedImage, log: log, containerSystemConfig: containerSystemConfig)
 
         let isControlPlane = roles.contains(StandardRoles.controlPlane)
@@ -122,7 +135,7 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
             tmpFs: [],
             useInit: false,
             virtualization: false,
-            volumes: []
+            volumes: volumes
         )
 
         let updatedResource = ClusterHelper.defaultedResourceFlags(Flags.Resource(cpus: cpus, memory: memory))
@@ -289,16 +302,63 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
         }
     }
 
+    /// Configures the node. With `sharedImageStore`, it also installs cluster-shim
+    /// so the node can use images from the host image store.
     private func prepareNode(nodeID: String, client: ContainerClient, log: Logger) async throws {
-        log.info("Preparing node", metadata: ["id": "\(nodeID)"])
+        log.info("Preparing node", metadata: ["id": "\(nodeID)", "sharedImageStore": "\(sharedImageStore)"])
+        var script = Self.nodePrepScript
+        if sharedImageStore {
+            let shim = try await ClusterHelper.clusterShimURL(log: log)
+            try await client.copyIn(id: nodeID, source: shim.path, destination: ClusterHelper.nodeShimPath, mode: 0o755)
+            script = Self.hostImagesScript + "\n" + script
+        }
+
         let result = try await ClusterHelper.execCapture(
             containerId: nodeID, executable: "/bin/sh",
-            arguments: ["-c", Self.nodePrepScript], client: client)
+            arguments: ["-c", script], client: client)
         guard result.code == 0 else {
             throw ContainerizationError(.internalError, message: "node prep failed on \(nodeID): \(result.output)")
         }
     }
 
+    /// Makes cluster-shim containerd's content store: writes hoststore.toml,
+    /// imports it from the node image's version 2 config.toml, and starts the
+    /// shim before containerd. Runs before `nodePrepScript`, which restarts
+    /// containerd. The kubelet uses cluster-shim as its image service, set in
+    /// `ClusterBootstrapper.initConfigYAML`.
+    private static var hostImagesScript: String {
+        """
+        set -e
+        mkdir -p /etc/containerd/conf.d
+        cat > /etc/containerd/conf.d/hoststore.toml <<'EOF'
+        version = 2
+        disabled_plugins = ["io.containerd.content.v1.content"]
+        [proxy_plugins.hoststore]
+          type = "content"
+          address = "/run/cluster-shim/content.sock"
+        [plugins.'io.containerd.metadata.v1.bolt']
+          content_sharing_policy = "shared"
+        EOF
+        grep -q '^imports' /etc/containerd/config.toml || \\
+          sed -i '1i imports = ["/etc/containerd/conf.d/hoststore.toml"]' /etc/containerd/config.toml
+        cat > /etc/systemd/system/cluster-shim.service <<'EOF'
+        [Unit]
+        Description=container cluster host store shim
+        Before=containerd.service
+
+        [Service]
+        ExecStart=\(ClusterHelper.nodeShimPath)
+        Restart=always
+
+        [Install]
+        WantedBy=multi-user.target
+        EOF
+        systemctl daemon-reload
+        systemctl enable --now cluster-shim
+        """
+    }
+
+    /// Configures containerd, networking and the pause image for the cluster.
     private static var nodePrepScript: String {
         """
         set -e

@@ -15,11 +15,13 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerAPIClient
+import ContainerPlugin
 import ContainerResource
 import ContainerizationError
 import ContainerizationOS
 import Foundation
 import Logging
+import SystemPackage
 
 // MARK: - ClusterHelper
 
@@ -53,6 +55,38 @@ public struct ClusterHelper {
     static let proxyEnvVars = ["HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy"]
 
     public static let clusterContainerPort: UInt16 = 6443
+
+    /// Host socket served by the cluster-hoststore plugin and relayed into each node.
+    public static let hostStoreSocketPath = ApplicationRoot.path.appending("cluster-hoststore.sock")
+    /// Where the host store socket appears inside a node. Must match cluster-shim.
+    static let nodeHostStoreSocketPath = "/opt/cluster-shim/hoststore.sock"
+    /// Where the cluster-shim binary is installed inside a node.
+    static let nodeShimPath = "/usr/local/bin/cluster-shim"
+    /// The kubelet's CRI image service, served by cluster-shim. Must match cluster-shim.
+    static let nodeImageServiceSocketPath = "/run/cluster-shim/cri-image.sock"
+
+    /// Returns the cluster-shim binary in the cluster plugin's resources.
+    /// Builds made without container services running do not include it.
+    static func clusterShimURL(log: Logger) async throws -> URL {
+        let shim = try await pluginResourceURL(log: log).appendingPathComponent("cluster-shim")
+        guard FileManager.default.fileExists(atPath: shim.path) else {
+            throw ContainerizationError(
+                .notFound,
+                message: "--shared-image-store needs cluster-shim, and this build of container has none at \(shim.path)")
+        }
+        return shim
+    }
+
+    /// Returns the resources directory of the installed cluster plugin.
+    static func pluginResourceURL(log: Logger) async throws -> URL {
+        let pluginLoader = try await Utility.createPluginLoader(log: log)
+        guard let plugin = pluginLoader.findPlugin(forExecutable: CommandLine.executablePath),
+            let resourceURL = plugin.resourceURL
+        else {
+            throw ContainerizationError(.internalError, message: "unable to locate cluster plugin installation or resources")
+        }
+        return resourceURL
+    }
 
     public static var nodeEntrypointScript: String {
         """

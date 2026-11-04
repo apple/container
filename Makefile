@@ -77,11 +77,26 @@ verify: all test integration
 all: container
 all: init-block
 
+# A prebuilt cluster-shim Linux binary, as CI provides. When empty, `build`
+# builds it with `make -C cluster-shim build` if container services are
+# running, and leaves it out otherwise.
+CLUSTER_SHIM_BINARY ?=
+CLUSTER_SHIM := $(if $(strip $(CLUSTER_SHIM_BINARY)),$(CLUSTER_SHIM_BINARY),cluster-shim/bin/cluster-shim)
+CLUSTER_SHIM_MISSING := cluster-shim needs running container services; run 'container system start' or set CLUSTER_SHIM_BINARY
+
 .PHONY: build
 build:
 	@echo Building container binaries...
 	@$(SWIFT) --version
 	@$(SWIFT_BUILD)
+ifeq ($(strip $(CLUSTER_SHIM_BINARY)),)
+	@if container system status > /dev/null 2>&1; then \
+		echo Building cluster-shim...; \
+		"$(MAKE)" -C cluster-shim build; \
+	else \
+		echo "Warning: skipping cluster-shim, so clusters from this build cannot use --shared-image-store. $(CLUSTER_SHIM_MISSING)." >&2; \
+	fi
+endif
 
 .PHONY: build-tests
 # Shared build stage for every test target: builds the test bundle (and the
@@ -145,6 +160,7 @@ $(STAGING_DIR):
 	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/machine-apiserver/resources)"
 	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/cluster/bin)"
 	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/cluster/resources)"
+	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/cluster-hoststore/bin)"
 	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/build/bin)"
 	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/builder/bin)"
 
@@ -162,6 +178,13 @@ $(STAGING_DIR):
 	@install "$(BUILD_BIN_DIR)/cluster" "$(join $(STAGING_DIR), libexec/container/plugins/cluster/bin/cluster)"
 	@install Sources/Plugins/Cluster/config.toml "$(join $(STAGING_DIR), libexec/container/plugins/cluster/config.toml)"
 	@install Sources/Plugins/Cluster/Resources/kindnet.yaml "$(join $(STAGING_DIR), libexec/container/plugins/cluster/resources/kindnet.yaml)"
+	@if [ -f "$(CLUSTER_SHIM)" ]; then \
+		install -m 0755 "$(CLUSTER_SHIM)" "$(join $(STAGING_DIR), libexec/container/plugins/cluster/resources/cluster-shim)"; \
+	else \
+		echo "Warning: packaging without cluster-shim; $(CLUSTER_SHIM) does not exist." >&2; \
+	fi
+	@install "$(BUILD_BIN_DIR)/cluster-hoststore" "$(join $(STAGING_DIR), libexec/container/plugins/cluster-hoststore/bin/cluster-hoststore)"
+	@install Sources/Plugins/ClusterHostStore/config.toml "$(join $(STAGING_DIR), libexec/container/plugins/cluster-hoststore/config.toml)"
 	@install "$(BUILD_BIN_DIR)/container-build" "$(join $(STAGING_DIR), libexec/container/plugins/build/bin/build)"
 	@install Sources/Plugins/ContainerBuild/config.toml "$(join $(STAGING_DIR), libexec/container/plugins/build/config.toml)"
 	@install "$(BUILD_BIN_DIR)/container-builder" "$(join $(STAGING_DIR), libexec/container/plugins/builder/bin/builder)"
@@ -182,6 +205,7 @@ installer-pkg: $(STAGING_DIR)
 	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. --entitlements=signing/container-network-vmnet.entitlements "$(join $(STAGING_DIR), libexec/container/plugins/container-network-vmnet/bin/container-network-vmnet)"
 	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. "$(join $(STAGING_DIR), libexec/container/plugins/machine-apiserver/bin/machine-apiserver)"
 	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. "$(join $(STAGING_DIR), libexec/container/plugins/cluster/bin/cluster)"
+	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. "$(join $(STAGING_DIR), libexec/container/plugins/cluster-hoststore/bin/cluster-hoststore)"
 	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. "$(join $(STAGING_DIR), libexec/container/plugins/build/bin/build)"
 	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. "$(join $(STAGING_DIR), libexec/container/plugins/builder/bin/builder)"
 

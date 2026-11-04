@@ -57,6 +57,9 @@ public struct ClusterCreate: AsyncParsableCommand {
     @Option(name: .long, help: "Number of worker nodes to create")
     var workers: UInt = 0
 
+    @Flag(help: "Let nodes pull images from the local image store")
+    var sharedImageStore = false
+
     /// Task count is `4 + workers` as an `Int`, so keep `workers` far enough below `Int.max` to avoid overflow.
     static let maxWorkers: UInt = 1024
 
@@ -114,7 +117,8 @@ public struct ClusterCreate: AsyncParsableCommand {
             registryScheme: registryFlags.scheme,
             maxConcurrentDownloads: imageFetchFlags.maxConcurrentDownloads,
             remove: remove,
-            fqdn: fqdn
+            fqdn: fqdn,
+            sharedImageStore: sharedImageStore
         )
         let workerNodes = try (0..<Int(workers)).map { index in
             try LinuxNodeProvisioner(
@@ -126,7 +130,8 @@ public struct ClusterCreate: AsyncParsableCommand {
                 memory: resourceFlags.memory,
                 registryScheme: registryFlags.scheme,
                 maxConcurrentDownloads: imageFetchFlags.maxConcurrentDownloads,
-                remove: remove
+                remove: remove,
+                sharedImageStore: sharedImageStore
             )
         }
 
@@ -135,6 +140,7 @@ public struct ClusterCreate: AsyncParsableCommand {
             kubernetesVersion: kubernetesVersion,
             cni: cni,
             fqdn: fqdn,
+            sharedImageStore: sharedImageStore,
             controlPlane: controlPlane,
             workers: workerNodes
         )

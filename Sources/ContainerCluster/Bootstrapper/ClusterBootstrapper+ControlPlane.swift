@@ -25,7 +25,9 @@ extension ClusterBootstrapper {
         nodeID: String, apiServerSANs: [String], advertiseAddress: String,
         schedulable: Bool, client: ContainerClient, log: Logger
     ) async throws {
-        let configYAML = Self.initConfigYAML(kubernetesVersion: kubernetesVersion, advertiseAddress: advertiseAddress, certSANs: apiServerSANs)
+        let configYAML = Self.initConfigYAML(
+            kubernetesVersion: kubernetesVersion, advertiseAddress: advertiseAddress, certSANs: apiServerSANs,
+            sharedImageStore: sharedImageStore)
         var r = try await ClusterHelper.execCapture(
             containerId: nodeID, executable: "/bin/sh",
             arguments: ["-c", "cat > /etc/kubernetes/kubeadm-config.yaml <<'EOF'\n\(configYAML)\nEOF"],
@@ -108,21 +110,26 @@ extension ClusterBootstrapper {
     }
 
     private static func loadKindnetManifest(log: Logger) async throws -> String {
-        let pluginLoader = try await Utility.createPluginLoader(log: log)
-        guard let plugin = pluginLoader.findPlugin(forExecutable: CommandLine.executablePath),
-            let resourceURL = plugin.resourceURL
-        else {
-            throw ContainerizationError(.internalError, message: "unable to locate cluster plugin installation or resources")
-        }
-        let url = resourceURL.appendingPathComponent("kindnet.yaml")
+        let url = try await ClusterHelper.pluginResourceURL(log: log).appendingPathComponent("kindnet.yaml")
         guard let contents = try? String(contentsOf: url, encoding: .utf8) else {
             throw ContainerizationError(.internalError, message: "kindnet manifest resource missing at \(url.path)")
         }
         return contents
     }
 
-    private static func initConfigYAML(kubernetesVersion: String, advertiseAddress: String, certSANs: [String]) -> String {
+    static func initConfigYAML(
+        kubernetesVersion: String, advertiseAddress: String, certSANs: [String], sharedImageStore: Bool
+    ) -> String {
         let sans = certSANs.map { "  - \($0)" }.joined(separator: "\n")
+        var kubelet = """
+            apiVersion: kubelet.config.k8s.io/v1beta1
+            kind: KubeletConfiguration
+            cgroupDriver: systemd
+            failSwapOn: false
+            """
+        if sharedImageStore {
+            kubelet += "\nimageServiceEndpoint: unix://\(ClusterHelper.nodeImageServiceSocketPath)"
+        }
         return """
             apiVersion: kubeadm.k8s.io/v1beta4
             kind: InitConfiguration
@@ -141,10 +148,7 @@ extension ClusterBootstrapper {
               certSANs:
             \(sans)
             ---
-            apiVersion: kubelet.config.k8s.io/v1beta1
-            kind: KubeletConfiguration
-            cgroupDriver: systemd
-            failSwapOn: false
+            \(kubelet)
             """
     }
 }
