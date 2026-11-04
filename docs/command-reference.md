@@ -338,13 +338,13 @@ Lists containers. By default only running containers are shown. Output can be fo
 **Usage**
 
 ```bash
-container list [--all] [--filter <filter> ...] [--format <format>] [--quiet] [--debug]
+container list [--all] [--label <label> ...] [--format <format>] [--quiet] [--debug]
 ```
 
 **Options**
 
 *   `-a, --all`: Include containers that are not running
-*   `-f, --filter <filter>`: Filter output based on conditions provided (format: `label=key` or `label=key=value`)
+*   `-l, --label <label>`: Filter output based on labels provided (format: `key` or `key=value`)
 *   `--format <format>`: Format of the output (values: json, table, yaml, toml; default: table)
 *   `-q, --quiet`: Only output the container ID
 
@@ -352,10 +352,10 @@ container list [--all] [--filter <filter> ...] [--format <format>] [--quiet] [--
 
 ```bash
 # list running containers with a specific label value
-container ls --filter label=environment=production
+container ls --label environment=production
 
 # list all containers with a specific label present
-container ls -a -f label=sandbox
+container ls -a -l sandbox
 ```
 
 ### `container exec`

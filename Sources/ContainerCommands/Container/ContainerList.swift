@@ -37,10 +37,10 @@ extension Application {
         var all = false
 
         @Option(
-            name: [.short, .customLong("filter")],
-            help: "Filter output based on conditions provided (format: label=key or label=key=value)"
+            name: [.short, .customLong("label")],
+            help: "Filter output based on labels provided (format: key or key=value)"
         )
-        var filter: [String] = []
+        var label: [String] = []
 
         @Option(name: .long, help: "Format of the output")
         var format: ListFormat = .table
@@ -53,14 +53,9 @@ extension Application {
 
         public init() {}
 
-        public static func parseLabelFilter(_ filterString: String) throws -> LabelFilter {
-            let prefix = "label="
-            guard filterString.hasPrefix(prefix) else {
-                throw ValidationError("Invalid filter '\(filterString)': only 'label' filters ('label=key' or 'label=key=value') are supported")
-            }
-            let spec = String(filterString.dropFirst(prefix.count))
+        public static func parseLabelFilter(_ spec: String) throws -> LabelFilter {
             guard !spec.isEmpty else {
-                throw ValidationError("Invalid filter '\(filterString)': label key cannot be empty")
+                throw ValidationError("Invalid label filter: label key cannot be empty")
             }
             guard let equalIndex = spec.firstIndex(of: "=") else {
                 return .presence(key: spec)
@@ -68,7 +63,7 @@ extension Application {
             let key = String(spec[..<equalIndex])
             let value = String(spec[spec.index(after: equalIndex)...])
             guard !key.isEmpty else {
-                throw ValidationError("Invalid filter '\(filterString)': label key cannot be empty")
+                throw ValidationError("Invalid label filter '\(spec)': label key cannot be empty")
             }
             return .exact(key: key, value: value)
         }
@@ -92,7 +87,7 @@ extension Application {
         public func run() async throws {
             let client = ContainerClient()
 
-            let parsedFilters = try self.filter.map { try Self.parseLabelFilter($0) }
+            let parsedFilters = try self.label.map { try Self.parseLabelFilter($0) }
 
             var serverLabels: [String: String] = [:]
             for filter in parsedFilters {

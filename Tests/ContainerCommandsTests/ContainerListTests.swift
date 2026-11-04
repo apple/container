@@ -64,78 +64,69 @@ struct ContainerListTests {
     @Test func defaultArguments() throws {
         let cmd = try Application.ContainerList.parse([])
         #expect(cmd.all == false)
-        #expect(cmd.filter.isEmpty)
+        #expect(cmd.label.isEmpty)
         #expect(cmd.quiet == false)
         #expect(cmd.format == .table)
     }
 
-    @Test func parseSingleFilterLong() throws {
-        let cmd = try Application.ContainerList.parse(["--filter", "label=env=production"])
-        #expect(cmd.filter == ["label=env=production"])
+    @Test func parseSingleLabelLong() throws {
+        let cmd = try Application.ContainerList.parse(["--label", "env=production"])
+        #expect(cmd.label == ["env=production"])
     }
 
-    @Test func parseSingleFilterShort() throws {
-        let cmd = try Application.ContainerList.parse(["-f", "label=env=production"])
-        #expect(cmd.filter == ["label=env=production"])
+    @Test func parseSingleLabelShort() throws {
+        let cmd = try Application.ContainerList.parse(["-l", "env=production"])
+        #expect(cmd.label == ["env=production"])
     }
 
-    @Test func parseMultipleFilters() throws {
+    @Test func parseMultipleLabels() throws {
         let cmd = try Application.ContainerList.parse([
-            "-f", "label=env=production",
-            "--filter", "label=tier=backend",
-            "-f", "label=orchestrator",
+            "-l", "env=production",
+            "--label", "tier=backend",
+            "-l", "orchestrator",
         ])
         #expect(
-            cmd.filter == [
-                "label=env=production",
-                "label=tier=backend",
-                "label=orchestrator",
+            cmd.label == [
+                "env=production",
+                "tier=backend",
+                "orchestrator",
             ])
     }
 
-    @Test func parseFilterWithAllFlag() throws {
-        let cmd = try Application.ContainerList.parse(["-a", "-f", "label=env=stage"])
+    @Test func parseLabelWithAllFlag() throws {
+        let cmd = try Application.ContainerList.parse(["-a", "-l", "env=stage"])
         #expect(cmd.all == true)
-        #expect(cmd.filter == ["label=env=stage"])
+        #expect(cmd.label == ["env=stage"])
     }
 
     // MARK: - Filter Syntax Parsing Tests
 
     @Test func parseLabelFilterPresence() throws {
-        let parsed = try Application.ContainerList.parseLabelFilter("label=my-label")
+        let parsed = try Application.ContainerList.parseLabelFilter("my-label")
         #expect(parsed == .presence(key: "my-label"))
     }
 
     @Test func parseLabelFilterExact() throws {
-        let parsed = try Application.ContainerList.parseLabelFilter("label=env=prod")
+        let parsed = try Application.ContainerList.parseLabelFilter("env=prod")
         #expect(parsed == .exact(key: "env", value: "prod"))
     }
 
     @Test func parseLabelFilterExactWithEqualsInValue() throws {
-        let parsed = try Application.ContainerList.parseLabelFilter("label=url=https://example.com?query=1")
+        let parsed = try Application.ContainerList.parseLabelFilter("url=https://example.com?query=1")
         #expect(parsed == .exact(key: "url", value: "https://example.com?query=1"))
     }
 
     @Test func parseLabelFilterExactWithEmptyValue() throws {
-        let parsed = try Application.ContainerList.parseLabelFilter("label=empty=")
+        let parsed = try Application.ContainerList.parseLabelFilter("empty=")
         #expect(parsed == .exact(key: "empty", value: ""))
-    }
-
-    @Test func parseLabelFilterRejectsUnsupportedFilter() throws {
-        #expect(throws: ValidationError.self) {
-            try Application.ContainerList.parseLabelFilter("name=my-container")
-        }
-        #expect(throws: ValidationError.self) {
-            try Application.ContainerList.parseLabelFilter("status=running")
-        }
     }
 
     @Test func parseLabelFilterRejectsEmptyKey() throws {
         #expect(throws: ValidationError.self) {
-            try Application.ContainerList.parseLabelFilter("label=")
+            try Application.ContainerList.parseLabelFilter("")
         }
         #expect(throws: ValidationError.self) {
-            try Application.ContainerList.parseLabelFilter("label==value")
+            try Application.ContainerList.parseLabelFilter("=value")
         }
     }
 

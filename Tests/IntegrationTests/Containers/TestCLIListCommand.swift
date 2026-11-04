@@ -95,28 +95,28 @@ struct TestCLIListCommand {
             let specialIDs = specialFiltered.map(\.id)
             #expect(specialIDs == [c4], "server-side filter should match literal regex-special characters")
 
-            // 3. Verify CLI container ls / list --filter label=key=value
+            // 3. Verify CLI container ls / list --label key=value
             let cliVersionResult = try f.run([
                 "ls", "-a", "-q",
-                "-f", "label=test-id=\(f.testID)",
-                "-f", "label=version=1.0.0",
+                "-l", "test-id=\(f.testID)",
+                "-l", "version=1.0.0",
             ]).check()
             let cliVersionIDs = cliVersionResult.output.split(separator: "\n").map(String.init)
-            #expect(cliVersionIDs == [c1], "CLI --filter should output only exact label match")
+            #expect(cliVersionIDs == [c1], "CLI --label should output only exact label match")
 
             let cliSpecialResult = try f.run([
                 "list", "-a", "-q",
-                "--filter", "label=test-id=\(f.testID)",
-                "--filter", "label=release=v1.0+alpha.1",
+                "--label", "test-id=\(f.testID)",
+                "--label", "release=v1.0+alpha.1",
             ]).check()
             let cliSpecialIDs = cliSpecialResult.output.split(separator: "\n").map(String.init)
-            #expect(cliSpecialIDs == [c4], "CLI --filter should match special characters")
+            #expect(cliSpecialIDs == [c4], "CLI --label should match special characters")
 
             // 4. Verify CLI container ls with label presence filter
             let cliPresenceResult = try f.run([
                 "ls", "-a", "-q",
-                "-f", "label=test-id=\(f.testID)",
-                "-f", "label=version",
+                "-l", "test-id=\(f.testID)",
+                "-l", "version",
             ]).check()
             let cliPresenceIDs = Set(cliPresenceResult.output.split(separator: "\n").map(String.init))
             #expect(cliPresenceIDs == Set([c1, c2, c3]), "CLI label presence filter should return all containers with the key")
