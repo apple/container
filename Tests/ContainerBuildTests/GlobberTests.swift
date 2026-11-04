@@ -316,4 +316,52 @@ let testCases = [
         }
         #expect(leaked.isEmpty, "match() produced non-symlink results that physically resolve outside the root: \(leaked)")
     }
+
+    @Test("Recursive glob terminates when an in-context directory symlink points at an ancestor")
+    func testMatchRecursiveGlobTerminatesOnAncestorSymlink() throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let deep = tempDir.appendingPathComponent("src/deep")
+        let file = deep.appendingPathComponent("file.txt")
+        let up = deep.appendingPathComponent("up")
+
+        try FileManager.default.createDirectory(at: deep, withIntermediateDirectories: true)
+        try "hello".write(to: file, atomically: true, encoding: .utf8)
+        try FileManager.default.createSymbolicLink(atPath: up.path, withDestinationPath: "..")
+
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let globber = Globber(tempDir)
+        try globber.match("**/*.txt")
+
+        #expect(
+            Set(globber.results.map(\.lastPathComponent)) == ["src", "deep", "file.txt", "up"],
+            "expected src, deep, file.txt and up, got \(globber.results)"
+        )
+    }
+
+    @Test("Recursive glob terminates on a cycle of in-context directory symlinks")
+    func testMatchRecursiveGlobTerminatesOnSymlinkCycle() throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let a = tempDir.appendingPathComponent("a")
+        let b = tempDir.appendingPathComponent("b")
+        let file = b.appendingPathComponent("f.txt")
+        let toB = a.appendingPathComponent("toB")
+        let toA = b.appendingPathComponent("toA")
+
+        try FileManager.default.createDirectory(at: a, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: b, withIntermediateDirectories: true)
+        try "hello".write(to: file, atomically: true, encoding: .utf8)
+        try FileManager.default.createSymbolicLink(atPath: toB.path, withDestinationPath: "../b")
+        try FileManager.default.createSymbolicLink(atPath: toA.path, withDestinationPath: "../a")
+
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let globber = Globber(tempDir)
+        try globber.match("**/*.txt")
+
+        #expect(
+            Set(globber.results.map(\.lastPathComponent)) == ["toB", "b", "f.txt", "toA"],
+            "expected toB, b, f.txt and toA, got \(globber.results)"
+        )
+    }
 }
