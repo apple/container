@@ -61,11 +61,12 @@ public struct NodeConfiguration: Codable, Sendable, Equatable {
 }
 
 /// What the user asked for when creating a cluster. Persisted at create time.
-public struct ClusterConfiguration: Codable, Sendable, Equatable {
+public struct ClusterConfiguration: Codable, Sendable, Equatable, Identifiable {
     /// The most worker nodes a cluster may have.
     public static let maxWorkers: UInt = 1024
 
     public let name: String
+    public var id: String { name }
     public let kubernetesVersion: String
     public let cni: String?
     public let fqdn: String?

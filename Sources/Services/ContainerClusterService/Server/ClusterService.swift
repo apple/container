@@ -15,32 +15,36 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerClusterServiceClient
+import ContainerPersistence
 import ContainerResource
 import ContainerizationError
 import Foundation
 import Logging
+import SystemPackage
 
 public actor ClusterService {
     public typealias ContainerLister = @Sendable () async throws -> [ContainerSnapshot]
 
-    private let store: ClusterStore
+    private let store: FilesystemEntityStore<ClusterConfiguration>
     private let listContainers: ContainerLister
     private let log: Logger
 
-    public init(root: URL, listContainers: @escaping ContainerLister, log: Logger) {
-        self.store = ClusterStore(root: root)
+    /// - Parameter root: Directory holding one subdirectory per cluster. Created if missing.
+    public init(root: FilePath, listContainers: @escaping ContainerLister, log: Logger) throws {
+        try FileManager.default.createDirectory(atPath: root.string, withIntermediateDirectories: true)
+        self.store = try FilesystemEntityStore(path: root, type: "clusters", log: log)
         self.listContainers = listContainers
         self.log = log
     }
 
     public func create(_ configuration: ClusterConfiguration) async throws {
-        guard let existing = try store.load(name: configuration.name) else {
-            try store.save(configuration)  // no suspension point between check and write
+        guard let existing = try await store.retrieve(configuration.name) else {
+            try await store.create(configuration)
             return
         }
         try await ensureReplaceable(existing)
         log.info("replacing stale cluster record", metadata: ["name": "\(configuration.name)"])
-        try store.save(configuration)
+        try await store.upsert(configuration)
     }
 
     /// Throws `.exists` unless `record` is stale: none of its node containers exist any more (e.g. a `--rm` cluster).
@@ -54,25 +58,29 @@ public actor ClusterService {
         guard !hasLiveNode else { throw alreadyExists }
 
         // The actor may have been re-entered while awaiting; only replace the record we inspected.
-        let current = try store.load(name: record.name)
+        let current = try await store.retrieve(record.name)
         guard current == nil || current == record else { throw alreadyExists }
     }
 
     public func get(name: String) async throws -> ClusterResource {
-        guard let configuration = try store.load(name: name) else {
+        guard let configuration = try await store.retrieve(name) else {
             throw ContainerizationError(.notFound, message: "cluster \(name) not found")
         }
         return Self.resources(configurations: [configuration], snapshots: try await listContainers())[0]
     }
 
     public func list() async throws -> [ClusterResource] {
-        let configurations = store.loadAll(log: log)
+        let configurations = try await store.list()
         guard !configurations.isEmpty else { return [] }
         return Self.resources(configurations: configurations, snapshots: try await listContainers())
     }
 
-    public func delete(name: String) throws {
-        try store.remove(name: name)
+    public func delete(name: String) async throws {
+        guard ClusterResource.nameValid(name) else {
+            throw ContainerizationError(.invalidArgument, message: "invalid cluster name \(name)")
+        }
+        guard try await store.retrieve(name) != nil else { return }
+        try await store.delete(name)
     }
 
     /// Derives each cluster's status from its stored configuration and the live container snapshots.

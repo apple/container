@@ -66,9 +66,7 @@ extension ClustersHelper {
 
             do {
                 log.info("configuring XPC server")
-                let stateRoot = try PluginStateRoot(plugin: commandName).path
-                let rootURL = URL(fileURLWithPath: stateRoot.string)
-                try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true)
+                let clustersRoot = try PluginStateRoot(plugin: commandName).path.appending("clusters")
 
                 // "cluster" is the label value the cluster CLI plugin (ClusterHelper.pluginName)
                 // stamps on its containers; this executable cannot depend on ContainerCluster.
@@ -76,7 +74,7 @@ extension ClustersHelper {
                     try await ContainerClient().list(
                         filters: ContainerListFilters(labels: [ResourceLabelKeys.plugin: "cluster"]))
                 }
-                let service = ClusterService(root: rootURL, listContainers: listContainers, log: log)
+                let service = try ClusterService(root: clustersRoot, listContainers: listContainers, log: log)
                 let harness = ClusterServiceHarness(service: service, log: log)
 
                 var routes = [String: XPCServer.RouteHandler]()

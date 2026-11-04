@@ -19,18 +19,23 @@ import ContainerResource
 import ContainerizationError
 import Foundation
 import Logging
+import SystemPackage
 import Testing
 
 @testable import ContainerClusterService
 
 @Suite("ClusterService")
 struct ClusterServiceTests {
-    private func makeRoot() -> URL {
-        FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+    private func makeRoot() -> FilePath {
+        FilePath(FileManager.default.temporaryDirectory.appending(path: UUID().uuidString).path)
     }
 
-    private func makeService(root: URL, snapshots: [ContainerSnapshot] = []) -> ClusterService {
-        ClusterService(root: root, listContainers: { snapshots }, log: Logger(label: "test"))
+    private func removeRoot(_ root: FilePath) {
+        try? FileManager.default.removeItem(atPath: root.string)
+    }
+
+    private func makeService(root: FilePath, snapshots: [ContainerSnapshot] = []) throws -> ClusterService {
+        try ClusterService(root: root, listContainers: { snapshots }, log: Logger(label: "test"))
     }
 
     private func expectCode(_ code: ContainerizationError.Code, _ body: () async throws -> Void) async {
@@ -46,8 +51,8 @@ struct ClusterServiceTests {
 
     @Test func createNewThenGet() async throws {
         let root = makeRoot()
-        defer { try? FileManager.default.removeItem(at: root) }
-        let service = makeService(root: root, snapshots: [try makeControlPlane("dev")])
+        defer { removeRoot(root) }
+        let service = try makeService(root: root, snapshots: [try makeControlPlane("dev")])
         let config = makeConfig("dev")
         try await service.create(config)
         let info = try await service.get(name: "dev")
@@ -57,8 +62,8 @@ struct ClusterServiceTests {
 
     @Test func createDuplicateWithLiveNodeThrowsExists() async throws {
         let root = makeRoot()
-        defer { try? FileManager.default.removeItem(at: root) }
-        let service = makeService(root: root, snapshots: [try makeControlPlane("dev")])
+        defer { removeRoot(root) }
+        let service = try makeService(root: root, snapshots: [try makeControlPlane("dev")])
         let config = makeConfig("dev")
         try await service.create(config)
         do {
@@ -71,17 +76,30 @@ struct ClusterServiceTests {
         #expect(try await service.get(name: "dev").configuration == config)
     }
 
+    private actor ServiceBox {
+        private var service: ClusterService?
+
+        func set(_ service: ClusterService) {
+            self.service = service
+        }
+
+        func deleteRecord(named name: String) async throws {
+            try await service?.delete(name: name)
+        }
+    }
+
     @Test func createSucceedsWhenRecordDeletedDuringListing() async throws {
         let root = makeRoot()
-        defer { try? FileManager.default.removeItem(at: root) }
-        let store = ClusterStore(root: root)
-        let service = ClusterService(
+        defer { removeRoot(root) }
+        let box = ServiceBox()
+        let service = try ClusterService(
             root: root,
             listContainers: {
-                try store.remove(name: "dev")
+                try await box.deleteRecord(named: "dev")
                 return []
             }, log: Logger(label: "test"))
-        try store.save(makeConfig("dev"))
+        await box.set(service)
+        try await service.create(makeConfig("dev"))
         let replacement = makeConfig("dev", workers: 1)
         try await service.create(replacement)
         #expect(try await service.get(name: "dev").configuration == replacement)
@@ -89,8 +107,8 @@ struct ClusterServiceTests {
 
     @Test func createReplacesStaleRecord() async throws {
         let root = makeRoot()
-        defer { try? FileManager.default.removeItem(at: root) }
-        let service = makeService(root: root)
+        defer { removeRoot(root) }
+        let service = try makeService(root: root)
         try await service.create(makeConfig("dev"))
         let replacement = makeConfig("dev", workers: 1)
         try await service.create(replacement)
@@ -101,29 +119,29 @@ struct ClusterServiceTests {
 
     @Test func createLeavesRecordWhenListFails() async throws {
         let root = makeRoot()
-        defer { try? FileManager.default.removeItem(at: root) }
+        defer { removeRoot(root) }
         let config = makeConfig("dev")
         try await makeService(root: root).create(config)
-        let failing = ClusterService(root: root, listContainers: { throw ListFailure() }, log: Logger(label: "test"))
+        let failing = try ClusterService(root: root, listContainers: { throw ListFailure() }, log: Logger(label: "test"))
         do {
             try await failing.create(makeConfig("dev", workers: 1))
             Issue.record("expected error")
         } catch is ListFailure {
         }
-        #expect(try ClusterStore(root: root).load(name: "dev") == config)
+        #expect(try await makeService(root: root).get(name: "dev").configuration == config)
     }
 
     @Test func getMissingThrowsNotFound() async throws {
         let root = makeRoot()
-        defer { try? FileManager.default.removeItem(at: root) }
-        let service = makeService(root: root)
+        defer { removeRoot(root) }
+        let service = try makeService(root: root)
         await expectCode(.notFound) { _ = try await service.get(name: "nope") }
     }
 
     @Test func listIsSortedAndJoinsContainers() async throws {
         let root = makeRoot()
-        defer { try? FileManager.default.removeItem(at: root) }
-        let service = makeService(root: root, snapshots: [try makeControlPlane("bb")])
+        defer { removeRoot(root) }
+        let service = try makeService(root: root, snapshots: [try makeControlPlane("bb")])
         try await service.create(makeConfig("bb"))
         try await service.create(makeConfig("aa"))
         let infos = try await service.list()
@@ -134,18 +152,42 @@ struct ClusterServiceTests {
 
     @Test func deleteRemovesAndIsIdempotent() async throws {
         let root = makeRoot()
-        defer { try? FileManager.default.removeItem(at: root) }
-        let service = makeService(root: root)
+        defer { removeRoot(root) }
+        let service = try makeService(root: root)
         try await service.create(makeConfig("dev"))
         try await service.delete(name: "dev")
         try await service.delete(name: "dev")
         #expect(try await service.list().isEmpty)
     }
 
-    @Test func deleteInvalidNameThrows() async throws {
+    @Test func deleteLeavesNonClusterEntriesAlone() async throws {
         let root = makeRoot()
-        defer { try? FileManager.default.removeItem(at: root) }
-        let service = makeService(root: root)
-        await expectCode(.invalidArgument) { try await service.delete(name: "..") }
+        defer { removeRoot(root) }
+        let service = try makeService(root: root)
+        let lock = root.appending("port.lock")
+        try Data("x".utf8).write(to: URL(filePath: lock.string))
+        let plain = root.appending("plain")
+        try FileManager.default.createDirectory(atPath: plain.string, withIntermediateDirectories: true)
+        try await service.delete(name: "port.lock")
+        try await service.delete(name: "plain")
+        try await service.delete(name: "missing")
+        #expect(FileManager.default.fileExists(atPath: lock.string))
+        #expect(FileManager.default.fileExists(atPath: plain.string))
+    }
+
+    @Test func deleteInvalidNameThrowsAndLeavesSiblingsIntact() async throws {
+        let root = makeRoot()
+        defer { removeRoot(root) }
+        let service = try makeService(root: root)
+        let config = makeConfig("dev")
+        try await service.create(config)
+        let sibling = root.removingLastComponent().appending("sibling-\(UUID().uuidString)")
+        try Data("x".utf8).write(to: URL(filePath: sibling.string))
+        defer { try? FileManager.default.removeItem(atPath: sibling.string) }
+        for bad in ["..", "", ".", "a/b"] {
+            await expectCode(.invalidArgument) { try await service.delete(name: bad) }
+        }
+        #expect(try await service.get(name: "dev").configuration == config)
+        #expect(FileManager.default.fileExists(atPath: sibling.string))
     }
 }

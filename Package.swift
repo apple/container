@@ -193,6 +193,7 @@ let package = Package(
             name: "ContainerClusterServiceTests",
             dependencies: [
                 .product(name: "Logging", package: "swift-log"),
+                .product(name: "SystemPackage", package: "swift-system"),
                 "ContainerClusterService",
                 "ContainerClusterServiceClient",
                 "ContainerResource",
@@ -410,7 +411,9 @@ let package = Package(
             dependencies: [
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "Containerization", package: "containerization"),
+                .product(name: "SystemPackage", package: "swift-system"),
                 "ContainerClusterServiceClient",
+                "ContainerPersistence",
                 "ContainerResource",
                 "ContainerXPC",
             ],
