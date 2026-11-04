@@ -40,9 +40,9 @@ enum RuntimeCleanupHook {
         let process = Process()
         process.executableURL = plugin.binaryURL
         process.arguments = [
-            RuntimeCleanupCommand.name,
-            "--\(RuntimeCleanupCommand.rootOption)", root.path,
-            "--\(RuntimeCleanupCommand.uuidOption)", id,
+            "cleanup",
+            "--root", root.path,
+            "--uuid", id,
         ]
         process.terminationHandler = {
             exit.yield($0.terminationStatus)

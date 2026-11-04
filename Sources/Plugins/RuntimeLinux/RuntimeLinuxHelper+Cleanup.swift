@@ -21,14 +21,14 @@ extension RuntimeLinuxHelper {
     /// Required of every runtime plugin; see "Runtime plugin cleanup hook" in docs/technical-overview.md.
     struct Cleanup: AsyncParsableCommand {
         static let configuration = CommandConfiguration(
-            commandName: RuntimeCleanupCommand.name,
+            commandName: "cleanup",
             abstract: "Release resources of a deleted Linux container"
         )
 
-        @Option(name: [.short, .customLong(RuntimeCleanupCommand.uuidOption)], help: "Sandbox UUID")
+        @Option(help: "Sandbox UUID")
         var uuid: String
 
-        @Option(name: [.short, .customLong(RuntimeCleanupCommand.rootOption)], help: "Root directory for the sandbox")
+        @Option(help: "Root directory for the sandbox")
         var root: String
 
         // All Linux container state lives in the bundle, which the daemon removes itself.
