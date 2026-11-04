@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerResource
 import Containerization
 import ContainerizationError
 import ContainerizationExtras
@@ -1465,6 +1466,30 @@ struct ParserTest {
         #expect(masked == LinuxContainer.defaultMaskedPaths() + ["/shared"])
         #expect(readonly == LinuxContainer.defaultReadonlyPaths() + ["/shared"])
         #expect(masked != readonly)
+    }
+
+    @Test func cpusReturnsTheValidatedCount() throws {
+        #expect(try Parser.cpus(1) == 1)
+        #expect(throws: ContainerizationError.self) { try Parser.cpus(0) }
+    }
+
+    @Test func memoryInBytesParsesAndValidates() throws {
+        #expect(try Parser.memoryInBytes("1g") == 1024 * 1024 * 1024)
+        #expect(throws: (any Error).self) { try Parser.memoryInBytes("x") }
+        #expect(throws: ContainerizationError.self) { try Parser.memoryInBytes("1m") }
+    }
+
+    @Test func resourcesValidateExplicitValues() {
+        #expect(throws: ContainerizationError.self) {
+            try Parser.resources(cpus: 0, memory: nil, defaultCPUs: 2, defaultMemory: MemorySize("2g"))
+        }
+        #expect(throws: ContainerizationError.self) {
+            try Parser.resources(cpus: nil, memory: "1m", defaultCPUs: 2, defaultMemory: MemorySize("2g"))
+        }
+    }
+
+    @Test func memoryInBytesRejectsOutOfRange() {
+        #expect(throws: ContainerizationError.self) { try Parser.memoryInBytes("9999999999999999999999p") }
     }
 
     // MARK: - Parser.resources

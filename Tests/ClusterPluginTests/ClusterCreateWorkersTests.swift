@@ -26,19 +26,19 @@ struct ClusterCreateWorkersFlagTests {
     }
 
     @Test func bareNumber() throws {
-        #expect(try ClusterCreate.parse(["--workers", "3"]).workers == [WorkerGroup(count: 3)])
+        #expect(try ClusterCreate.parse(["--workers", "3"]).workers == [try WorkerGroup(count: 3)])
     }
 
     @Test func repeatedFlagsAreCollectedInOrder() throws {
-        let command = try ClusterCreate.parse(["--workers", "count=2,cpus=4,memory=8g", "--workers", "1"])
-        #expect(command.workers == [WorkerGroup(count: 2, cpus: 4, memory: "8g"), WorkerGroup(count: 1)])
+        let command = try ClusterCreate.parse(["--workers", "count=2,cpus=2,memory=8g", "--workers", "1"])
+        #expect(command.workers == [try WorkerGroup(count: 2, cpus: 2, memory: "8g"), try WorkerGroup(count: 1)])
     }
 
     @Test func resourceFlagsAreSeparateFromWorkers() throws {
         let command = try ClusterCreate.parse(["--cpus", "4", "--memory", "8g", "--workers", "cpus=2"])
         #expect(command.resourceFlags.cpus == 4)
         #expect(command.resourceFlags.memory == "8g")
-        #expect(command.workers == [WorkerGroup(count: 1, cpus: 2, memory: nil)])
+        #expect(command.workers == [try WorkerGroup(count: 1, cpus: 2, memory: nil)])
     }
 
     @Test func totalAtLimitIsAccepted() throws {
@@ -63,10 +63,17 @@ struct ClusterCreateWorkersFlagTests {
         }
     }
 
-    @Test(arguments: ["abc", "cpus=0", "memory=x", "count=0,cpus=4", "color=red"])
+    @Test(arguments: ["abc", "cpus=0", "memory=x", "memory=100m", "count=0,cpus=2", "color=red"])
     func invalidValueIsRejected(_ value: String) {
         #expect(throws: (any Error).self) {
             try ClusterCreate.parse(["--workers", value])
+        }
+    }
+
+    @Test(arguments: [["--cpus", "99999"], ["--cpus", "0"], ["--memory", "1m"], ["--memory", "x"]])
+    func invalidControlPlaneResourcesAreRejectedAtParse(_ args: [String]) {
+        #expect(throws: (any Error).self) {
+            try ClusterCreate.parse(args + ["--workers", "2"])
         }
     }
 }

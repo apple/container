@@ -34,7 +34,7 @@ public struct ClusterCreate: AsyncParsableCommand {
         abstract: "Create and start a local Kubernetes cluster and optional worker nodes",
         discussion: """
             With --workers, --cpus and --memory size the control-plane node only (default 2 CPUs and 2g). \
-            Size workers with --workers count=<n>,cpus=<n>,memory=<size>; values left out default to the single-node sizes.
+            Size workers with --workers count=<n>,cpus=<n>,memory=<size>; a group's count defaults to 1, and cpus and memory left out default to the single-node sizes: 1/4 of host CPUs and memory (minimum 2 CPUs and 2g).
             """
     )
 
@@ -69,6 +69,14 @@ public struct ClusterCreate: AsyncParsableCommand {
     var sharedImageStore = false
 
     public func validate() throws {
+        // Fail before anything is created, the same as invalid --workers values do.
+        do {
+            if let cpus = resourceFlags.cpus { _ = try Parser.cpus(cpus) }
+            if let memory = resourceFlags.memory { _ = try Parser.memoryInBytes(memory) }
+        } catch {
+            throw ValidationError(wrapping: error)
+        }
+
         var total: UInt = 0
         for group in workers {
             // Compare against the remaining room so the running total can't overflow.

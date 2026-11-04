@@ -15,18 +15,38 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
+import ContainerAPIClient
+import ContainerResource
+import ContainerizationError
 import Foundation
 
 /// A set of identical worker nodes described by one `--workers` value.
 ///
 /// A value is either a bare number (`3`) or a comma-separated list of `key=value` pairs
-/// (`count=2,cpus=4,memory=8g`). Omitted `cpus` and `memory` are left unset for the single-node default.
+/// (`count=2,cpus=4,memory=8g`). Omitted `cpus` and `memory` are left unset, so those workers get the single-node default
+/// (1/4 of host CPUs and memory, minimum 2 CPUs and 2g).
 struct WorkerGroup: Equatable {
-    var count: UInt
-    var cpus: Int64?
-    var memory: String?
+    let count: UInt
+    let cpus: Int64?
+    let memory: String?
 
-    init(count: UInt, cpus: Int64? = nil, memory: String? = nil) {
+    /// Creates a group, validating every field.
+    ///
+    /// - Throws: `ValidationError` if `count` exceeds the most workers a cluster may have, if the group sizes
+    ///   workers but has `count == 0`, or if `cpus` or `memory` is outside what a container may be created with.
+    init(count: UInt, cpus: Int64? = nil, memory: String? = nil) throws {
+        guard count <= ClusterConfiguration.maxWorkers else {
+            throw ValidationError("worker count \(count) is more than the \(ClusterConfiguration.maxWorkers) workers a cluster may have")
+        }
+        guard count > 0 || (cpus == nil && memory == nil) else {
+            throw ValidationError("a worker group that sets cpus or memory must have a count of at least 1")
+        }
+        if let cpus {
+            do { _ = try Parser.cpus(cpus) } catch { throw ValidationError(wrapping: error) }
+        }
+        if let memory {
+            do { _ = try Parser.memoryInBytes(memory) } catch { throw ValidationError("invalid memory '\(memory)': \(ValidationError(wrapping: error).message)") }
+        }
         self.count = count
         self.cpus = cpus
         self.memory = memory
@@ -35,11 +55,17 @@ struct WorkerGroup: Equatable {
     /// Parses one `--workers` value. Suitable as an `@Option` transform.
     init(parsing value: String) throws {
         if let count = UInt(value) {
-            self.init(count: count)
+            do {
+                try self.init(count: count)
+            } catch let error as ValidationError {
+                throw ValidationError("\(error.message) in '\(value)'")
+            }
             return
         }
 
-        self.init(count: 1)
+        var count: UInt = 1
+        var cpus: Int64?
+        var memory: String?
         var seen = Set<String>()
         for pair in value.split(separator: ",", omittingEmptySubsequences: false) {
             let parts = pair.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
@@ -52,38 +78,36 @@ struct WorkerGroup: Equatable {
             }
             switch key {
             case "count":
-                guard let count = UInt(val) else {
+                guard let parsed = UInt(val) else {
                     throw ValidationError("invalid worker count '\(val)' in '\(value)'")
                 }
-                self.count = count
+                count = parsed
             case "cpus":
-                guard let cpus = Int64(val), cpus > 0 else {
+                guard let parsed = Int64(val) else {
                     throw ValidationError("invalid worker cpus '\(val)' in '\(value)'")
                 }
-                self.cpus = cpus
+                cpus = parsed
             case "memory":
-                try Self.validateMemory(val, in: value)
-                self.memory = val
+                memory = val
             default:
                 throw ValidationError("unknown worker option '\(key)' in '\(value)'. Available options: count, cpus, memory")
             }
         }
-        guard count > 0 || (cpus == nil && memory == nil) else {
-            throw ValidationError("worker group '\(value)' sizes workers but has count=0")
+        do {
+            try self.init(count: count, cpus: cpus, memory: memory)
+        } catch let error as ValidationError {
+            throw ValidationError("\(error.message) in '\(value)'")
         }
     }
+}
 
-    /// Validates a memory size such as `8g`; rejects unparsable, zero, negative, and out-of-range values.
-    private static func validateMemory(_ size: String, in value: String) throws {
-        let mib: Double
-        do {
-            mib = try Measurement<UnitInformationStorage>.parse(parsing: size).converted(to: .mebibytes).value
-        } catch {
-            throw ValidationError("invalid memory '\(size)' in '\(value)': \(error)")
-        }
-        // Leave headroom so converting to bytes cannot overflow.
-        guard mib.isFinite, mib >= 1, mib < Double(Int64.max / (1024 * 1024)) else {
-            throw ValidationError("memory '\(size)' in '\(value)' is out of range")
+extension ValidationError {
+    /// A `ValidationError` carrying the message of `error`, so ArgumentParser reports it cleanly.
+    init(wrapping error: any Error) {
+        if let error = error as? ContainerizationError {
+            self.init(error.message)
+        } else {
+            self.init("\(error)")
         }
     }
 }
