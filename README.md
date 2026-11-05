@@ -88,6 +88,7 @@ To retain your user data so that it is available should you reinstall later, run
 
 - Take [a guided tour of `container`](./docs/tutorials/start-here.md) by building, running, and publishing a simple web server image.
 - Learn how to [use various `container` features](./docs/how-to.md).
+- Explore the [container-examples repo](https://github.com/apple/container-examples/) that contains examples that show you how to work with `container`, such as [developing Linux apps in a container machine with Visual Studio Code](https://github.com/apple/container-examples/tree/main/container-machine-vscode) and [running a three-tier app on a container cluster behind a gateway](https://github.com/apple/container-examples/tree/main/container-cluster-gateway).
 - Read a brief description and [technical overview](./docs/technical-overview.md) of `container`.
 - Browse the [full command reference](./docs/command-reference.md).
 - [Build and run](./BUILDING.md) `container` on your own development system.

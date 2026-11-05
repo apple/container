@@ -1,3 +1,0 @@
-flask
-flask-cors
-valkey
