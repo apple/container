@@ -78,7 +78,7 @@ struct TestClusterMultiNodeSerial {
             }
 
             // container cluster list should surface every node under the same cluster.
-            let listResult = try f.run(["cluster", "list"])
+            let listResult = try f.run(["cluster", "list", "--nodes"])
             #expect(listResult.status == 0)
             #expect(listResult.output.contains(name))
             for workerName in workerNames {

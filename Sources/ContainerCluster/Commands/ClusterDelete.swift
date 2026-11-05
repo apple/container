@@ -16,6 +16,7 @@
 
 import ArgumentParser
 import ContainerAPIClient
+import ContainerClusterServiceClient
 import ContainerLog
 import ContainerResource
 import ContainerizationError
@@ -38,6 +39,7 @@ public struct ClusterDelete: AsyncParsableCommand {
         let log = Logger(label: ClusterHelper.pluginName)
 
         let client = ContainerClient()
+        let clusterClient = ClusterClient()
 
         let clusterContainer = try? await client.get(id: name)
         if let container = clusterContainer {
@@ -48,6 +50,17 @@ public struct ClusterDelete: AsyncParsableCommand {
         }
 
         let workerNames = (try? await ClusterHelper.workerContainerNames(clusterName: name, client: client)) ?? []
+        let hasStoredConfiguration: Bool
+        do {
+            _ = try await clusterClient.get(name: name)
+            hasStoredConfiguration = true
+        } catch let error as ContainerizationError where error.code == .notFound {
+            hasStoredConfiguration = false
+        }
+        guard clusterContainer != nil || !workerNames.isEmpty || hasStoredConfiguration else {
+            throw ContainerizationError(.notFound, message: "cluster \(name) not found")
+        }
+
         var failures: [(name: String, error: Error)] = []
 
         for workerName in workerNames {
@@ -72,17 +85,17 @@ public struct ClusterDelete: AsyncParsableCommand {
             failures.append((name, error))
         }
 
-        // Only touch the kubeconfig for a cluster we found. Otherwise the entries
-        // named `name` belong to someone else, so leave them alone.
-        if clusterContainer != nil || !workerNames.isEmpty {
-            try ClusterHelper.removeConfig(containerId: name, log: log)
-        } else {
-            log.debug("no cluster container found, leaving kubeconfig untouched", metadata: ["name": "\(name)"])
-        }
-
         guard failures.isEmpty else {
             let details = failures.map { "\($0.name): \($0.error)" }.joined(separator: "; ")
             throw ContainerizationError(.internalError, message: "failed to delete node(s): \(details)")
+        }
+
+        try ClusterHelper.removeConfig(containerId: name, log: log)
+
+        do {
+            try await clusterClient.delete(name: name)
+        } catch let error as ContainerizationError where error.code == .invalidArgument || error.code == .notFound {
+            // No record to remove: the name is not one the service can have recorded, or the cluster has none.
         }
 
         print(name)

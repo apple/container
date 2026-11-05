@@ -63,6 +63,8 @@ List all clusters and their status:
 container cluster list
 ```
 
+Add `--nodes` to show one row per node instead of one row per cluster. Clusters created with an earlier version are not listed.
+
 ### Cluster lifecycle
 
 Create a cluster, use it with kubectl, and delete it when finished:
@@ -200,6 +202,8 @@ To have a cluster automatically remove itself when stopped, create it with `--rm
 ```bash
 container cluster create --name temp-cluster --rm
 ```
+
+The node containers are removed when they stop, but the cluster's stored configuration remains, so the cluster shows as `stopped` in `container cluster list` until you run `container cluster delete --name temp-cluster` or create a cluster with the same name again (which clears the stale configuration).
 
 ### Recovering a stopped cluster
 

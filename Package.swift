@@ -34,6 +34,7 @@ let package = Package(
         .library(name: "ContainerAPIService", targets: ["ContainerAPIService"]),
         .library(name: "ContainerAPIClient", targets: ["ContainerAPIClient"]),
         .library(name: "ContainerImagesService", targets: ["ContainerImagesService", "ContainerImagesServiceClient"]),
+        .library(name: "ContainerClusterService", targets: ["ContainerClusterService", "ContainerClusterServiceClient"]),
         .library(name: "ContainerNetworkClient", targets: ["ContainerNetworkClient"]),
         .library(name: "ContainerNetworkServer", targets: ["ContainerNetworkServer"]),
         .library(name: "ContainerNetworkVmnetServer", targets: ["ContainerNetworkVmnetServer"]),
@@ -183,8 +184,20 @@ let package = Package(
             dependencies: [
                 "ContainerAPIClient",
                 "ContainerCluster",
+                "ContainerClusterServiceClient",
                 "ContainerResource",
                 "Yams",
+            ]
+        ),
+        .testTarget(
+            name: "ContainerClusterServiceTests",
+            dependencies: [
+                .product(name: "Logging", package: "swift-log"),
+                .product(name: "SystemPackage", package: "swift-system"),
+                "ContainerClusterService",
+                "ContainerClusterServiceClient",
+                "ContainerResource",
+                "ContainerXPC",
             ]
         ),
         .target(
@@ -197,6 +210,7 @@ let package = Package(
                 .product(name: "ContainerizationOS", package: "containerization"),
                 .product(name: "SystemPackage", package: "swift-system"),
                 "ContainerAPIClient",
+                "ContainerClusterServiceClient",
                 "ContainerLog",
                 "ContainerPersistence",
                 "ContainerPlugin",
@@ -338,6 +352,25 @@ let package = Package(
             ]
         ),
         .executableTarget(
+            name: "container-core-clusters",
+            dependencies: [
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                .product(name: "Logging", package: "swift-log"),
+                .product(name: "SystemPackage", package: "swift-system"),
+                "ContainerAPIClient",
+                "ContainerClusterService",
+                "ContainerClusterServiceClient",
+                "ContainerLog",
+                "ContainerPersistence",
+                "ContainerPlugin",
+                "ContainerResource",
+                "ContainerVersion",
+                "ContainerXPC",
+            ],
+            path: "Sources/Plugins/CoreClusters",
+            exclude: ["config.toml"]
+        ),
+        .executableTarget(
             name: "container-core-images",
             dependencies: [
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
@@ -372,6 +405,29 @@ let package = Package(
                 "TerminalProgress",
             ],
             path: "Sources/Services/ContainerImagesService/Server"
+        ),
+        .target(
+            name: "ContainerClusterService",
+            dependencies: [
+                .product(name: "Logging", package: "swift-log"),
+                .product(name: "Containerization", package: "containerization"),
+                .product(name: "SystemPackage", package: "swift-system"),
+                "ContainerClusterServiceClient",
+                "ContainerPersistence",
+                "ContainerResource",
+                "ContainerXPC",
+            ],
+            path: "Sources/Services/ContainerClusterService/Server"
+        ),
+        .target(
+            name: "ContainerClusterServiceClient",
+            dependencies: [
+                .product(name: "Logging", package: "swift-log"),
+                .product(name: "Containerization", package: "containerization"),
+                "ContainerResource",
+                "ContainerXPC",
+            ],
+            path: "Sources/Services/ContainerClusterService/Client"
         ),
         .target(
             name: "ContainerImagesServiceClient",

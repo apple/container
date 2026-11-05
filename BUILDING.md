@@ -240,6 +240,7 @@ Attach debugger to the XPC helpers using their launchd service labels:
    % launchctl list | grep container
    27068   0       com.apple.container.container-network-vmnet.default
    27072   0       com.apple.container.container-core-images
+   27073   0       com.apple.container.container-core-clusters
    26980   0       com.apple.container.apiserver
    27331   0       com.apple.container.container-runtime-linux.test
    ```

@@ -16,6 +16,7 @@
 
 import ContainerAPIClient
 import ContainerPersistence
+import ContainerResource
 import ContainerizationError
 import ContainerizationOCI
 import Logging
@@ -50,16 +51,5 @@ extension ClusterHelper {
         guard let ref = try? Reference.parse(reference) else { return reference }
         ref.normalize()
         return ref.description
-    }
-
-    /// kubeadm needs the exact version, and only the tag carries it.
-    static func kubernetesVersion(nodeImage: String) throws -> String {
-        let nameAndTag = nodeImage.split(separator: "@").first.map(String.init) ?? nodeImage
-        guard let ref = try? Reference.parse(nameAndTag), let tag = ref.tag else {
-            throw ContainerizationError(
-                .invalidArgument,
-                message: "node image \(nodeImage) has no tag; use a tagged image such as docker.io/kindest/node:v1.34.11")
-        }
-        return tag
     }
 }
