@@ -1636,7 +1636,7 @@ Creates and starts a local Kubernetes cluster and optional worker nodes. Pulls t
 **Usage**
 
 ```bash
-container cluster create [--name <name>] [--node-image <image>] [--cni <path>] [--workers <n>] [--shared-image-store] [--rm] [<resource options>] [--debug]
+container cluster create [--name <name>] [--node-image <image>] [--cni <path>] [--workers <n>] [--shared-image-store] [--rm] [--retain] [<resource options>] [--debug]
 ```
 
 **Options**
@@ -1647,6 +1647,7 @@ container cluster create [--name <name>] [--node-image <image>] [--cni <path>] [
 *   `--workers <n>`: Number of worker nodes to create (default: `0`, meaning the control-plane node also acts as a worker)
 *   `--shared-image-store`: Let nodes pull images from the local image store (default: off). See [Container cluster](cluster.md).
 *   `--rm`: Remove the cluster container after it stops
+*   `--retain`: Keep started nodes running and cluster metadata if cluster creation fails, for inspection, for example with `container exec <name> journalctl -u kubelet`. A node that fails before it finishes starting is still removed. The cluster metadata (its stored configuration) is always kept, even if no nodes were retained. Remove it and any retained nodes afterward with `container cluster delete`. With `--rm`, a retained node is removed once it stops.
 
 **Resource Options**
 
@@ -1684,6 +1685,9 @@ container cluster create --name my-cluster --workers 3
 
 # create a cluster whose nodes can pull images from the local image store
 container cluster create --shared-image-store
+
+# keep the nodes running for inspection if cluster creation fails
+container cluster create --name my-cluster --retain
 ```
 
 ### `container cluster delete (rm)`

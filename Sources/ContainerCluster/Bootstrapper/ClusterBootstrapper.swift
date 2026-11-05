@@ -33,6 +33,7 @@ public struct ClusterBootstrapper: Sendable {
     let sharedImageStore: Bool
     let controlPlane: any NodeProvisioner
     let workers: [any NodeProvisioner]
+    let retain: Bool
 
     /// - Parameters:
     ///   - name: Cluster name, also the control-plane node's name.
@@ -45,6 +46,7 @@ public struct ClusterBootstrapper: Sendable {
     ///     `StandardRoles.worker` when the cluster has no separate workers.
     ///   - workers: Provisioners for the worker nodes to join, in order. Each must be named
     ///     `ClusterHelper.workerName(cluster:index:)`, which `list` and `delete` rely on.
+    ///   - retain: Leaves started nodes running if a bootstrap step fails, so they can be inspected.
     public init(
         name: String,
         kubernetesVersion: String,
@@ -52,7 +54,8 @@ public struct ClusterBootstrapper: Sendable {
         fqdn: String?,
         sharedImageStore: Bool,
         controlPlane: any NodeProvisioner,
-        workers: [any NodeProvisioner]
+        workers: [any NodeProvisioner],
+        retain: Bool = false
     ) {
         self.name = name
         self.kubernetesVersion = kubernetesVersion
@@ -61,6 +64,7 @@ public struct ClusterBootstrapper: Sendable {
         self.sharedImageStore = sharedImageStore
         self.controlPlane = controlPlane
         self.workers = workers
+        self.retain = retain
     }
 
     var skipCNI: Bool { cni?.uppercased() == ClusterHelper.noCNIName }
@@ -84,12 +88,14 @@ public struct ClusterBootstrapper: Sendable {
     }
 
     /// Creates the cluster and merges its kubeconfig. On failure, tears down every
-    /// node this bootstrapper started and removes the kubeconfig entries before re-throwing.
+    /// node this bootstrapper started and removes the kubeconfig entries before re-throwing,
+    /// unless `retain` is set. A node whose `provision` fails still cleans up after itself.
     ///
     /// - Parameters:
     ///   - progress: Called with a description at the start of each step.
     ///   - log: Logger for node and bootstrap steps.
-    /// - Throws: The first error from a provisioner or bootstrap step, after cleanup.
+    /// - Throws: The first error from a provisioner or bootstrap step, after cleanup. With `retain`,
+    ///   the nodes this bootstrapper started are left running instead.
     public func create(progress: @Sendable (String) -> Void, log: Logger) async throws {
         let provisioner = controlPlane
         try validateNodeNames()
@@ -146,6 +152,16 @@ public struct ClusterBootstrapper: Sendable {
                 log.info("cluster is running; use 'container cluster write-config --name \(name)' to write the kubeconfig")
             }
         } catch {
+            if retain {
+                // A node may have exited since it started (and been removed, with `--rm`), so these are the nodes started, not necessarily still running.
+                let nodes = ([provisioner] + startedWorkers).map(\.name).joined(separator: ", ")
+                log.warning("cluster create failed; not removing the nodes it started", metadata: ["nodes": "\(nodes)"])
+                // kubectl's kubeconfig is only installed once kubeadm init succeeds, so lead with the kubelet logs.
+                log.info(
+                    "use 'container exec \(name) journalctl -u kubelet' to inspect; if kubeadm init completed, 'container exec \(name) kubectl ...' also works. Run 'container cluster delete --name \(name)' to clean up"
+                )
+                throw error
+            }
             for workerProvisioner in startedWorkers {
                 try? await workerProvisioner.teardown(log: log)
             }

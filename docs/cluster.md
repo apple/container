@@ -214,6 +214,42 @@ container cluster delete --name my-cluster
 container cluster create --name my-cluster
 ```
 
+### Debugging a failed create
+
+When `container cluster create` fails, it removes the nodes it started and the cluster's stored configuration (its metadata). To keep them so you can inspect the nodes, create the cluster with `--retain`:
+
+```bash
+container cluster create --name my-cluster --retain
+container exec my-cluster journalctl -u kubelet
+```
+
+If the failure happened after `kubeadm init` completed, you can also use `kubectl` inside the control-plane node:
+
+```bash
+container exec my-cluster kubectl get pods -A
+container exec my-cluster kubectl describe nodes
+```
+
+`--retain` keeps only nodes that finished starting. A node that fails while it's starting up (for example, while pulling the node image or booting) is still removed. The cluster's stored configuration is always kept, even if no nodes were retained, so `container cluster list` shows the cluster until you run `container cluster delete`.
+
+If the create fails because another container already uses the cluster's name, no nodes are started and `--retain` has no effect. `container cluster delete` refuses to remove a container that isn't a cluster, so remove that container first, then run `container cluster delete` to clear the cluster's stored configuration.
+
+You can combine `--retain` with `--rm`. The retained nodes keep running until you're done inspecting them, and are removed when they stop:
+
+```bash
+container cluster create --name my-cluster --retain --rm
+container exec my-cluster journalctl -u kubelet
+container stop my-cluster
+```
+
+As with any `--rm` cluster, the cluster's stored configuration remains after its nodes are removed, so run `container cluster delete --name my-cluster` to clear it.
+
+When you finish, remove the retained nodes and the cluster's stored configuration:
+
+```bash
+container cluster delete --name my-cluster
+```
+
 ## Common workflows
 
 ### Test a deployment locally before production
