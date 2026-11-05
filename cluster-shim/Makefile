@@ -56,7 +56,7 @@ define linux_run
 	$(require_container)
 	@container image inspect $(BUILD_IMAGE) > /dev/null 2>&1 || "$(MAKE)" image
 	@container volume inspect $(BUILD_VOLUME) > /dev/null 2>&1 || container volume create $(BUILD_VOLUME) > /dev/null
-	container run --rm --memory 8g --cpus 8 \
+	@container run --tty --rm --memory 8g --cpus 8 \
 		-v "$(ROOT_DIR)":/workspace \
 		-v $(BUILD_VOLUME):/build \
 		-w /workspace/cluster-shim \
