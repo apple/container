@@ -139,6 +139,8 @@ spec:
 
 If the local image store does not have an image, or has none of its content for the node's platform, the node pulls it from its registry as usual.
 
+The first time a node uses a local image, it copies the image's content for its platform from your local image store, the same way it stores an image it pulls from a registry.
+
 An image name without a registry, such as `my-app:dev`, is looked up in the local image store the same way `container` resolves it, using your default registry domain (`registry.domain`). Inside the cluster, Kubernetes shows such an image under its docker.io name, for example `docker.io/library/my-app:dev`.
 
 > [!NOTE]
