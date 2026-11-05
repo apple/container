@@ -28,8 +28,19 @@ extension Application {
             abstract: "List running containers",
             aliases: ["ls"])
 
+        public enum LabelFilter: Equatable, Sendable {
+            case presence(key: String)
+            case exact(key: String, value: String)
+        }
+
         @Flag(name: .shortAndLong, help: "Include containers that are not running")
         var all = false
+
+        @Option(
+            name: [.short, .customLong("label")],
+            help: "Filter output based on labels provided (format: key or key=value)"
+        )
+        var label: [String] = []
 
         @Option(name: .long, help: "Format of the output")
         var format: ListFormat = .table
@@ -42,12 +53,60 @@ extension Application {
 
         public init() {}
 
+        public static func parseLabelFilter(_ spec: String) throws -> LabelFilter {
+            guard !spec.isEmpty else {
+                throw ValidationError("Invalid label filter: label key cannot be empty")
+            }
+            guard let equalIndex = spec.firstIndex(of: "=") else {
+                return .presence(key: spec)
+            }
+            let key = String(spec[..<equalIndex])
+            let value = String(spec[spec.index(after: equalIndex)...])
+            guard !key.isEmpty else {
+                throw ValidationError("Invalid label filter '\(spec)': label key cannot be empty")
+            }
+            return .exact(key: key, value: value)
+        }
+
+        public static func matches(container: ContainerSnapshot, filters: [LabelFilter]) -> Bool {
+            for filter in filters {
+                switch filter {
+                case .presence(let key):
+                    guard container.configuration.labels.keys.contains(key) else {
+                        return false
+                    }
+                case .exact(let key, let value):
+                    guard container.configuration.labels[key] == value else {
+                        return false
+                    }
+                }
+            }
+            return true
+        }
+
         public func run() async throws {
             let client = ContainerClient()
 
-            let filters = ContainerListFilters(status: self.all ? nil : .running).withoutMachines()
+            let parsedFilters = try self.label.map { try Self.parseLabelFilter($0) }
+
+            var serverLabels: [String: String] = [:]
+            for filter in parsedFilters {
+                switch filter {
+                case .exact(let key, let value):
+                    serverLabels[key] = "^\(NSRegularExpression.escapedPattern(for: value))$"
+                case .presence:
+                    break
+                }
+            }
+
+            let filters = ContainerListFilters(
+                status: self.all ? nil : .running,
+                labels: serverLabels
+            ).withoutMachines()
+
             let containers = try await client.list(filters: filters)
-            let items = containers.map { ManagedContainer($0) }
+            let matchingContainers = containers.filter { Self.matches(container: $0, filters: parsedFilters) }
+            let items = matchingContainers.map { ManagedContainer($0) }
             try Output.render(payload: items, display: items, format: format, quiet: quiet)
         }
     }
