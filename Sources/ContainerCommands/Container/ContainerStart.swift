@@ -58,7 +58,7 @@ extension Application {
             let client = ContainerClient()
             // Cluster nodes are managed by `container cluster`, so starting one reports it as not found.
             let filters = ContainerListFilters().withoutPlugins([ResourcePluginValues.cluster])
-            let container = try await Application.findContainer(id: containerId, filters: filters, client: client)
+            let container = try await client.findContainer(id: containerId, filters: filters)
 
             // Bootstrap and process start are both idempotent and don't fail the second time
             // around, however not doing an rpc is always faster :). The other bit is we don't

@@ -66,7 +66,7 @@ extension Application {
             } else {
                 // Cluster nodes are managed by `container cluster`, so naming one reports it as not found.
                 let filters = ContainerListFilters().withoutPlugins([ResourcePluginValues.cluster])
-                let (found, notFoundErrors) = try await Application.findContainers(named: containerIds, filters: filters, client: client)
+                let (found, notFoundErrors) = try await client.findContainers(named: containerIds, filters: filters)
                 containers = found.map { $0.id }
                 errors += notFoundErrors
             }

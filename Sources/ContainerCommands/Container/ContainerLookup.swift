@@ -18,13 +18,12 @@ import ContainerAPIClient
 import ContainerResource
 import ContainerizationError
 
-extension Application {
+extension ContainerClient {
     /// Looks up the named containers through `filters`, keeping the order given. Containers that don't exist,
     /// or that `filters` hides (such as plugin-managed containers), are reported in `notFoundErrors`.
-    static func findContainers(
+    func findContainers(
         named ids: [String],
-        filters: ContainerListFilters,
-        client: ContainerClient
+        filters: ContainerListFilters
     ) async throws -> (found: [ContainerSnapshot], notFoundErrors: [any Error]) {
         // An empty ID filter matches every container, so there is nothing to look up.
         guard !ids.isEmpty else {
@@ -32,7 +31,7 @@ extension Application {
         }
         var filters = filters
         filters.ids = ids
-        let byId = Dictionary(uniqueKeysWithValues: try await client.list(filters: filters).map { ($0.id, $0) })
+        let byId = Dictionary(uniqueKeysWithValues: try await list(filters: filters).map { ($0.id, $0) })
 
         let found = ids.compactMap { byId[$0] }
         let notFoundErrors: [any Error] = ids.filter { byId[$0] == nil }.map { id in
@@ -43,8 +42,8 @@ extension Application {
 
     /// Looks up a single container through `filters`, throwing a not-found error if it doesn't exist
     /// or `filters` hides it.
-    static func findContainer(id: String, filters: ContainerListFilters, client: ContainerClient) async throws -> ContainerSnapshot {
-        let (found, _) = try await findContainers(named: [id], filters: filters, client: client)
+    func findContainer(id: String, filters: ContainerListFilters) async throws -> ContainerSnapshot {
+        let (found, _) = try await findContainers(named: [id], filters: filters)
         guard let container = found.first else {
             throw ContainerizationError(.notFound, message: "container with ID \(id) not found")
         }
