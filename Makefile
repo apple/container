@@ -473,7 +473,12 @@ cleancontent:
 	@rm -rf ~/Library/Application\ Support/com.apple.container
 
 .PHONY: clean
-clean: cleantest cleanbuild
+clean: cleanclustershim cleantest cleanbuild
+
+.PHONY: cleanclustershim
+cleanclustershim:
+	@echo Cleaning cluster-shim build files...
+	@"$(MAKE)" -C cluster-shim clean
 
 .PHONY: cleanbuild
 cleanbuild:

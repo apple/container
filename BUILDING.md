@@ -32,7 +32,8 @@ This is the quickest way to verify your toolchain after cloning. `make verify` r
 | `make test` | Runs the unit tests. |
 | `make integration` | Runs the CLI and integration test suites. These start the `container` services, create containers, and boot virtual machines. |
 | `make install` | Builds an installer package and installs it to `/usr/local`. |
-| `make clean` | Runs `cleantest`, then `cleanbuild`. |
+| `make clean` | Runs `cleanclustershim`, `cleantest`, then `cleanbuild`. |
+| `make cleanclustershim` | Removes the cluster-shim binary, build image, and build volume. |
 | `make cleanbuild` | Removes `bin/`, `libexec/`, generated docs, and coverage output. |
 | `make cleantest` | Stops the `container` services and removes the `APP_ROOT` and `SCRATCH_ROOT` directories. |
 
@@ -92,7 +93,7 @@ BUILD_CONFIGURATION=release make install
 
 ### Clean up
 
-Stop the services, remove the build outputs, and delete the test directories:
+Remove the cluster-shim build files, stop the services, remove the build outputs, and delete the test directories:
 
 ```bash
 make clean

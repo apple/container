@@ -135,3 +135,5 @@ install: build
 .PHONY: clean
 clean:
 	rm -rf bin .build
+	@container image delete --force $(BUILD_IMAGE) > /dev/null 2>&1 || true
+	@container volume delete $(BUILD_VOLUME) > /dev/null 2>&1 || true
