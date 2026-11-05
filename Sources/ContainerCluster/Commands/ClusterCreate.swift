@@ -61,6 +61,9 @@ public struct ClusterCreate: AsyncParsableCommand {
     @Flag(help: "Let nodes pull images from the local image store")
     var sharedImageStore = false
 
+    @Flag(help: "Keep started nodes running and cluster metadata if cluster creation fails, for inspection.")
+    var retain = false
+
     public func validate() throws {
         guard workers <= ClusterConfiguration.maxWorkers else {
             throw ValidationError("--workers must be at most \(ClusterConfiguration.maxWorkers)")
@@ -146,7 +149,8 @@ public struct ClusterCreate: AsyncParsableCommand {
             fqdn: fqdn,
             sharedImageStore: sharedImageStore,
             controlPlane: controlPlane,
-            workers: workerNodes
+            workers: workerNodes,
+            retain: retain
         )
 
         // Record the cluster before provisioning. Fails `.exists` for a live duplicate and replaces stale records.
@@ -156,8 +160,11 @@ public struct ClusterCreate: AsyncParsableCommand {
         do {
             try await clusterBootstrapper.create(progress: { progress.set(description: $0) }, log: log)
         } catch {
-            // `.exists` means a container with this name is already there; the record may belong to another live create.
-            if (error as? ContainerizationError)?.code != .exists { try? await clusterClient.delete(name: name) }
+            // `.exists` means a container with this name is already there; the record may belong to another live create,
+            // and `cluster delete` would remove that cluster or refuse an unrelated container, so leave both alone.
+            // With `--retain`, keep the record so `cluster delete` can find any retained nodes.
+            let nameTaken = (error as? ContainerizationError)?.code == .exists
+            if !retain, !nameTaken { try? await clusterClient.delete(name: name) }
             throw error
         }
 
