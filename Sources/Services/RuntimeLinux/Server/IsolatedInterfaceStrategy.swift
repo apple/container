@@ -23,7 +23,11 @@ import Containerization
 /// container to container networking, but it is the only approach that
 /// works for macOS Sequoia.
 public struct IsolatedInterfaceStrategy: InterfaceStrategy {
-    public init() {}
+    private let defaultMTU: UInt32
+
+    public init(defaultMTU: UInt32) {
+        self.defaultMTU = defaultMTU
+    }
 
     public func toInterface(attachment: Attachment, interfaceIndex: Int, additionalData: XPCMessage?) -> Interface {
         let ipv4Gateway = interfaceIndex == 0 ? attachment.ipv4Gateway : nil
@@ -31,8 +35,7 @@ public struct IsolatedInterfaceStrategy: InterfaceStrategy {
             ipv4Address: attachment.ipv4Address,
             ipv4Gateway: ipv4Gateway,
             macAddress: attachment.macAddress,
-            // https://github.com/apple/containerization/pull/38
-            mtu: attachment.mtu ?? 1280
+            mtu: attachment.mtu ?? defaultMTU
         )
     }
 }

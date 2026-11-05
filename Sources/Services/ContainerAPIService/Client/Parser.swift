@@ -947,13 +947,7 @@ public struct Parser {
                 }
                 macAddress = value
             case "mtu":
-                guard let mtuValue = UInt32(value), mtuValue >= 1280, mtuValue <= 65535 else {
-                    throw ContainerizationError(
-                        .invalidArgument,
-                        message: "invalid mtu value '\(value)': must be between 1280 and 65535"
-                    )
-                }
-                mtu = mtuValue
+                mtu = try NetworkMTU.parse(value)
             case "alias":
                 do {
                     aliases.append(try DNSMatchRule(value).description)
