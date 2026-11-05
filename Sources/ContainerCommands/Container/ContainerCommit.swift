@@ -17,7 +17,6 @@
 import ArgumentParser
 import ContainerAPIClient
 import Foundation
-import SystemPackage
 
 extension Application {
     public struct ContainerCommit: AsyncLoggableCommand {
@@ -40,30 +39,9 @@ extension Application {
 
         public func run() async throws {
             let client = ContainerClient()
-            let containerSystemConfig = try await ClientHealthCheck.loadContainerSystemConfig()
-            let normalizedReference = try ClientImage.normalizeReference(reference, containerSystemConfig: containerSystemConfig)
-            let snapshot = try await client.get(id: id)
-            let platform = snapshot.configuration.platform
-            let sourceImage = try await ClientImage(description: snapshot.configuration.image).config(for: platform)
-            let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-
-            try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-            defer {
-                try? FileManager.default.removeItem(at: tempDir)
-            }
-
-            let rootfsArchive = tempDir.appendingPathComponent("rootfs.tar")
-            try await client.export(id: id, archive: rootfsArchive)
-
-            let imageArchive = try OCIImageArchive.create(
-                from: rootfsArchive,
-                in: tempDir,
-                reference: normalizedReference,
-                container: snapshot,
-                sourceImage: sourceImage
-            )
-
-            try await ImageLoad.load(from: FilePath(imageArchive.path()), log: log)
+            let image = try await client.commit(id: id, reference: reference)
+            try await image.unpack(platform: nil)
+            print(image.reference)
         }
     }
 }

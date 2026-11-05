@@ -406,6 +406,25 @@ public struct ContainersHarness: Sendable {
     }
 
     @Sendable
+    public func commit(_ message: XPCMessage) async throws -> XPCMessage {
+        guard let id = message.string(key: .id) else {
+            throw ContainerizationError(.invalidArgument, message: "id cannot be empty")
+        }
+        guard ManagedContainer.nameValid(id) else {
+            throw ContainerizationError(.invalidArgument, message: "container ID \(id) is not a valid container ID")
+        }
+        guard let reference = message.string(key: .commitImageReference) else {
+            throw ContainerizationError(.invalidArgument, message: "image reference cannot be empty")
+        }
+
+        let image = try await service.commit(id: id, reference: reference)
+        let data = try JSONEncoder().encode(image)
+        let reply = message.reply()
+        reply.set(key: .committedImage, value: data)
+        return reply
+    }
+
+    @Sendable
     public func clean(_ message: XPCMessage) async throws -> XPCMessage {
         let id = message.string(key: .id)
         guard let id else {

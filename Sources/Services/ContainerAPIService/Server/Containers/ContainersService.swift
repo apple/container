@@ -949,6 +949,36 @@ public actor ContainersService {
         }
     }
 
+    public func commit(id: String, reference: String) async throws -> ImageDescription {
+        let state = try self._getContainerState(id: id)
+        let snapshot = state.snapshot
+        let normalizedReference = try ClientImage.normalizeReference(reference, containerSystemConfig: containerSystemConfig)
+        let sourceImage = try await ClientImage(description: snapshot.configuration.image)
+            .config(for: snapshot.configuration.platform)
+
+        let temporaryDirectory = FileManager.default.uniqueTemporaryDirectory()
+        try FileManager.default.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.removeItem(at: temporaryDirectory)
+        }
+
+        let rootfsArchive = temporaryDirectory.appendingPathComponent("rootfs.tar")
+        try await exportRootfs(id: id, archive: rootfsArchive)
+
+        let imageArchive = try OCIImageArchive.create(
+            from: rootfsArchive,
+            in: temporaryDirectory,
+            reference: normalizedReference,
+            container: snapshot,
+            sourceImage: sourceImage
+        )
+        let result = try await ClientImage.load(from: imageArchive.path())
+        guard let image = result.images.first(where: { $0.reference == normalizedReference }) else {
+            throw ContainerizationError(.internalError, message: "committed image was not returned by image load")
+        }
+        return image.description
+    }
+
     public func clean(id: String) async throws {
         self.log.debug("\(#function)")
 

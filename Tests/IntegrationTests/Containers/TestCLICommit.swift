@@ -57,7 +57,7 @@ struct TestCLICommitCommand {
                 #expect(try f.isImagePresent(reference))
                 try assertCommittedImageMetadata(f, reference: reference)
 
-                try await f.withContainer(image: reference) { committedName in
+                try await f.withContainer(image: reference, tag: "committed", containerArgs: []) { committedName in
                     let output = try f.doExec(committedName, cmd: ["cat", "/committed-file"])
                     #expect(output.trimmingCharacters(in: .whitespacesAndNewlines) == expected)
 
@@ -82,8 +82,13 @@ struct TestCLICommitCommand {
 
         let decoder = JSONDecoder()
         let index = try decoder.decode(Index.self, from: Data(contentsOf: URL(filePath: extractedDirectory.appending("index.json").string)))
-        let manifestDescriptor = try #require(index.manifests.first)
+        var manifestDescriptor = try #require(index.manifests.first)
         #expect(manifestDescriptor.annotations?["org.opencontainers.image.ref.name"] == reference)
+
+        if manifestDescriptor.mediaType == MediaTypes.index {
+            let nestedIndex = try decoder.decode(Index.self, from: blobData(manifestDescriptor, in: extractedDirectory))
+            manifestDescriptor = try #require(nestedIndex.manifests.first)
+        }
 
         let manifest = try decoder.decode(Manifest.self, from: blobData(manifestDescriptor, in: extractedDirectory))
         #expect(manifest.layers.count == 1)
