@@ -149,6 +149,19 @@ extension Bundle {
         try setContainerRootFs(fs: cloned)
     }
 
+    /// Replace the initial filesystem of a bundle that already has one.
+    public func replaceInitialFilesystem(cloning fs: Filesystem) throws {
+        let initfs = self.path.appendingPathComponent(Self.initfsFilename)
+        guard FileManager.default.fileExists(atPath: initfs.path) else {
+            return
+        }
+        // Clone next to the old block and swap, so a failed clone leaves the bundle bootable.
+        let staged = initfs.appendingPathExtension("new")
+        try? FileManager.default.removeItem(at: staged)
+        _ = try fs.clone(to: staged.path)
+        _ = try FileManager.default.replaceItemAt(initfs, withItemAt: staged)
+    }
+
     /// Delete the bundle and all of the resources contained inside.
     public func delete() throws {
         try FileManager.default.removeItem(at: self.path)
