@@ -48,8 +48,7 @@ public actor ExitMonitor {
         if let task = self.runningTasks[id] {
             task.cancel()
         }
-        exitCallbacks.removeValue(forKey: id)
-        runningTasks.removeValue(forKey: id)
+        finishTracking(id: id)
     }
 
     /// Register long running work so that the monitor invokes
@@ -86,6 +85,14 @@ public actor ExitMonitor {
                 self.log?.error("WaitHandler for \(id) threw error \(String(describing: error))")
                 try? await onExit(id, ExitStatus(exitCode: -1))
             }
+            // Drop callback/task entries once the exit path finishes so completed
+            // work does not retain host state indefinitely (apple/container#2057).
+            await self.finishTracking(id: id)
         }
+    }
+
+    private func finishTracking(id: String) {
+        exitCallbacks.removeValue(forKey: id)
+        runningTasks.removeValue(forKey: id)
     }
 }
