@@ -90,6 +90,10 @@ BUILD_CONFIGURATION=release make verify
 BUILD_CONFIGURATION=release make install
 ```
 
+Release builds strip local symbols from the installed binaries and leave out `-enable-testing`, which keeps the installer package smaller. The goals that build or run tests still enable testing, so `BUILD_CONFIGURATION=release make verify` works as above. To change this, set `STRIP_BINARIES=false` to keep the symbols, `STRIP_OPTS=` to use a plain `strip`, or `ENABLE_TESTING=true` to build a testable release.
+
+Use `make dsym` after building to archive the debug symbols for every installed executable in `bin/<configuration>/bundle/container-dSYM.zip`. Keep this archive with each release, because the stripped binaries rely on it to symbolicate crash reports. The target generates a dSYM when the build did not produce one, and fails if a dSYM does not match its binary.
+
 ### Clean up
 
 Stop the services, remove the build outputs, and delete the test directories:
