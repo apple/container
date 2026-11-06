@@ -79,4 +79,43 @@ struct NetworkMTUTests {
             return description.contains("invalid mtu value '\(config)'") && description.contains("[network] mtu")
         }
     }
+
+    @Test
+    func resolveIgnoresTheProcessEnvironmentUnlessGivenIt() throws {
+        #expect(try NetworkMTU.resolve(config: 1400, environment: [:]) == 1400)
+    }
+
+    @Test
+    func theEnvironmentBeatsTheConfig() throws {
+        #expect(try NetworkMTU.resolve(config: 1400, environment: [NetworkMTU.environmentVariable: "1500"]) == 1500)
+    }
+
+    @Test
+    func theEnvironmentBeatsTheDefault() throws {
+        #expect(try NetworkMTU.resolve(config: nil, environment: [NetworkMTU.environmentVariable: "1500"]) == 1500)
+    }
+
+    @Test
+    func anEmptyEnvironmentVariableCountsAsUnset() throws {
+        #expect(try NetworkMTU.resolve(config: 1400, environment: [NetworkMTU.environmentVariable: ""]) == 1400)
+    }
+
+    @Test(arguments: [String(lower - 1), String(upper + 1), "abc"])
+    func anInvalidEnvironmentVariableIsRejectedAndNamed(value: String) {
+        #expect {
+            _ = try NetworkMTU.resolve(config: nil, environment: [NetworkMTU.environmentVariable: value])
+        } throws: { error in
+            let description = String(describing: error)
+            return description.contains("invalid mtu value '\(value)'") && description.contains(NetworkMTU.environmentVariable)
+        }
+    }
+
+    @Test
+    func anInvalidConfigIsRejectedEvenWhenTheEnvironmentWins() {
+        #expect {
+            _ = try NetworkMTU.resolve(config: Int(Self.lower) - 1, environment: [NetworkMTU.environmentVariable: "1500"])
+        } throws: { error in
+            String(describing: error).contains("[network] mtu")
+        }
+    }
 }

@@ -61,7 +61,7 @@ container run [<options>] <image> [<arguments> ...]
 *   `--masked-path <path>`: **Experimental.** Hide a path inside the container, in addition to the runtime defaults (or `NONE` to clear prior values and the defaults)
 *   `--mount <mount>`: Add a mount to the container (format: type=<>,source=<>,target=<>,readonly)
 *   `--name <name>`: Use the specified name as the container ID
-*   `--network <network>`: Attach the container to a network (format: `<name>[,mac=XX:XX:XX:XX:XX:XX][,mtu=VALUE][,alias=NAME]...`). Use `alias` to give the container additional DNS names; see [Give a container additional DNS names](networking.md#give-a-container-additional-dns-names)
+*   `--network <network>`: Attach the container to a network (format: `<name>[,mac=XX:XX:XX:XX:XX:XX][,mtu=VALUE][,alias=NAME]...`). `CONTAINER_NETWORK_MTU` sets the default `mtu`; see [Configure the network MTU](networking.md#configure-the-network-mtu). Use `alias` to give the container additional DNS names; see [Give a container additional DNS names](networking.md#give-a-container-additional-dns-names)
 *   `--no-dns`: Do not configure DNS in the container
 *   `--os <os>`: Set OS if image can target multiple operating systems (default: from image, else linux)
 *   `-p, --publish <spec>`: Publish a port from container to host (format: [host-ip:]host-port:container-port[/protocol])
@@ -229,7 +229,7 @@ container create [<options>] <image> [<arguments> ...]
 *   `--masked-path <path>`: **Experimental.** Hide a path inside the container, in addition to the runtime defaults (or `NONE` to clear prior values and the defaults)
 *   `--mount <mount>`: Add a mount to the container (format: type=<>,source=<>,target=<>,readonly)
 *   `--name <name>`: Use the specified name as the container ID
-*   `--network <network>`: Attach the container to a network (format: `<name>[,mac=XX:XX:XX:XX:XX:XX][,mtu=VALUE][,alias=NAME]...`). Use `alias` to give the container additional DNS names; see [Give a container additional DNS names](networking.md#give-a-container-additional-dns-names)
+*   `--network <network>`: Attach the container to a network (format: `<name>[,mac=XX:XX:XX:XX:XX:XX][,mtu=VALUE][,alias=NAME]...`). `CONTAINER_NETWORK_MTU` sets the default `mtu`; see [Configure the network MTU](networking.md#configure-the-network-mtu). Use `alias` to give the container additional DNS names; see [Give a container additional DNS names](networking.md#give-a-container-additional-dns-names)
 *   `--no-dns`: Do not configure DNS in the container
 *   `--os <os>`: Set OS if image can target multiple operating systems (default: from image, else linux)
 *   `-p, --publish <spec>`: Publish a port from container to host (format: [host-ip:]host-port:container-port[/protocol])

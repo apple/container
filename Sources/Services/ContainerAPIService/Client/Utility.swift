@@ -217,7 +217,7 @@ public struct Utility {
                 builtinNetworkId: builtinNetworkId,
                 networks: parsedNetworks,
                 dnsDomain: containerSystemConfig.dns.domain,
-                defaultMTU: NetworkMTU.resolve(config: containerSystemConfig.network.mtu),
+                defaultMTU: NetworkMTU.resolve(config: containerSystemConfig.network.mtu, environment: ProcessInfo.processInfo.environment),
             )
             for attachmentConfiguration in config.networks {
                 _ = try await networkClient.get(id: attachmentConfiguration.network)

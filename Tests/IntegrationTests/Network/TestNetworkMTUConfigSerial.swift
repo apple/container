@@ -67,6 +67,24 @@ struct TestNetworkMTUConfigSerial {
         }
     }
 
+    @Test func testEnvironmentBeatsConfig() async throws {
+        try await ContainerFixture.with { f in
+            try Self.useConfiguration("[network]\nmtu = 1400\n", in: f)
+            let c = "\(f.testID)-c"
+            f.addCleanup {
+                try? f.doStop(c)
+                try? f.doRemove(c)
+            }
+            try f.run(
+                ["run", "--name", c, "-d", WarmupImage.alpine320.rawValue, "sleep", "infinity"],
+                env: ["CONTAINER_NETWORK_MTU": "1500"]
+            ).check()
+            try await f.waitForContainerRunning(c)
+            let output = try f.doExec(c, cmd: ["ip", "link", "show", "eth0"])
+            #expect(output.contains("mtu 1500"), "expected mtu 1500 in ip link output: \(output)")
+        }
+    }
+
     @Test func testInvalidConfigIsRejected() async throws {
         try await ContainerFixture.with { f in
             try Self.useConfiguration("[network]\nmtu = 100\n", in: f)
@@ -142,6 +160,21 @@ struct TestNetworkMTUConfigSerial {
                 let output = try f.doExec(node, cmd: ["ip", "link", "show", interface])
                 #expect(output.contains("mtu 1500"), "expected mtu 1500 on \(node): \(output)")
             }
+        }
+    }
+
+    @Test func testEnvironmentSetsClusterNodeMTU() async throws {
+        try await ContainerFixture.with { f in
+            let name = "cluster-\(f.testID)"
+            f.addCleanup { _ = try? f.run(["cluster", "delete", "--name", name]) }
+
+            try f.restoreWarmupImage(.kindestNodeV1_35_5)
+            try f.run(["cluster", "create", "--name", name], env: ["CONTAINER_NETWORK_MTU": "1500"]).check()
+
+            let interface = try f.doExec(name, cmd: ["sh", "-c", "ip route show default | awk '{print $5}'"])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let output = try f.doExec(name, cmd: ["ip", "link", "show", interface])
+            #expect(output.contains("mtu 1500"), "expected mtu 1500 on \(name): \(output)")
         }
     }
 }

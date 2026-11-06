@@ -21,7 +21,10 @@ public enum NetworkMTU {
     /// The MTU values an attachment accepts.
     public static let validRange: ClosedRange<UInt32> = 1280...65535
 
-    /// The MTU used when nothing else sets one. Callers get it through ``resolve(config:)``.
+    /// The environment variable that sets the default MTU for one invocation.
+    public static let environmentVariable = "CONTAINER_NETWORK_MTU"
+
+    /// The MTU used when nothing else sets one. Callers get it through ``resolve(config:environment:)``.
     // https://github.com/apple/containerization/pull/38
     static let defaultValue = validRange.lowerBound
 
@@ -44,9 +47,15 @@ public enum NetworkMTU {
 
     /// Picks the MTU for an attachment that does not set its own.
     ///
-    /// - Parameter config: The `[network] mtu` value from `config.toml`, if any.
-    /// - Throws: `.invalidArgument` if `config` is not a valid MTU.
-    public static func resolve(config: Int?) throws -> UInt32 {
-        try config.map { try parse(String($0), source: "[network] mtu in config.toml") } ?? defaultValue
+    /// - Parameters:
+    ///   - config: The `[network] mtu` value from `config.toml`, if any.
+    ///   - environment: The environment to read ``environmentVariable`` from. Only the CLI passes one.
+    /// - Throws: `.invalidArgument` if `config` or the environment variable is not a valid MTU.
+    public static func resolve(config: Int?, environment: [String: String] = [:]) throws -> UInt32 {
+        let configured = try config.map { try parse(String($0), source: "[network] mtu in config.toml") }
+        guard let value = environment[environmentVariable], !value.isEmpty else {
+            return configured ?? defaultValue
+        }
+        return try parse(value, source: "\(environmentVariable) environment variable")
     }
 }
