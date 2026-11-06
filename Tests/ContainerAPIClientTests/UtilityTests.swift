@@ -39,6 +39,14 @@ struct UtilityTests {
         #expect(result["standalone"] == "")
     }
 
+    @Test("Parse key with an explicitly empty value")
+    func testKeyWithEmptyValue() {
+        let result = Utility.parseKeyValuePairs(["owner="])
+
+        #expect(result["owner"] == "")
+        #expect(result["owner="] == nil)
+    }
+
     @Test("Parse empty input")
     func testEmptyInput() {
         let result = Utility.parseKeyValuePairs([])
