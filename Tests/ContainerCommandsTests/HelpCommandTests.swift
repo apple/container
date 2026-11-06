@@ -22,6 +22,11 @@ import Testing
 
 struct HelpCommandTests {
     @Test
+    func networkHelpNamesTheMTUEnvironmentVariable() {
+        #expect(Application.ContainerRun.helpMessage(columns: 1000).contains("CONTAINER_NETWORK_MTU"))
+    }
+
+    @Test
     func everyStaticSubcommandReachableViaHelp() {
         func walk(_ command: ParsableCommand.Type, path: [String]) {
             let cfg = command.configuration

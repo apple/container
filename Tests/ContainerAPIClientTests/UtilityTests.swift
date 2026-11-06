@@ -244,7 +244,8 @@ struct UtilityTests {
             containerId: "foo",
             builtinNetworkId: "default",
             networks: networks,
-            dnsDomain: "test"
+            dnsDomain: "test",
+            defaultMTU: NetworkMTU.resolve(config: nil)
         )
 
         #expect(attachments.count == 2)
@@ -254,6 +255,34 @@ struct UtilityTests {
         #expect(attachments[1].network == "backend")
         #expect(attachments[1].options.hostname == "foo")
         #expect(attachments[1].options.aliases.isEmpty)
+    }
+
+    @Test("The default attachment uses the given default MTU")
+    func testDefaultAttachmentUsesGivenMTU() throws {
+        let attachments = try Utility.getAttachmentConfigurations(
+            containerId: "foo",
+            builtinNetworkId: "default",
+            networks: [],
+            dnsDomain: nil,
+            defaultMTU: 1500
+        )
+        #expect(attachments.map(\.options.mtu) == [1500])
+    }
+
+    @Test("Every attachment uses the given default MTU, and mtu= overrides it")
+    func testAttachmentsUseGivenMTUUnlessOverridden() throws {
+        let attachments = try Utility.getAttachmentConfigurations(
+            containerId: "foo",
+            builtinNetworkId: "default",
+            networks: [
+                Parser.ParsedNetwork(name: "default"),
+                Parser.ParsedNetwork(name: "backend"),
+                Parser.ParsedNetwork(name: "frontend", mtu: 9000),
+            ],
+            dnsDomain: nil,
+            defaultMTU: 1500
+        )
+        #expect(attachments.map(\.options.mtu) == [1500, 1500, 9000])
     }
 
     @Test("Aliases are carried to a later attachment")
@@ -267,7 +296,8 @@ struct UtilityTests {
             containerId: "foo",
             builtinNetworkId: "default",
             networks: networks,
-            dnsDomain: "test"
+            dnsDomain: "test",
+            defaultMTU: NetworkMTU.resolve(config: nil)
         )
 
         #expect(attachments[0].options.aliases.isEmpty)
@@ -280,7 +310,8 @@ struct UtilityTests {
             containerId: "foo",
             builtinNetworkId: "default",
             networks: [],
-            dnsDomain: "test"
+            dnsDomain: "test",
+            defaultMTU: NetworkMTU.resolve(config: nil)
         )
 
         #expect(attachments.count == 1)
@@ -339,7 +370,8 @@ struct UtilityTests {
             containerId: "foo",
             builtinNetworkId: "default",
             networks: networks,
-            dnsDomain: "test"
+            dnsDomain: "test",
+            defaultMTU: NetworkMTU.resolve(config: nil)
         )
 
         #expect(attachments[0].options.hostname == "foo.test.")

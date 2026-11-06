@@ -123,6 +123,52 @@ struct TestCLINetwork {
         }
     }
 
+    @Test func testNetworkMTUFromEnvironment() async throws {
+        try await ContainerFixture.with { f in
+            let image = WarmupImage.alpine320.rawValue
+            let c = "\(f.testID)-c"
+            f.addCleanup {
+                try? f.doStop(c)
+                try? f.doRemove(c)
+            }
+            try f.run(["run", "--name", c, "-d", image, "sleep", "infinity"], env: ["CONTAINER_NETWORK_MTU": "1500"]).check()
+            try await f.waitForContainerRunning(c)
+            let output = try f.doExec(c, cmd: ["ip", "link", "show", "eth0"])
+            #expect(output.contains("mtu 1500"), "expected mtu 1500 in ip link output: \(output)")
+        }
+    }
+
+    @Test func testNetworkFlagBeatsEnvironment() async throws {
+        try await ContainerFixture.with { f in
+            let image = WarmupImage.alpine320.rawValue
+            let c = "\(f.testID)-c"
+            f.addCleanup {
+                try? f.doStop(c)
+                try? f.doRemove(c)
+            }
+            try f.run(
+                ["run", "--name", c, "-d", "--network", "default,mtu=1400", image, "sleep", "infinity"],
+                env: ["CONTAINER_NETWORK_MTU": "1500"]
+            ).check()
+            try await f.waitForContainerRunning(c)
+            let output = try f.doExec(c, cmd: ["ip", "link", "show", "eth0"])
+            #expect(output.contains("mtu 1400"), "expected mtu 1400 in ip link output: \(output)")
+        }
+    }
+
+    @Test func testInvalidEnvironmentIsRejected() async throws {
+        try await ContainerFixture.with { f in
+            let c = "\(f.testID)-c"
+            let result = try f.run(
+                ["run", "--rm", "--name", c, WarmupImage.alpine320.rawValue, "true"],
+                env: ["CONTAINER_NETWORK_MTU": "100"]
+            )
+            #expect(result.status != 0)
+            #expect(result.error.contains("invalid mtu value '100'"))
+            #expect(result.error.contains("CONTAINER_NETWORK_MTU"))
+        }
+    }
+
     @available(macOS 26, *)
     @Test func testIsolatedNetwork() async {
         await withKnownIssue("curl error 7 despite retries", isIntermittent: true) {
