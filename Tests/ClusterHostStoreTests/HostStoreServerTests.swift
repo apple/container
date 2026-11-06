@@ -18,7 +18,7 @@ import ContainerizationError
 import NIOHTTP1
 import Testing
 
-@testable import cluster_hoststore
+@testable import ClusterHostStoreService
 
 struct LookupStatusTests {
     @Test func notFoundIs404() {
