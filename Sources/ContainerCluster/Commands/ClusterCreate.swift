@@ -92,7 +92,7 @@ public struct ClusterCreate: AsyncParsableCommand {
         LoggingSystem.bootstrap { _ in StderrLogHandler() }
         let log = Logger(label: ClusterHelper.pluginName)
 
-        let skipCNI = cni?.uppercased() == ClusterHelper.noCNIName
+        let skipCNI = ClusterHelper.skipsCNI(cni: cni)
         if let cni, !skipCNI {
             guard FileManager.default.fileExists(atPath: cni) else {
                 throw ContainerizationError(.invalidArgument, message: "CNI manifest not found at \(cni)")
@@ -163,6 +163,7 @@ public struct ClusterCreate: AsyncParsableCommand {
                         maxConcurrentDownloads: imageFetchFlags.maxConcurrentDownloads,
                         remove: remove,
                         containerSystemConfig: containerSystemConfig,
+                        fqdn: fqdn,
                         sharedImageStore: sharedImageStore
                     ))
             }

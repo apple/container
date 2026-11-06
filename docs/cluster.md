@@ -67,7 +67,7 @@ Add `--nodes` to show one row per node instead of one row per cluster. Clusters 
 
 ### Cluster lifecycle
 
-Create a cluster, use it with kubectl, and delete it when finished:
+Create a cluster, use it with kubectl, stop and start it as needed, and delete it when finished:
 
 ```bash
 # Create a cluster
@@ -75,6 +75,12 @@ container cluster create --name my-cluster
 
 # Use the cluster with kubectl
 kubectl --context my-cluster get pods
+
+# Stop the cluster; node disks and the kubeconfig entry are kept
+container cluster stop --name my-cluster
+
+# Start the cluster again
+container cluster start --name my-cluster
 
 # Delete the cluster when finished
 container cluster delete --name my-cluster
@@ -229,7 +235,19 @@ The node containers are removed when they stop, but the cluster's stored configu
 
 ### Recovering a stopped cluster
 
-If a cluster's control plane node stops (for example, after `container system stop`), delete and re-create the cluster:
+If the cluster is stopped (for example, after `container cluster stop` or `container system stop`), or degraded because some nodes are stopped, run `container cluster start --name my-cluster` to boot the stopped nodes.
+
+When a CNI is installed, `start` also waits until the `kubernetes` endpoint lists only the control plane's current address and the CoreDNS pods are Ready, which can take up to about a minute after the nodes are up.
+
+On multi-node clusters that use the default CNI, `start` also waits until every node has a route to every other node's pod network, which the CNI restores about 30 seconds after the nodes boot.
+
+For clusters created without a DNS domain, `start` also restarts workers that are still running when the control plane is stopped, so they pick up the control plane's new address.
+
+If `start` fails part-way, run `container cluster stop --name my-cluster`, then `container cluster start --name my-cluster`.
+
+Clusters created without a `controlPlaneEndpoint` (before the stable-endpoint change) cannot restart multi-node. Delete and re-create them.
+
+A cluster created with `--rm` cannot be started. Delete it and create it again:
 
 ```bash
 container cluster delete --name my-cluster

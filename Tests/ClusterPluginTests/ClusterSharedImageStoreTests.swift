@@ -41,13 +41,13 @@ struct ClusterSharedImageStoreOptionTests {
 struct InitConfigImageServiceTests {
     @Test func sharingSetsKubeletImageService() {
         let yaml = ClusterBootstrapper.initConfigYAML(
-            kubernetesVersion: "v1.35.5", advertiseAddress: "192.168.64.2", certSANs: ["127.0.0.1"], sharedImageStore: true)
+            kubernetesVersion: "v1.35.5", advertiseAddress: "192.168.64.2", controlPlaneEndpoint: "dev", certSANs: ["127.0.0.1"], sharedImageStore: true)
         #expect(yaml.contains("imageServiceEndpoint: unix:///run/cluster-shim/cri-image.sock"))
     }
 
     @Test func noSharingLeavesKubeletImageServiceUnset() {
         let yaml = ClusterBootstrapper.initConfigYAML(
-            kubernetesVersion: "v1.35.5", advertiseAddress: "192.168.64.2", certSANs: ["127.0.0.1"], sharedImageStore: false)
+            kubernetesVersion: "v1.35.5", advertiseAddress: "192.168.64.2", controlPlaneEndpoint: "dev", certSANs: ["127.0.0.1"], sharedImageStore: false)
         #expect(!yaml.contains("imageServiceEndpoint"))
         #expect(yaml.hasSuffix("failSwapOn: false"))
     }

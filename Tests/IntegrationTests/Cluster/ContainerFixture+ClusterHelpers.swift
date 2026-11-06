@@ -63,4 +63,46 @@ extension ContainerFixture {
         }
         return (result.output, result.status)
     }
+
+    private static let testImage = WarmupImage.alpine320
+    /// A name only the host image store has, so pods can start only through cluster-shim.
+    private static let hostOnlyImage = "cluster-test/alpine:host-only"
+
+    /// Shares the local image store with the cluster when the build includes cluster-shim.
+    static var sharedImageStoreArgs: [String] {
+        guard ContainerFixture.clusterShimInstalled else {
+            print("[cluster-net] no cluster-shim in this build; testing without the shared image store")
+            return []
+        }
+        return ["--shared-image-store"]
+    }
+
+    /// Makes the test image available to pods and returns the reference and pull
+    /// policy to use. With cluster-shim, pods use a name only the host has.
+    func preparePodImage() throws -> (reference: String, pullPolicy: String) {
+        print("[cluster-net] pulling \(Self.testImage.rawValue)")
+        try restoreWarmupImage(Self.testImage)
+        guard ContainerFixture.clusterShimInstalled else {
+            return (Self.testImage.rawValue, "IfNotPresent")
+        }
+        try run(["image", "tag", Self.testImage.rawValue, Self.hostOnlyImage]).check()
+        return (Self.hostOnlyImage, "Never")
+    }
+
+    func waitForPod(node: String, podName: String, timeoutSeconds: Int) throws {
+        print("[cluster-net] waitForPod \(podName) on \(node) (timeout=\(timeoutSeconds)s)")
+        let (_, status) = try kubectl(
+            node: node,
+            args: [
+                "wait", "--for=condition=Ready", "pod/\(podName)", "--timeout=\(timeoutSeconds)s",
+            ])
+        guard status == 0 else {
+            let (podStatus, _) = try kubectl(node: node, args: ["get", "pod", podName, "--no-headers"])
+            print("[cluster-net] pod \(podName) status: \(podStatus.trimmingCharacters(in: .whitespacesAndNewlines))")
+            let (podDesc, _) = try kubectl(node: node, args: ["describe", "pod", podName])
+            print("[cluster-net] pod \(podName) describe:\n\(podDesc.prefix(1000))")
+            throw CommandError.executionFailed("pod \(podName) did not become ready within \(timeoutSeconds)s")
+        }
+        print("[cluster-net] pod \(podName) is Ready")
+    }
 }

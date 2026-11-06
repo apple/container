@@ -63,11 +63,11 @@ public struct ClusterBootstrapper: Sendable {
         self.workers = workers
     }
 
-    var skipCNI: Bool { cni?.uppercased() == ClusterHelper.noCNIName }
+    var skipCNI: Bool { ClusterHelper.skipsCNI(cni: cni) }
 
     /// `list` and `delete` find nodes by name, and the bootstrapper execs into the control plane
     /// by cluster name, so the provisioners' names must follow the cluster's naming scheme.
-    private func validateNodeNames() throws {
+    func validateNodeNames() throws {
         guard controlPlane.name == name else {
             throw ContainerizationError(
                 .invalidArgument,
@@ -104,21 +104,27 @@ public struct ClusterBootstrapper: Sendable {
             var sans = ["127.0.0.1"]
             if let fqdn { sans.append(contentsOf: [vmIP, fqdn]) }
 
+            let controlPlaneEndpoint = ClusterHelper.controlPlaneEndpointHost(clusterName: name, fqdn: fqdn)
+
             progress("Running kubeadm init")
             try await bootstrapControlPlane(
                 nodeID: name, apiServerSANs: sans, advertiseAddress: vmIP,
+                controlPlaneEndpoint: controlPlaneEndpoint,
                 schedulable: provisioner.roles.contains(StandardRoles.worker),
                 client: client, log: log)
 
             if !workers.isEmpty {
                 let (token, caCertHash) = try await createJoinToken(nodeID: name, client: client)
-                let controlPlaneEndpoint = "\(vmIP):\(ClusterHelper.clusterContainerPort)"
+                let joinEndpoint = "\(controlPlaneEndpoint):\(ClusterHelper.clusterContainerPort)"
                 for workerProvisioner in workers {
                     progress("Joining worker \(workerProvisioner.name)")
                     try await workerProvisioner.provision(log: log)
                     startedWorkers.append(workerProvisioner)
+                    if fqdn == nil {
+                        try await workerProvisioner.setControlPlaneHost(host: name, address: vmIP, log: log)
+                    }
                     try await workerProvisioner.join(
-                        controlPlaneEndpoint: controlPlaneEndpoint,
+                        controlPlaneEndpoint: joinEndpoint,
                         token: token, caCertHash: caCertHash, log: log)
                     if skipCNI {
                         try await workerProvisioner.waitForRegistered(log: log)

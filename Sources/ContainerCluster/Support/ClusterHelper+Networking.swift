@@ -27,15 +27,32 @@ extension ClusterHelper {
 
     private static var clusterHostPortBase: UInt16 { 6445 }
 
-    // Returns proxy env vars with NO_PROXY augmented to bypass internal cluster CIDRs.
-    // Without this, kubelet routes apiserver traffic through the host proxy and times out.
-    public static func nodeProxyEnv() -> [String] {
-        let bypassCIDRs = "192.168.0.0/16,\(podSubnet),\(serviceSubnet)"
-        let hostEnv = ProcessInfo.processInfo.environment
+    /// Returns the host name nodes use to reach the control-plane API server: the fqdn when set, else the cluster name.
+    public static func controlPlaneEndpointHost(clusterName: String, fqdn: String?) -> String {
+        if let fqdn {
+            return fqdn
+        }
+        return clusterName
+    }
+
+    /// Shell script that leaves exactly one `<address> <host>` line for `host` in /etc/hosts.
+    static func hostsFileScript(host: String, address: String) -> String {
+        """
+        set -e
+        grep -v ' \(host)$' /etc/hosts > /tmp/hosts.new || true
+        echo '\(address) \(host)' >> /tmp/hosts.new
+        cat /tmp/hosts.new > /etc/hosts
+        rm -f /tmp/hosts.new
+        """
+    }
+
+    /// Returns the proxy env vars for a node. NO_PROXY is the host's value, then the cluster CIDRs, then the control-plane host.
+    public static func nodeProxyEnv(hostEnvironment: [String: String], controlPlaneHost: String) -> [String] {
+        let bypass = "192.168.0.0/16,\(podSubnet),\(serviceSubnet),\(controlPlaneHost)"
         return proxyEnvVars.map { name in
             guard name.uppercased() == "NO_PROXY" else { return name }
-            let existing = hostEnv[name] ?? hostEnv[name == "NO_PROXY" ? "no_proxy" : "NO_PROXY"] ?? ""
-            let augmented = existing.isEmpty ? bypassCIDRs : "\(existing),\(bypassCIDRs)"
+            let existing = hostEnvironment[name] ?? hostEnvironment[name == "NO_PROXY" ? "no_proxy" : "NO_PROXY"] ?? ""
+            let augmented = existing.isEmpty ? bypass : "\(existing),\(bypass)"
             return "\(name)=\(augmented)"
         }
     }
