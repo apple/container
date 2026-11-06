@@ -25,10 +25,24 @@ public struct ContainerStatus: Codable, Sendable {
     public let networks: [Attachment]
     /// When the container was started, if it has been.
     public let startedDate: Date?
+    /// The exit code of the container's initial process, once it has exited.
+    /// `nil` while running, and for containers stopped by an engine that
+    /// predates the recorded exit status.
+    public let exitCode: Int32?
+    /// When the container's initial process exited.
+    public let exitedAt: Date?
 
-    public init(state: RuntimeStatus, networks: [Attachment], startedDate: Date? = nil) {
+    public init(
+        state: RuntimeStatus,
+        networks: [Attachment],
+        startedDate: Date? = nil,
+        exitCode: Int32? = nil,
+        exitedAt: Date? = nil
+    ) {
         self.state = state
         self.networks = networks
         self.startedDate = startedDate
+        self.exitCode = exitCode
+        self.exitedAt = exitedAt
     }
 }
