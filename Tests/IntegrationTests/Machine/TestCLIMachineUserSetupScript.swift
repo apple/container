@@ -29,8 +29,11 @@ struct TestCLIMachineUserSetupScript {
 
     /// Runs `MachineUserSetup.script` inside `name` with the given identity, returning
     /// the raw exec result (not `.check()`ed, so failure cases can be asserted on directly).
-    private func runSetup(_ f: ContainerFixture, name: String, user: UserSetup) throws -> CommandResult {
-        let exports = user.processEnvironment.map { "export \($0)" }.joined(separator: "\n")
+    private func runSetup(
+        _ f: ContainerFixture, name: String, user: UserSetup, mountedHome: Bool = false
+    ) throws -> CommandResult {
+        let environment = user.processEnvironment + (mountedHome ? ["CONTAINER_HOME_MOUNTED=1"] : [])
+        let exports = environment.map { "export \($0)" }.joined(separator: "\n")
         return try f.run(["exec", name, "sh", "-c", exports + "\n" + MachineUserSetup.script])
     }
 
@@ -123,6 +126,47 @@ struct TestCLIMachineUserSetupScript {
             let owner = try f.doExec(name, cmd: ["stat", "-c", "%u:%g", "/etc/passwd"])
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             #expect(owner == "0:0", "pre-existing /etc content must not be chowned")
+        }
+    }
+
+    @Test func testSetupPreservesMountedHome() async throws {
+        try await ContainerFixture.with { f in
+            let name = "\(f.testID)-c"
+            try await f.doLongRun(name: name, image: image)
+            f.addCleanup { try? f.doStop(name) }
+            try await f.waitForContainerRunning(name)
+
+            try f.doExec(name, cmd: ["mkdir", "-p", "/home/devuser"])
+            try f.doExec(name, cmd: ["sh", "-c", "printf existing > /home/devuser/sentinel"])
+            try f.doExec(name, cmd: ["mkdir", "-p", "/etc/skel"])
+            try f.doExec(name, cmd: ["sh", "-c", "printf skeleton > /etc/skel/guest-default"])
+            let user = UserSetup(username: "devuser", uid: 1500, gid: 1600, home: "/home/devuser")
+            try runSetup(f, name: name, user: user, mountedHome: true).check()
+
+            let content = try f.doExec(name, cmd: ["cat", "/home/devuser/sentinel"])
+            #expect(content.trimmingCharacters(in: .whitespacesAndNewlines) == "existing")
+            let copiedSkeleton = try f.run(["exec", name, "test", "-e", "/home/devuser/guest-default"])
+            #expect(copiedSkeleton.status != 0, "mounted home must not receive /etc/skel files")
+            let owner = try f.doExec(name, cmd: ["stat", "-c", "%u:%g", "/home/devuser/sentinel"])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            #expect(owner == "0:0", "mounted home content must not be chowned")
+            let passwd = try f.doExec(name, cmd: ["grep", "^devuser:", "/etc/passwd"])
+            #expect(passwd.contains("devuser:x:1500:1600::/home/devuser:"))
+            try runSetup(f, name: name, user: user, mountedHome: true).check()
+        }
+    }
+
+    @Test func testSetupRejectsMissingMountedHome() async throws {
+        try await ContainerFixture.with { f in
+            let name = "\(f.testID)-c"
+            try await f.doLongRun(name: name, image: image)
+            f.addCleanup { try? f.doStop(name) }
+            try await f.waitForContainerRunning(name)
+
+            let user = UserSetup(username: "devuser", uid: 1500, gid: 1600, home: "/home/devuser")
+            let result = try runSetup(f, name: name, user: user, mountedHome: true)
+            #expect(result.status != 0)
+            #expect(result.error.contains("mounted home '/home/devuser' is not a directory"))
         }
     }
 }
