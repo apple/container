@@ -56,7 +56,7 @@ define linux_run
 	$(require_container)
 	@container image inspect $(BUILD_IMAGE) > /dev/null 2>&1 || "$(MAKE)" image
 	@container volume inspect $(BUILD_VOLUME) > /dev/null 2>&1 || container volume create $(BUILD_VOLUME) > /dev/null
-	container run --rm --memory 8g --cpus 8 \
+	@container run --tty --rm --memory 8g --cpus 8 \
 		-v "$(ROOT_DIR)":/workspace \
 		-v $(BUILD_VOLUME):/build \
 		-w /workspace/cluster-shim \
@@ -67,7 +67,7 @@ endef
 .PHONY: image
 image:
 	$(require_container)
-	container build -t $(BUILD_IMAGE) \
+	@container build -t $(BUILD_IMAGE) \
 		--build-arg SWIFT_VERSION=$(SWIFT_VERSION) \
 		--build-arg SWIFT_SDK_URL=$(SWIFT_SDK_URL) \
 		--build-arg SWIFT_SDK_CHECKSUM=$(SWIFT_SDK_CHECKSUM) \
@@ -84,15 +84,15 @@ build:
 # first command builds that module before the full build needs it.
 .PHONY: build-native
 build-native:
-	swift build -c release --swift-sdk $(SWIFT_SDK) --scratch-path $(SCRATCH_PATH) --target NIOFoundationCompat
-	swift build -c release --swift-sdk $(SWIFT_SDK) --scratch-path $(SCRATCH_PATH) -Xlinker -s
-	mkdir -p bin
-	cp "$$(swift build -c release --swift-sdk $(SWIFT_SDK) --scratch-path $(SCRATCH_PATH) --show-bin-path)/cluster-shim" bin/cluster-shim
+	@swift build -c release --swift-sdk $(SWIFT_SDK) --scratch-path $(SCRATCH_PATH) --target NIOFoundationCompat
+	@swift build -c release --swift-sdk $(SWIFT_SDK) --scratch-path $(SCRATCH_PATH) -Xlinker -s
+	@mkdir -p bin
+	@cp "$$(swift build -c release --swift-sdk $(SWIFT_SDK) --scratch-path $(SCRATCH_PATH) --show-bin-path)/cluster-shim" bin/cluster-shim
 
 # Installs the Static Linux SDK for build-native.
 .PHONY: linux-sdk
 linux-sdk:
-	swift sdk install $(SWIFT_SDK_URL) --checksum $(SWIFT_SDK_CHECKSUM)
+	@swift sdk install $(SWIFT_SDK_URL) --checksum $(SWIFT_SDK_CHECKSUM)
 
 # Fetches repository $(2) at commit $(3) into $(1) under the repository root,
 # inside the build image. Skips the fetch when $(1) is already at $(3).
@@ -129,11 +129,11 @@ test:
 
 .PHONY: install
 install: build
-	$(SUDO) install -d "$(RESOURCES_DIR)"
-	$(SUDO) install -m 0755 bin/cluster-shim "$(RESOURCES_DIR)/cluster-shim"
+	@$(SUDO) install -d "$(RESOURCES_DIR)"
+	@$(SUDO) install -m 0755 bin/cluster-shim "$(RESOURCES_DIR)/cluster-shim"
 
 .PHONY: clean
 clean:
-	rm -rf bin .build
+	@rm -rf bin .build
 	@container image delete --force $(BUILD_IMAGE) > /dev/null 2>&1 || true
 	@container volume delete $(BUILD_VOLUME) > /dev/null 2>&1 || true

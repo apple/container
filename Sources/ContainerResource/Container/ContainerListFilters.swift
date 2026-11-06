@@ -48,8 +48,22 @@ public struct ContainerListFilters: Sendable, Codable {
 }
 
 extension ContainerListFilters {
-    public func withoutMachines() -> ContainerListFilters {
-        let labels = self.labels.merging([ResourceLabelKeys.plugin: Self.exclude("machine")]) { _, new in new }
+    /// Restricts results to containers owned by the named plugin (see ``ResourcePluginValues``).
+    /// Replaces any existing filter on the plugin label.
+    public func withPlugin(_ name: String) -> ContainerListFilters {
+        let pattern = "^\(NSRegularExpression.escapedPattern(for: name))$"
+        let labels = self.labels.merging([ResourceLabelKeys.plugin: pattern]) { _, new in new }
+        return ContainerListFilters(ids: self.ids, status: self.status, labels: labels)
+    }
+
+    /// Excludes containers owned by any of the named plugins (see ``ResourcePluginValues``).
+    /// Replaces any existing filter on the plugin label.
+    public func withoutPlugins(_ names: [String]) -> ContainerListFilters {
+        guard !names.isEmpty else {
+            return self
+        }
+        let alternatives = names.map { NSRegularExpression.escapedPattern(for: $0) }.joined(separator: "|")
+        let labels = self.labels.merging([ResourceLabelKeys.plugin: Self.exclude("(?:\(alternatives))")]) { _, new in new }
         return ContainerListFilters(ids: self.ids, status: self.status, labels: labels)
     }
 }

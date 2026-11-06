@@ -312,7 +312,7 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
         if sharedImageStore {
             let shim = try await ClusterHelper.clusterShimURL(log: log)
             try await client.copyIn(id: nodeID, source: shim.path, destination: ClusterHelper.nodeShimPath, mode: 0o755)
-            script = Self.hostImagesScript + "\n" + script
+            script = script + "\n" + Self.hostImagesScript
         }
 
         let result = try await ClusterHelper.execCapture(
@@ -323,30 +323,15 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
         }
     }
 
-    /// Makes cluster-shim containerd's content store: writes hoststore.toml,
-    /// imports it from the node image's version 2 config.toml, and starts the
-    /// shim before containerd. Runs before `nodePrepScript`, which restarts
-    /// containerd. The kubelet uses cluster-shim as its image service, set in
-    /// `ClusterBootstrapper.initConfigYAML`.
+    /// Installs and starts cluster-shim as a systemd service. The kubelet uses it
+    /// as its image service, set in `ClusterBootstrapper.initConfigYAML`.
     private static var hostImagesScript: String {
         """
         set -e
-        mkdir -p /etc/containerd/conf.d
-        cat > /etc/containerd/conf.d/hoststore.toml <<'EOF'
-        version = 2
-        disabled_plugins = ["io.containerd.content.v1.content"]
-        [proxy_plugins.hoststore]
-          type = "content"
-          address = "/run/cluster-shim/content.sock"
-        [plugins.'io.containerd.metadata.v1.bolt']
-          content_sharing_policy = "shared"
-        EOF
-        grep -q '^imports' /etc/containerd/config.toml || \\
-          sed -i '1i imports = ["/etc/containerd/conf.d/hoststore.toml"]' /etc/containerd/config.toml
         cat > /etc/systemd/system/cluster-shim.service <<'EOF'
         [Unit]
-        Description=container cluster host store shim
-        Before=containerd.service
+        Description=container cluster host image service
+        After=containerd.service
 
         [Service]
         ExecStart=\(ClusterHelper.nodeShimPath)

@@ -31,6 +31,25 @@ extension ContainerFixture {
         return FileManager.default.fileExists(atPath: shim.path)
     }
 
+    /// Creates a cluster from the warmed-up kind node image and registers its deletion as cleanup.
+    /// If creation fails, dumps environment and node diagnostics before throwing.
+    @discardableResult
+    func createCluster(name: String, args: [String] = []) throws -> CommandResult {
+        addCleanup { _ = try? self.run(["cluster", "delete", "--name", name]) }
+
+        try restoreWarmupImage(.kindestNodeV1_35_5)
+        let command = ["cluster", "create", "--name", name] + args
+        print("[cluster] \(command.joined(separator: " "))")
+        let result = try run(command)
+        print("[cluster] cluster create exit=\(result.status)")
+        if result.status != 0 {
+            print("[cluster] cluster create stderr: \(result.error)")
+            dumpEnvDiagnostics(clusterName: name)
+            dumpNodeDiagnostics(node: name)
+        }
+        return try result.check()
+    }
+
     @discardableResult
     func kubectl(node: String, args: [String]) throws -> (output: String, status: Int32) {
         print("[cluster] kubectl \(args.joined(separator: " ")) (node: \(node))")

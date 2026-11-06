@@ -42,15 +42,7 @@ struct TestClusterMultiNodeSerial {
         try await ContainerFixture.with { f in
             let name = "cluster-\(f.testID)"
             let workerNames = [1, 2].map { "\(name)-worker-\($0)" }
-            f.addCleanup { _ = try? f.run(["cluster", "delete", "--name", name]) }
-
-            try f.restoreWarmupImage(.kindestNodeV1_35_5)
-            let result = try f.run(["cluster", "create", "--name", name, "--workers", "2"])
-            if result.status != 0 {
-                print("[cluster-multi] cluster create stderr: \(result.error)")
-                f.dumpNodeDiagnostics(node: name)
-            }
-            try result.check()
+            let result = try f.createCluster(name: name, args: ["--workers", "2"])
             #expect(result.output.contains(name))
 
             // Control plane and both worker containers should all be running.
@@ -91,15 +83,7 @@ struct TestClusterMultiNodeSerial {
         try await ContainerFixture.with { f in
             let name = "cluster-\(f.testID)"
             let workerNames = [1, 2].map { "\(name)-worker-\($0)" }
-            f.addCleanup { _ = try? f.run(["cluster", "delete", "--name", name]) }
-
-            try f.restoreWarmupImage(.kindestNodeV1_35_5)
-            let createResult = try f.run(["cluster", "create", "--name", name, "--workers", "2"])
-            if createResult.status != 0 {
-                print("[cluster-multi] cluster create stderr: \(createResult.error)")
-                f.dumpNodeDiagnostics(node: name)
-            }
-            try createResult.check()
+            try f.createCluster(name: name, args: ["--workers", "2"])
 
             for workerName in workerNames {
                 #expect(try f.getContainerStatus(workerName) == "running")
@@ -117,6 +101,68 @@ struct TestClusterMultiNodeSerial {
 
             let listResult = try f.run(["cluster", "list"])
             #expect(!listResult.output.contains(name))
+        }
+    }
+
+    private let gib: UInt64 = 1024 * 1024 * 1024
+
+    /// Mixed `--workers` groups size each worker individually, while `--cpus` and `--memory`
+    /// size only the control plane. Workers are numbered across groups.
+    @Test func testWorkerGroupsAreSizedIndividually() async throws {
+        try await ContainerFixture.with { f in
+            let name = "cluster-\(f.testID)"
+            f.addCleanup { _ = try? f.run(["cluster", "delete", "--name", name]) }
+
+            try f.restoreWarmupImage(.kindestNodeV1_35_5)
+            let result = try f.run([
+                "cluster", "create", "--name", name,
+                "--cpus", "2", "--memory", "2g",
+                "--workers", "count=2,cpus=3,memory=3g",
+                "--workers", "count=1,cpus=2,memory=2g",
+            ])
+            if result.status != 0 {
+                print("[cluster-multi] cluster create stderr: \(result.error)")
+                f.dumpNodeDiagnostics(node: name)
+            }
+            try result.check()
+
+            let expected: [(node: String, cpus: Int, memory: UInt64)] = [
+                (name, 2, 2 * gib),
+                ("\(name)-worker-1", 3, 3 * gib),
+                ("\(name)-worker-2", 3, 3 * gib),
+                ("\(name)-worker-3", 2, 2 * gib),
+            ]
+            for (node, cpus, memory) in expected {
+                let resources = try f.inspectContainer(node).configuration.resources
+                #expect(resources.cpus == cpus, "cpus for \(node)")
+                #expect(resources.memoryInBytes == memory, "memory for \(node)")
+            }
+        }
+    }
+
+    /// With workers and no resource flags, the control plane and workers all get the same default
+    /// as a single-node cluster.
+    @Test func testDefaultSizesWithWorkers() async throws {
+        try await ContainerFixture.with { f in
+            let name = "cluster-\(f.testID)"
+            let workerName = "\(name)-worker-1"
+            f.addCleanup { _ = try? f.run(["cluster", "delete", "--name", name]) }
+
+            try f.restoreWarmupImage(.kindestNodeV1_35_5)
+            let result = try f.run(["cluster", "create", "--name", name, "--workers", "1"])
+            if result.status != 0 {
+                print("[cluster-multi] cluster create stderr: \(result.error)")
+                f.dumpNodeDiagnostics(node: name)
+            }
+            try result.check()
+
+            // Single-node default: 1/4 of host CPUs and memory, minimum 2 CPUs and 2g.
+            let hostGiB = ProcessInfo.processInfo.physicalMemory / gib
+            for node in [name, workerName] {
+                let resources = try f.inspectContainer(node).configuration.resources
+                #expect(resources.cpus == max(ProcessInfo.processInfo.processorCount / 4, 2), "cpus for \(node)")
+                #expect(resources.memoryInBytes == max(hostGiB / 4, 2) * gib, "memory for \(node)")
+            }
         }
     }
 }

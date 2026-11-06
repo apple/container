@@ -68,11 +68,9 @@ extension ClustersHelper {
                 log.info("configuring XPC server")
                 let clustersRoot = try PluginStateRoot(plugin: commandName).path.appending("clusters")
 
-                // "cluster" is the label value the cluster CLI plugin (ClusterHelper.pluginName)
-                // stamps on its containers; this executable cannot depend on ContainerCluster.
+                // Cluster nodes carry the plugin label the cluster CLI plugin (ClusterHelper.pluginName) stamps on them.
                 let listContainers: ClusterService.ContainerLister = {
-                    try await ContainerClient().list(
-                        filters: ContainerListFilters(labels: [ResourceLabelKeys.plugin: "cluster"]))
+                    try await ContainerClient().list(filters: ContainerListFilters().withPlugin(ResourcePluginValues.cluster))
                 }
                 let service = try ClusterService(root: clustersRoot, listContainers: listContainers, log: log)
                 let harness = ClusterServiceHarness(service: service, log: log)

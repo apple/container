@@ -42,7 +42,7 @@ public struct ClusterHelper {
 
     typealias ProcessCreator = @Sendable (ProcessConfiguration, [FileHandle?]) async throws -> ExecProcess
 
-    public static let pluginName: String = "cluster"
+    public static let pluginName: String = ResourcePluginValues.cluster
     public static let defaultName: String = "cluster-dev"
     public static let controlPlaneRoleName: String = ClusterConfiguration.controlPlaneRole
     public static let workerRoleName: String = ClusterConfiguration.workerRole
@@ -381,7 +381,7 @@ public struct ClusterHelper {
     /// one or more workers the control plane is tainted and is not a combined control-plane/worker node.
     static func workerContainerNames(clusterName: String, client: ContainerClient) async throws -> [String] {
         let snapshots = try await client.list(
-            filters: ContainerListFilters(labels: [ResourceLabelKeys.plugin: pluginName])
+            filters: ContainerListFilters().withPlugin(pluginName)
         )
         return workerContainerNames(from: snapshots, clusterName: clusterName)
     }
