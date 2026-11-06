@@ -34,9 +34,14 @@ typealias HTTPWriter = NIOAsyncChannelOutboundWriter<HTTPServerResponsePart>
 ///     HEAD /blobs/<digest>          size in Content-Length
 ///     GET  /blobs/<digest>          blob bytes
 ///     GET  /images?ref=<reference>  OCI descriptor JSON
-struct HostStoreServer: Sendable {
+package struct HostStoreServer: Sendable {
     let containerSystemConfig: ContainerSystemConfig
     let log: Logger
+
+    package init(containerSystemConfig: ContainerSystemConfig, log: Logger) {
+        self.containerSystemConfig = containerSystemConfig
+        self.log = log
+    }
 
     private static let chunkSize = 1 << 20
     /// Connections beyond this many are closed when accepted.
@@ -44,7 +49,7 @@ struct HostStoreServer: Sendable {
     /// A connection with no reads or writes for this long is closed.
     static let idleTimeout = TimeAmount.seconds(60)
 
-    func run(socketPath: String) async throws {
+    package func run(socketPath: String) async throws {
         let server = try await Self.bind(socketPath: socketPath)
         let limit = ConnectionLimit(max: Self.maxConnections)
 
