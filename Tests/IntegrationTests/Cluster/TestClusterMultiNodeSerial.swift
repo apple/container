@@ -42,15 +42,7 @@ struct TestClusterMultiNodeSerial {
         try await ContainerFixture.with { f in
             let name = "cluster-\(f.testID)"
             let workerNames = [1, 2].map { "\(name)-worker-\($0)" }
-            f.addCleanup { _ = try? f.run(["cluster", "delete", "--name", name]) }
-
-            try f.restoreWarmupImage(.kindestNodeV1_35_5)
-            let result = try f.run(["cluster", "create", "--name", name, "--workers", "2"])
-            if result.status != 0 {
-                print("[cluster-multi] cluster create stderr: \(result.error)")
-                f.dumpNodeDiagnostics(node: name)
-            }
-            try result.check()
+            let result = try f.createCluster(name: name, args: ["--workers", "2"])
             #expect(result.output.contains(name))
 
             // Control plane and both worker containers should all be running.
@@ -91,15 +83,7 @@ struct TestClusterMultiNodeSerial {
         try await ContainerFixture.with { f in
             let name = "cluster-\(f.testID)"
             let workerNames = [1, 2].map { "\(name)-worker-\($0)" }
-            f.addCleanup { _ = try? f.run(["cluster", "delete", "--name", name]) }
-
-            try f.restoreWarmupImage(.kindestNodeV1_35_5)
-            let createResult = try f.run(["cluster", "create", "--name", name, "--workers", "2"])
-            if createResult.status != 0 {
-                print("[cluster-multi] cluster create stderr: \(createResult.error)")
-                f.dumpNodeDiagnostics(node: name)
-            }
-            try createResult.check()
+            try f.createCluster(name: name, args: ["--workers", "2"])
 
             for workerName in workerNames {
                 #expect(try f.getContainerStatus(workerName) == "running")

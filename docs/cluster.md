@@ -80,6 +80,15 @@ kubectl --context my-cluster get pods
 container cluster delete --name my-cluster
 ```
 
+### Cluster nodes and container commands
+
+Each cluster node runs as a container, but `container cluster` manages those containers for you. To keep them from being changed by accident, the container lifecycle commands treat cluster nodes differently:
+
+- `container list` hides cluster nodes, even with `--all`. Use `container cluster list` to see them.
+- If you name a cluster node, `container start`, `container stop`, `container kill`, and `container delete` report it as not found, as they would for a container that doesn't exist. Other containers named in the same command are still processed.
+
+Commands that don't change a node's lifecycle, such as `container inspect`, `container logs`, `container exec`, `container stats`, and `container clean`, work on a cluster node you name. Use `container cluster delete` to remove a cluster and its nodes.
+
 ### Customize resources
 
 Allocate CPU and memory based on your needs:
@@ -207,7 +216,7 @@ The node containers are removed when they stop, but the cluster's stored configu
 
 ### Recovering a stopped cluster
 
-If a cluster's control plane node stops (for example, after `container stop`), delete and re-create the cluster:
+If a cluster's control plane node stops (for example, after `container system stop`), delete and re-create the cluster:
 
 ```bash
 container cluster delete --name my-cluster
