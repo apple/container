@@ -18,6 +18,7 @@ import ArgumentParser
 import ContainerAPIClient
 import ContainerPersistence
 import ContainerPlugin
+import ContainerResource
 import Foundation
 
 enum ListOutputFormat: String, Decodable, ExpressibleByArgument {
@@ -42,7 +43,7 @@ extension Application {
         public init() {}
 
         public func run() async throws {
-            let containerSystemConfig: ContainerSystemConfig = try await Application.loadContainerSystemConfig()
+            let containerSystemConfig: ContainerSystemConfig = try await ClientHealthCheck.loadContainerSystemConfig()
             let output =
                 switch format {
                 case .json: try Output.renderJSON(containerSystemConfig)

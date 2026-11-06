@@ -1,0 +1,103 @@
+//===----------------------------------------------------------------------===//
+// Copyright © 2026 Apple Inc. and the container project authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//   https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//===----------------------------------------------------------------------===//
+
+import ArgumentParser
+import ContainerAPIClient
+import ContainerClusterServiceClient
+import ContainerLog
+import ContainerResource
+import ContainerizationError
+import Logging
+
+public struct ClusterDelete: AsyncParsableCommand {
+    public init() {}
+
+    public static let configuration = CommandConfiguration(
+        commandName: "delete",
+        abstract: "Delete a Kubernetes cluster and its nodes",
+        aliases: ["rm"]
+    )
+
+    @Option(name: .long, help: "Cluster name")
+    var name: String = ClusterHelper.defaultName
+
+    public func run() async throws {
+        LoggingSystem.bootstrap { _ in StderrLogHandler() }
+        let log = Logger(label: ClusterHelper.pluginName)
+
+        let client = ContainerClient()
+        let clusterClient = ClusterClient()
+
+        let clusterContainer = try? await client.get(id: name)
+        if let container = clusterContainer {
+            guard container.configuration.labels[ResourceLabelKeys.plugin] == ClusterHelper.pluginName else {
+                log.error("container is not a cluster, refusing delete", metadata: ["name": "\(name)"])
+                throw ContainerizationError(.invalidArgument, message: "\(name) is not a cluster")
+            }
+        }
+
+        let workerNames = (try? await ClusterHelper.workerContainerNames(clusterName: name, client: client)) ?? []
+        let hasStoredConfiguration: Bool
+        do {
+            _ = try await clusterClient.get(name: name)
+            hasStoredConfiguration = true
+        } catch let error as ContainerizationError where error.code == .notFound {
+            hasStoredConfiguration = false
+        }
+        guard clusterContainer != nil || !workerNames.isEmpty || hasStoredConfiguration else {
+            throw ContainerizationError(.notFound, message: "cluster \(name) not found")
+        }
+
+        var failures: [(name: String, error: Error)] = []
+
+        for workerName in workerNames {
+            do {
+                try? await client.stop(id: workerName)
+                try await client.delete(id: workerName)
+            } catch let error as ContainerizationError where error.code == .notFound || (error.cause as? ContainerizationError)?.code == .notFound {
+                log.debug("worker container not found, skipping delete", metadata: ["name": "\(workerName)"])
+            } catch {
+                log.error("failed to delete worker container", metadata: ["name": "\(workerName)", "error": "\(error)"])
+                failures.append((workerName, error))
+            }
+        }
+
+        do {
+            try? await client.stop(id: name)
+            try await client.delete(id: name)
+        } catch let error as ContainerizationError where error.code == .notFound || (error.cause as? ContainerizationError)?.code == .notFound {
+            log.debug("cluster container not found, skipping delete", metadata: ["name": "\(name)"])
+        } catch {
+            log.error("failed to delete cluster container", metadata: ["name": "\(name)", "error": "\(error)"])
+            failures.append((name, error))
+        }
+
+        guard failures.isEmpty else {
+            let details = failures.map { "\($0.name): \($0.error)" }.joined(separator: "; ")
+            throw ContainerizationError(.internalError, message: "failed to delete node(s): \(details)")
+        }
+
+        try ClusterHelper.removeConfig(containerId: name, log: log)
+
+        do {
+            try await clusterClient.delete(name: name)
+        } catch let error as ContainerizationError where error.code == .invalidArgument || error.code == .notFound {
+            // No record to remove: the name is not one the service can have recorded, or the cluster has none.
+        }
+
+        print(name)
+    }
+}

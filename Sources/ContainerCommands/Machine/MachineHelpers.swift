@@ -35,30 +35,33 @@ func resolveMachineId(_ id: String?, client: MachineClient) async throws -> Stri
     return defaultId
 }
 
-/// Boots a container machine and, on first ever boot, runs the in-VM init script
-/// to set up the host user. Returns the resulting snapshot.
+/// Boots a container machine and runs user setup inside the guest. Returns the
+/// resulting snapshot.
 ///
-/// When `interactive` is true the init script is wired to the host's terminal
-/// (used by `machine run`); otherwise it runs detached so non-TTY callers like
-/// `machine create` don't require a TTY or pollute host stdout.
+/// User setup runs on every boot, not just the first: it's idempotent, so this
+/// keeps the container user provisioned even if it's ever ended up in a
+/// half-configured state. The setup script never needs a terminal or stdin,
+/// so it always runs with `tty: false, interactive: false, detach: false`
+/// regardless of the caller's own interactivity — this keeps signal
+/// forwarding and cancellation working via `ProcessIO.handleProcess` (so
+/// Ctrl-C during boot actually kills the setup process rather than hanging),
+/// while still streaming its stderr live to the host so a caller like
+/// `machine create`, which doesn't otherwise show the guest's output, can see
+/// *why* setup refused to run (e.g. a uid/username/home conflict with an
+/// existing account in the image).
 ///
 /// On any failure during user setup the machine is stopped to leave it in a clean state.
 @discardableResult
 func bootMachine(
     id: String?,
     client: MachineClient,
-    log: Logger,
-    interactive: Bool
+    log: Logger
 ) async throws -> MachineSnapshot {
     var dynamicEnv: [String: String] = [:]
     if let sshAuthSock = ProcessInfo.processInfo.environment["SSH_AUTH_SOCK"] {
         dynamicEnv["SSH_AUTH_SOCK"] = sshAuthSock
     }
     let snapshot = try await client.boot(id: id, dynamicEnv: dynamicEnv)
-
-    guard !snapshot.initialized else {
-        return snapshot
-    }
 
     do {
         guard let containerId = snapshot.containerId else {
@@ -68,20 +71,16 @@ func bootMachine(
             )
         }
 
-        let io = try ProcessIO.create(
-            tty: interactive,
-            interactive: interactive,
-            detach: !interactive
-        )
+        let io = try ProcessIO.create(tty: false, interactive: false, detach: false)
         defer {
             try? io.close()
         }
 
         let processConfig = ProcessConfiguration(
-            executable: "/\(MachineBundle.sbinDirectory)/\(MachineBundle.initFile)",
-            arguments: ["-u"],
+            executable: "/bin/sh",
+            arguments: ["-c", MachineUserSetup.script],
             environment: snapshot.configuration.processEnvironment,
-            terminal: interactive
+            terminal: false
         )
 
         let process = try await ContainerClient().createProcess(
@@ -92,6 +91,7 @@ func bootMachine(
 
         let exitCode = try await io.handleProcess(process: process, log: log)
         guard exitCode == 0 else {
+            log.error("container machine user setup failed", metadata: ["id": "\(snapshot.id)", "exitCode": "\(exitCode)"])
             throw ContainerizationError(
                 .invalidState,
                 message: "container machine failed to create user"

@@ -5,18 +5,78 @@ To build the `container` project, you need:
 - Mac with Apple silicon
 - macOS 15 minimum, macOS 26 recommended
 - Xcode 26, set as the [active developer directory](https://developer.apple.com/library/archive/technotes/tn2339/_index.html#//apple_ref/doc/uid/DTS40014588-CH1-HOW_DO_I_SELECT_THE_DEFAULT_VERSION_OF_XCODE_TO_USE_FOR_MY_COMMAND_LINE_TOOLS_)
+- A running `container` installation, to build the `cluster-shim` Linux binary in a container. Builds leave `cluster-shim` out with a warning when `container` is not running, and clusters from those builds cannot use `--shared-image-store`. To use a prebuilt binary instead, set `CLUSTER_SHIM_BINARY` to its path.
 
 > [!IMPORTANT]
 > There is a bug in the `vmnet` framework on macOS 26 that causes network creation to fail if the `container` helper applications are located under your `Documents` or `Desktop` directories. If you use `make install`, you can simply run the `container` binary in `/usr/local`. If you prefer to use the binaries that `make all` creates in your project `bin` and `libexec` directories, locate your project elsewhere, such as `~/projects/container`, until this issue is resolved.
 
 ## Compile and test
 
-Build `container` and the background services from source, and run basic and integration tests in an isolated application data directory:
+Build `container` and the background services from source, then run the unit and integration tests in an isolated application data directory:
 
 ```bash
-rm -rf test-data
-make APP_ROOT=test-data all test integration
+make verify
 ```
+
+This is the quickest way to verify your toolchain after cloning. `make verify` runs the `all`, `test`, and `integration` targets. The integration suite boots virtual machines and downloads a kernel and images, so the first run takes a while.
+
+> [!IMPORTANT]
+> `make integration` stops any `container` services you already have running and leaves them stopped when it finishes; run `container system start` afterward to get back to your own installation.
+
+### Build and test targets
+
+| Target | What it does |
+| --- | --- |
+| `make verify` | Runs `all`, `test`, and `integration`. |
+| `make all` | Compiles, then installs the binaries into `bin/` and `libexec/` in your project directory. |
+| `make test` | Runs the unit tests. |
+| `make integration` | Runs the CLI and integration test suites. These start the `container` services, create containers, and boot virtual machines. |
+| `make install` | Builds an installer package and installs it to `/usr/local`. |
+| `make clean` | Runs `cleanclustershim`, `cleantest`, then `cleanbuild`. |
+| `make cleanclustershim` | Removes the cluster-shim binary, build image, and build volume. |
+| `make cleanbuild` | Removes `bin/`, `libexec/`, generated docs, and coverage output. |
+| `make cleantest` | Stops the `container` services and removes the `APP_ROOT` and `SCRATCH_ROOT` directories. |
+
+### Isolating test data with `APP_ROOT`
+
+By default, the test targets use `.test-data` in your project directory, so they do not disturb the images, containers, and volumes you use day to day, which live in `~/Library/Application Support/com.apple.container`.
+
+`APP_ROOT` sets that directory, and is passed as `--app-root` to the services the test targets start.
+
+How `make integration` treats `APP_ROOT`:
+- It erases the directory's contents before each run.
+- Set `APP_ROOT=` (empty) to run against `~/Library/Application Support/com.apple.container` instead. The tests will not erase it, but they will create and delete containers in it. Use this when you want the tests to exercise a realistic installation.
+
+### Recommended iteration loop
+
+> [!IMPORTANT]
+> If you have an instance of `container` running, stop it using `container system stop` before starting the dev CLI. Each user account has a single set of `com.apple.container.*` services, so a test run cannot coexist with an installation you are using.
+
+```bash
+# 1. Build
+make all
+
+# 2. Unit tests
+make test
+
+# 3. Test the dev CLI
+./bin/container system start --app-root .test-data
+```
+
+### Integration test options
+
+| Variable | Default | Effect |
+| --- | --- | --- |
+| `PRESERVE_KERNELS` | `false` | Set to `true` to keep the `kernels` directory when the run clears `APP_ROOT`, so repeated runs do not download the kernel again. |
+| `LOG_ROOT` | unset | Passes `--log-root` to the services, and writes swift-testing event streams to the given path. |
+
+A typical iteration on the integration tests:
+
+```bash
+make PRESERVE_KERNELS=true LOG_ROOT=.test-data/logs integration
+```
+
+### Build installer package
 
 Copy the binaries to `/usr/local/bin` and `/usr/local/libexec` (requires entering an administrator password):
 
@@ -27,9 +87,23 @@ make install
 Or to install a release build, with better performance than the debug build:
 
 ```bash
-BUILD_CONFIGURATION=release make all test integration
+BUILD_CONFIGURATION=release make verify
 BUILD_CONFIGURATION=release make install
 ```
+
+Release builds strip local symbols from the installed binaries and leave out `-enable-testing`, which keeps the installer package smaller. The goals that build or run tests still enable testing, so `BUILD_CONFIGURATION=release make verify` works as above. To change this, set `STRIP_BINARIES=false` to keep the symbols, `STRIP_OPTS=` to use a plain `strip`, or `ENABLE_TESTING=true` to build a testable release.
+
+Use `make dsym` after building to archive the debug symbols for every installed executable in `bin/<configuration>/bundle/container-dSYM.zip`. Keep this archive with each release, because the stripped binaries rely on it to symbolicate crash reports. The target generates a dSYM when the build did not produce one, and fails if a dSYM does not match its binary.
+
+### Clean up
+
+Remove the cluster-shim build files, stop the services, remove the build outputs, and delete the test directories:
+
+```bash
+make clean
+```
+
+Use `make cleanbuild` to remove only the build outputs, or `make cleantest` to stop the services and remove only the `APP_ROOT` and `SCRATCH_ROOT` directories.
 
 ## Compile protobufs
 
@@ -91,7 +165,7 @@ to prepare your build environment.
 6. Build `container`.
 
     ```
-    make clean all
+    make APP_ROOT= clean all
     ```
 
 7. Restart the `container` services.
@@ -167,6 +241,7 @@ Attach debugger to the XPC helpers using their launchd service labels:
    % launchctl list | grep container
    27068   0       com.apple.container.container-network-vmnet.default
    27072   0       com.apple.container.container-core-images
+   27073   0       com.apple.container.container-core-clusters
    26980   0       com.apple.container.apiserver
    27331   0       com.apple.container.container-runtime-linux.test
    ```

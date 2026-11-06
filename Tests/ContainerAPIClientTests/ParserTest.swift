@@ -945,6 +945,57 @@ struct ParserTest {
     }
 
     @Test
+    func testParseNetworkWithoutAliasesHasNone() throws {
+        let result = try Parser.network("backend")
+        #expect(result.aliases.isEmpty)
+    }
+
+    @Test
+    func testParseNetworkWithAliases() throws {
+        let result = try Parser.network("backend,alias=api.example.test,alias=.example.test")
+        #expect(result.name == "backend")
+        #expect(result.aliases == ["api.example.test", ".example.test"])
+    }
+
+    @Test
+    func testParseNetworkAliasesAreNormalized() throws {
+        let result = try Parser.network("backend,alias=API.Example.TEST.,alias=.Example.Test.")
+        #expect(result.aliases == ["api.example.test", ".example.test"])
+    }
+
+    @Test
+    func testParseNetworkAliasesWithOtherProperties() throws {
+        let result = try Parser.network("backend,mac=02:42:ac:11:00:02,alias=a.test,mtu=1500,alias=.a.test")
+        #expect(result.macAddress == "02:42:ac:11:00:02")
+        #expect(result.mtu == 1500)
+        #expect(result.aliases == ["a.test", ".a.test"])
+    }
+
+    @Test(arguments: ["backend,alias=", "backend,alias=.", "backend,alias=a..test", "backend,alias=exa mple.test"])
+    func testParseNetworkInvalidAlias(spec: String) throws {
+        #expect {
+            _ = try Parser.network(spec)
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("invalid alias")
+        }
+    }
+
+    @Test
+    func testParseNetworkAliasWithAsteriskSuggestsLeadingDot() throws {
+        #expect {
+            _ = try Parser.network("backend,alias=*.example.test")
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("invalid alias") && error.description.contains("leading dot")
+        }
+    }
+
+    @Test
     func testParseNetworkInvalidPropertyFormat() throws {
         #expect {
             _ = try Parser.network("backend,invalidproperty")
@@ -972,6 +1023,45 @@ struct ParserTest {
 
         #expect(result.executable == "./uname")
         #expect(result.workingDirectory == "/bin")
+    }
+
+    @Test
+    func testProcessEmptyImageEntrypointUsesCommand() throws {
+        let result = try Parser.process(
+            arguments: ["/bin/sh", "-c", "echo ready"],
+            processFlags: try Flags.Process.parse([]),
+            managementFlags: try Flags.Management.parse([]),
+            config: .init(entrypoint: [""], cmd: ["/bin/false"])
+        )
+
+        #expect(result.executable == "/bin/sh")
+        #expect(result.arguments == ["-c", "echo ready"])
+    }
+
+    @Test
+    func testProcessEmptyImageEntrypointUsesImageCmd() throws {
+        let result = try Parser.process(
+            arguments: [],
+            processFlags: try Flags.Process.parse([]),
+            managementFlags: try Flags.Management.parse([]),
+            config: .init(entrypoint: [""], cmd: ["/bin/sh", "-c", "echo ready"])
+        )
+
+        #expect(result.executable == "/bin/sh")
+        #expect(result.arguments == ["-c", "echo ready"])
+    }
+
+    @Test
+    func testProcessNonEmptyImageEntrypointRemainsExecutable() throws {
+        let result = try Parser.process(
+            arguments: ["hello"],
+            processFlags: try Flags.Process.parse([]),
+            managementFlags: try Flags.Management.parse([]),
+            config: .init(entrypoint: ["/bin/echo"], cmd: ["unused"])
+        )
+
+        #expect(result.executable == "/bin/echo")
+        #expect(result.arguments == ["hello"])
     }
 
     @Test
@@ -1612,5 +1702,143 @@ struct ParserTest {
         let envs = (0..<50).map { "USER_VAR\($0)=value\($0)" }
         let result = try Parser.allEnv(imageEnvs: imageEnvs, envFiles: [], envs: envs)
         #expect(result.count == 100)
+    }
+
+    // MARK: - Parser.userAccount
+
+    @Test
+    func testUserAccountNilUsesDefaults() throws {
+        let result = try Parser.userAccount(
+            user: nil, uid: nil, gid: nil,
+            defaultUsername: "app", defaultUID: 501, defaultGID: 20
+        )
+        #expect(result.username == "app")
+        #expect(result.uid == 501)
+        #expect(result.gid == 20)
+    }
+
+    @Test
+    func testUserAccountNameOnly() throws {
+        let result = try Parser.userAccount(
+            user: "alice", uid: nil, gid: nil,
+            defaultUsername: "app", defaultUID: 501, defaultGID: 20
+        )
+        #expect(result.username == "alice")
+        #expect(result.uid == 501)
+        #expect(result.gid == 20)
+    }
+
+    @Test
+    func testUserAccountUIDOnly() throws {
+        let result = try Parser.userAccount(
+            user: "1500", uid: nil, gid: nil,
+            defaultUsername: "app", defaultUID: 501, defaultGID: 20
+        )
+        #expect(result.username == "app")
+        #expect(result.uid == 1500)
+        #expect(result.gid == 20)
+    }
+
+    @Test
+    func testUserAccountNameAndGID() throws {
+        let result = try Parser.userAccount(
+            user: "alice:100", uid: nil, gid: nil,
+            defaultUsername: "app", defaultUID: 501, defaultGID: 20
+        )
+        #expect(result.username == "alice")
+        #expect(result.uid == 501)
+        #expect(result.gid == 100)
+    }
+
+    @Test
+    func testUserAccountUIDAndGID() throws {
+        let result = try Parser.userAccount(
+            user: "1500:100", uid: nil, gid: nil,
+            defaultUsername: "app", defaultUID: 501, defaultGID: 20
+        )
+        #expect(result.username == "app")
+        #expect(result.uid == 1500)
+        #expect(result.gid == 100)
+    }
+
+    @Test
+    func testUserAccountGIDOnlyLeadingColon() throws {
+        // "--user :100" specifies only a group; the name/uid should fall back to the defaults.
+        let result = try Parser.userAccount(
+            user: ":100", uid: nil, gid: nil,
+            defaultUsername: "app", defaultUID: 501, defaultGID: 20
+        )
+        #expect(result.username == "app")
+        #expect(result.uid == 501)
+        #expect(result.gid == 100)
+    }
+
+    @Test
+    func testUserAccountUserWinsOverUIDWhenItSpecifiesUID() throws {
+        let result = try Parser.userAccount(
+            user: "1500", uid: 9999, gid: nil,
+            defaultUsername: "app", defaultUID: 501, defaultGID: 20
+        )
+        #expect(result.uid == 1500)
+    }
+
+    @Test
+    func testUserAccountBareNameDoesNotOverrideUIDGID() throws {
+        // A bare name in `user` doesn't specify a uid/gid, so the uid/gid arguments still apply.
+        let result = try Parser.userAccount(
+            user: "alice", uid: 9999, gid: 42,
+            defaultUsername: "app", defaultUID: 501, defaultGID: 20
+        )
+        #expect(result.username == "alice")
+        #expect(result.uid == 9999)
+        #expect(result.gid == 42)
+    }
+
+    @Test
+    func testUserAccountInvalidGroup() throws {
+        #expect {
+            _ = try Parser.userAccount(
+                user: "alice:notanumber", uid: nil, gid: nil,
+                defaultUsername: "app", defaultUID: 501, defaultGID: 20
+            )
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("invalid group") && error.description.contains("must be numeric")
+        }
+    }
+
+    @Test
+    func testUserAccountBareColonThrowsInsteadOfCrashing() throws {
+        // Regression test: `user.split(separator: ":", maxSplits: 1)` with default
+        // omittingEmptySubsequences drops both empty halves of ":" and returns an empty
+        // array, so indexing `parts[0]` used to crash. It must now throw a proper error.
+        #expect {
+            _ = try Parser.userAccount(
+                user: ":", uid: nil, gid: nil,
+                defaultUsername: "app", defaultUID: 501, defaultGID: 20
+            )
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("invalid group") && error.description.contains("must be numeric")
+        }
+    }
+
+    @Test
+    func testUserAccountTrailingColonThrows() throws {
+        #expect {
+            _ = try Parser.userAccount(
+                user: "alice:", uid: nil, gid: nil,
+                defaultUsername: "app", defaultUID: 501, defaultGID: 20
+            )
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.description.contains("invalid group") && error.description.contains("must be numeric")
+        }
     }
 }

@@ -16,7 +16,6 @@
 
 import ContainerOS
 import ContainerizationError
-import DNSServer
 import Foundation
 import SystemPackage
 import Testing

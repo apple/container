@@ -21,8 +21,8 @@ import Logging
 
 /// Resolves the default platform from the `CONTAINER_DEFAULT_PLATFORM` environment variable.
 ///
-/// When set, this variable overrides the native platform as the default for commands
-/// that support `--platform`. Explicit `--platform` flags always take precedence.
+/// When set, this variable is the default for run/create when the image lists several
+/// platforms, and the platform for pull/push/save when no flags are given.
 public enum DefaultPlatform {
     /// The name of the environment variable checked for a default platform.
     public static let environmentVariable = "CONTAINER_DEFAULT_PLATFORM"
@@ -91,32 +91,20 @@ public enum DefaultPlatform {
         return try fromEnvironment(environment: environment, log: log)
     }
 
-    /// Resolves the platform for commands where `--os` and `--arch` have defaults (run, create).
+    private static let defaultOS = "linux"
+
+    /// Resolves the default platform for run/create when the image lists several.
     ///
-    /// Precedence: `--platform` > `CONTAINER_DEFAULT_PLATFORM` > `--os`/`--arch` defaults.
-    ///
-    /// - Parameters:
-    ///   - platform: The value of the `--platform` flag, if provided.
-    ///   - os: The default OS value (always present).
-    ///   - arch: The default architecture value (always present).
-    ///   - environment: The environment dictionary to read from. Defaults to the current process environment.
-    ///   - log: An optional logger for environment variable notices.
-    /// - Returns: The resolved platform. Always returns a value since os/arch defaults are provided.
-    /// - Throws: ContainerizationError if a platform string (from flags or environment) is invalid.
-    public static func resolveWithDefaults(
-        platform: String?,
-        os: String,
-        arch: String,
+    /// Precedence: `CONTAINER_DEFAULT_PLATFORM` > `linux`/host arch.
+    static func fallback(
         environment: [String: String] = ProcessInfo.processInfo.environment,
         log: Logger? = nil
     ) throws -> ContainerizationOCI.Platform {
-        if let platform {
-            return try Parser.platform(from: platform)
-        }
         if let envPlatform = try fromEnvironment(environment: environment, log: log) {
             return envPlatform
         }
-        return Parser.platform(os: os, arch: arch)
+
+        return .init(arch: Arch.hostArchitecture().rawValue, os: defaultOS)
     }
 
     private static func logNotice(_ platform: ContainerizationOCI.Platform, log: Logger?) {

@@ -44,7 +44,7 @@ You use the `container` command line interface (CLI) to start and manage your co
 
 The `container-apiserver` is a launch agent that launches when you run the `container system start` command, and terminates when you run `container system stop`. It provides the client APIs for managing container and network resources.
 
-When `container-apiserver` starts, it launches an XPC helper `container-core-images` that exposes an API for image management and manages the local content store, and another XPC helper `container-network-vmnet` for the virtual network. For each container that you create, `container-apiserver` launches a container runtime helper `container-runtime-linux` that exposes the management API for that specific container.
+When `container-apiserver` starts, it launches an XPC helper `container-core-images` that exposes an API for image management and manages the local content store, another XPC helper `container-core-clusters` that stores local Kubernetes cluster records, an XPC helper `machine-apiserver` that exposes the machine management API, and another XPC helper `container-network-vmnet` for the virtual network. For each container that you create, `container-apiserver` launches a container runtime helper `container-runtime-linux` that exposes the management API for that specific container.
 
 ![diagram showing `container` functional organization](/docs/assets/functional-model-light.svg)
 
@@ -74,4 +74,4 @@ In macOS 15, all containers attach to the default vmnet network. The `container 
 
 In macOS 15, limitations in the vmnet framework mean that the container network can only be created when the first container starts. Since the network XPC helper provides IP addresses to containers, and the helper has to start before the first container, it is possible for the network helper and vmnet to disagree on the subnet address, resulting in containers that are completely cut off from the network.
 
-Normally, vmnet creates the container network using the CIDR address 192.168.64.1/24, and on macOS 15, `container` defaults to using this CIDR address in the network helper. If your containers have no network access on macOS 15, see [All networking fails on macOS 15](troubleshooting.md#all-networking-fails-on-macos-15) for diagnosis and remediation steps.
+Normally, vmnet creates the container network using the CIDR address 192.168.64.1/24, and on macOS 15, `container` defaults to using this CIDR address in the network helper.

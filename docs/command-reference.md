@@ -43,7 +43,7 @@ container run [<options>] <image> [<arguments> ...]
 
 **Management Options**
 
-*   `-a, --arch <arch>`: Set arch if image can target multiple architectures (default: arm64)
+*   `-a, --arch <arch>`: Set arch if image can target multiple architectures (default: from image, else host architecture)
 *   `--cap-add <cap>`: Add a Linux capability (e.g. `CAP_NET_RAW`, `NET_RAW`, or `ALL`)
 *   `--cap-drop <cap>`: Drop a Linux capability (e.g. `CAP_NET_RAW`, `NET_RAW`, or `ALL`)
 *   `--cidfile <cidfile>`: Write the container ID to the path provided
@@ -56,21 +56,22 @@ container run [<options>] <image> [<arguments> ...]
 *   `--init`: Run an init process inside the container that forwards signals and reaps processes
 *   `--init-image <image>`: Use a custom init image instead of the default. This allows customizing boot-time behavior before the OCI container starts, such as running VM-level daemons, configuring eBPF filters, or debugging the init process.
 *   `-k, --kernel <path>`: Set a custom kernel path
+*   `--kernel-arg <arg>`: Append a raw boot argument to the kernel command line (repeatable).
 *   `-l, --label <label>`: Add a key=value label to the container
 *   `--masked-path <path>`: **Experimental.** Hide a path inside the container, in addition to the runtime defaults (or `NONE` to clear prior values and the defaults)
 *   `--mount <mount>`: Add a mount to the container (format: type=<>,source=<>,target=<>,readonly)
 *   `--name <name>`: Use the specified name as the container ID
-*   `--network <network>`: Attach the container to a network (format: `<name>[,mac=XX:XX:XX:XX:XX:XX][,mtu=VALUE]`)
+*   `--network <network>`: Attach the container to a network (format: `<name>[,mac=XX:XX:XX:XX:XX:XX][,mtu=VALUE][,alias=NAME]...`). Use `alias` to give the container additional DNS names; see [Give a container additional DNS names](networking.md#give-a-container-additional-dns-names)
 *   `--no-dns`: Do not configure DNS in the container
-*   `--os <os>`: Set OS if image can target multiple operating systems (default: linux)
+*   `--os <os>`: Set OS if image can target multiple operating systems (default: from image, else linux)
 *   `-p, --publish <spec>`: Publish a port from container to host (format: [host-ip:]host-port:container-port[/protocol])
-*   `--platform <platform>`: Platform for the image if it's multi-platform. This takes precedence over --os and --arch
+*   `--platform <platform>`: Platform for the image if it's multi-platform. This takes precedence over --os and --arch; CONTAINER_DEFAULT_PLATFORM sets the default
 *   `--publish-socket <spec>`: Publish a socket from container to host (format: host_path:container_path)
 *   `--read-only`: Mount the container's root filesystem as read-only
 *   `--read-only-path <path>`: **Experimental.** Mark a path inside the container read-only, in addition to the runtime defaults (or `NONE` to clear prior values and the defaults)
 *   `--rm, --remove`: Remove the container after it stops
 *   `--rosetta`: Enable Rosetta in the container
-*   `--runtime`: Set the runtime handler for the container (default: container-runtime-linux)
+*   `--runtime`: Set the runtime handler for the container (default: container-runtime-<os>)
 *   `--ssh`: Forward SSH agent socket to container
 *   `--shm-size <shm-size>`: Size of `/dev/shm` (e.g. 64M, 1G)
 *   `--tmpfs <tmpfs>`: Add a tmpfs mount to the container at the given path
@@ -79,19 +80,7 @@ container run [<options>] <image> [<arguments> ...]
 
 **Registry Options**
 
-*   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https, auto) (default: auto)
-
-    * **Behavior of `auto`**
-
-        When `auto` is selected, the target registry is considered **internal/local** if the registry host matches any of these criteria:
-        - The host is a loopback address (e.g., `localhost`, `127.*`)
-        - The host is within the `RFC1918` private IP ranges:
-            - `10.*.*.*`
-            - `192.168.*.*`
-            - `172.16.*.*` through `172.31.*.*`
-        - The host ends with the machine's default container DNS domain (as defined in `DNSConfig.defaultDomain`, located [here](../Sources/ContainerPersistence/ContainerSystemConfig.swift))
-
-        For internal/local registries, the client uses **HTTP**. Otherwise, it uses **HTTPS**.
+*   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https) (default: https)
 
 **Progress Options**
 
@@ -115,6 +104,9 @@ container run -e NODE_ENV=production --cpus 2 --memory 1G node:18
 
 # run a container with a specific MAC address
 container run --network default,mac=02:42:ac:11:00:02 ubuntu:latest
+
+# run a container that also answers to api.test and to every name below gateway.test
+container run --name gateway --network default,alias=api.test,alias=.gateway.test nginx:latest
 
 # run a container with an init process to reap zombies and forward signals
 container run --init ubuntu:latest my-app
@@ -219,7 +211,7 @@ container create [<options>] <image> [<arguments> ...]
 
 **Management Options**
 
-*   `-a, --arch <arch>`: Set arch if image can target multiple architectures (default: arm64)
+*   `-a, --arch <arch>`: Set arch if image can target multiple architectures (default: from image, else host architecture)
 *   `--cap-add <cap>`: Add a Linux capability (e.g. `CAP_NET_RAW`, `NET_RAW`, or `ALL`)
 *   `--cap-drop <cap>`: Drop a Linux capability (e.g. `CAP_NET_RAW`, `NET_RAW`, or `ALL`)
 *   `--cidfile <cidfile>`: Write the container ID to the path provided
@@ -232,21 +224,22 @@ container create [<options>] <image> [<arguments> ...]
 *   `--init`: Run an init process inside the container that forwards signals and reaps processes
 *   `--init-image <image>`: Use a custom init image instead of the default. This allows customizing boot-time behavior before the OCI container starts, such as running VM-level daemons, configuring eBPF filters, or debugging the init process.
 *   `-k, --kernel <path>`: Set a custom kernel path
+*   `--kernel-arg <arg>`: Append a raw boot argument to the kernel command line (repeatable).
 *   `-l, --label <label>`: Add a key=value label to the container
 *   `--masked-path <path>`: **Experimental.** Hide a path inside the container, in addition to the runtime defaults (or `NONE` to clear prior values and the defaults)
 *   `--mount <mount>`: Add a mount to the container (format: type=<>,source=<>,target=<>,readonly)
 *   `--name <name>`: Use the specified name as the container ID
-*   `--network <network>`: Attach the container to a network (format: `<name>[,mac=XX:XX:XX:XX:XX:XX][,mtu=VALUE]`)
+*   `--network <network>`: Attach the container to a network (format: `<name>[,mac=XX:XX:XX:XX:XX:XX][,mtu=VALUE][,alias=NAME]...`). Use `alias` to give the container additional DNS names; see [Give a container additional DNS names](networking.md#give-a-container-additional-dns-names)
 *   `--no-dns`: Do not configure DNS in the container
-*   `--os <os>`: Set OS if image can target multiple operating systems (default: linux)
+*   `--os <os>`: Set OS if image can target multiple operating systems (default: from image, else linux)
 *   `-p, --publish <spec>`: Publish a port from container to host (format: [host-ip:]host-port:container-port[/protocol])
-*   `--platform <platform>`: Platform for the image if it's multi-platform. This takes precedence over --os and --arch
+*   `--platform <platform>`: Platform for the image if it's multi-platform. This takes precedence over --os and --arch; CONTAINER_DEFAULT_PLATFORM sets the default
 *   `--publish-socket <spec>`: Publish a socket from container to host (format: host_path:container_path)
 *   `--read-only`: Mount the container's root filesystem as read-only
 *   `--read-only-path <path>`: **Experimental.** Mark a path inside the container read-only, in addition to the runtime defaults (or `NONE` to clear prior values and the defaults)
 *   `--rm, --remove`: Remove the container after it stops
 *   `--rosetta`: Enable Rosetta in the container
-*   `--runtime`: Set the runtime handler for the container (default: container-runtime-linux)  
+*   `--runtime`: Set the runtime handler for the container (default: container-runtime-<os>)  
 *   `--ssh`: Forward SSH agent socket to container
 *   `--shm-size <shm-size>`: Size of `/dev/shm` (e.g. 64M, 1G)
 *   `--tmpfs <tmpfs>`: Add a tmpfs mount to the container at the given path
@@ -255,7 +248,7 @@ container create [<options>] <image> [<arguments> ...]
 
 **Registry Options**
 
-*   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https, auto) (default: auto)
+*   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https) (default: https)
 
 **Image Fetch Options**
 
@@ -384,6 +377,32 @@ container exec [--detach] [--env <env> ...] [--env-file <env-file> ...] [--gid <
 *   `--uid <uid>`: Set the user ID for the process
 *   `-w, --workdir, --cwd <dir>`: Set the initial working directory inside the container
 
+### `container commit`
+
+Creates a new image from a container's filesystem. For running containers, commit automatically takes a runtime snapshot to preserve consistency.
+
+**Usage**
+
+```bash
+container commit [--debug] <container-id> <reference>
+```
+
+**Arguments**
+
+*   `<container-id>`: Container ID
+*   `<reference>`: Image reference for the committed image
+
+**Examples**
+
+```bash
+# commit a stopped container to a new image
+container stop mycontainer
+container commit mycontainer myimage:latest
+
+# commit a running container
+container commit mycontainer myimage:latest
+```
+
 ### `container export`
 
 Exports a container's filesystem as a tar archive. For running containers, export automatically takes a runtime snapshot to preserve consistency. If no output file is specified, the tar stream is written to stdout.
@@ -411,6 +430,30 @@ container export -o mycontainer.tar mycontainer
 
 # export to stdout and pipe to another tool
 container export mycontainer > mycontainer.tar
+```
+
+### `container clean`
+
+Cleans unused space on the root filesystem and each named volume mount in one or more running containers. The command only works while the container is running.
+
+**Usage**
+
+```bash
+container clean [--debug] <container-ids> ...
+```
+
+**Arguments**
+
+*   `<container-ids>`: Container IDs
+
+**Examples**
+
+```bash
+# clean a single running container
+container clean mycontainer
+
+# clean multiple running containers
+container clean mycontainer1 mycontainer2
 ```
 
 ### `container logs`
@@ -567,7 +610,7 @@ container image pull [--scheme <scheme>] [--progress <type>] [--max-concurrent-d
 
 **Options**
 
-*   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https, auto) (default: auto)
+*   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https) (default: https)
 *   `--progress <type>`: Progress type (format: auto|none|ansi|plain|color) (default: auto)
 *   `--max-concurrent-downloads <max-concurrent-downloads>`: Maximum number of concurrent downloads (default: 3)
 *   `-a, --arch <arch>`: Limit the pull to the specified architecture
@@ -590,7 +633,7 @@ container image push [--scheme <scheme>] [--progress <type>] [--arch <arch>] [--
 
 **Options**
 
-*   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https, auto) (default: auto)
+*   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https) (default: https)
 *   `--progress <type>`: Progress type (format: auto|none|ansi|plain|color) (default: auto)
 *   `-a, --arch <arch>`: Limit the push to the specified architecture
 *   `--os <os>`: Limit the push to the specified OS
@@ -1014,7 +1057,7 @@ container registry login [--scheme <scheme>] [--password-stdin] [--username <use
 
 **Options**
 
-*   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https, auto) (default: auto)
+*   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https) (default: https)
 *   `--password-stdin`: Take the password from stdin
 *   `-u, --username <username>`: Registry user name
 
@@ -1083,12 +1126,19 @@ container machine create [<options>] <image>
 **Management Options**
 
 *   `-a, --arch <arch>`: Set arch if image can target multiple architectures (default: host architecture)
-*   `--os <os>`: Set OS if image can target multiple operating systems (default: linux)
-*   `--platform <platform>`: Platform for the image if it's multi-platform. This takes precedence over --os and --arch
+*   `--os <os>`: Set OS if image can target multiple operating systems
+*   `--platform <platform>`: Platform for the image if it's multi-platform. This takes precedence over --os and --arch; CONTAINER_DEFAULT_PLATFORM sets the default
+
+**User Options**
+
+*   `-u, --user <user>`: Set the user for the container machine account (format: name|uid[:gid]). Defaults to the host user
+*   `--uid <uid>`: Set the user ID for the container machine account. Defaults to the host user's
+*   `--gid <gid>`: Set the group ID for the container machine account. Defaults to the host user's
+*   `--home <home>`: Set the home directory for the container machine account. Defaults to /home/<user>
 
 **Registry Options**
 
-*   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https, auto) (default: auto)
+*   `--scheme <scheme>`: Scheme to use when connecting to the container registry. One of (http, https) (default: https)
 
 **Progress Options**
 
@@ -1572,27 +1622,30 @@ container system property list
 container system property list --format json
 ```
 
-## Kubernetes Cluster Management
+## Container Cluster Management
 
-`container k8s` manages local single-node Kubernetes clusters backed by container VMs. Each cluster runs a Kubernetes control-plane node inside a container using `kindest/node` and `kubeadm`.
+`container cluster` manages local Kubernetes clusters backed by container VMs. Each cluster runs a Kubernetes control-plane node inside a container using `kindest/node` and `kubeadm`, with optional additional worker nodes.
 
 > [!IMPORTANT]
-> The `k8s` command is an experimental feature and its subcommands and options are subject to change.
+> The `cluster` command is an experimental feature and its subcommands and options are subject to change.
 
-### `container k8s create`
+### `container cluster create`
 
-Creates and starts a local Kubernetes cluster. Pulls the node image if needed, runs `kubeadm init`, installs the kindnet CNI, and merges the cluster credentials into `~/.kube/config`.
+Creates and starts a local Kubernetes cluster and optional worker nodes. Pulls the node image if needed, runs `kubeadm init`, installs a CNI (default: bundled kindnet), and merges the cluster credentials into `~/.kube/config`.
 
 **Usage**
 
 ```bash
-container k8s create [--name <name>] [--node-image <image>] [--rm] [<resource options>] [--debug]
+container cluster create [--name <name>] [--node-image <image>] [--cni <path>] [--workers <n>] [--shared-image-store] [--rm] [<resource options>] [--debug]
 ```
 
 **Options**
 
-*   `--name <name>`: Cluster name (default: `k8s-dev`)
+*   `--name <name>`: Cluster name (default: `cluster-dev`)
 *   `--node-image <image>`: Node image reference (default: `docker.io/kindest/node:v1.35.5`)
+*   `--cni <path>`: Optional path to a CNI manifest to apply, or `NONE` (case-insensitive) to skip installing a CNI. If not provided, the bundled kindnet CNI is used. With `NONE`, the command returns without waiting for nodes to become `Ready`, since that requires a CNI; apply your own afterward with `kubectl apply`.
+*   `--workers <n>`: Number of worker nodes to create (default: `0`, meaning the control-plane node also acts as a worker)
+*   `--shared-image-store`: Let nodes pull images from the local image store (default: off). See [Container cluster](cluster.md).
 *   `--rm`: Remove the cluster container after it stops
 
 **Resource Options**
@@ -1602,7 +1655,7 @@ container k8s create [--name <name>] [--node-image <image>] [--rm] [<resource op
 
 **Registry Options**
 
-*   `--scheme <scheme>`: Scheme for the container registry (values: http, https, auto; default: auto)
+*   `--scheme <scheme>`: Scheme for the container registry (values: http, https; default: https)
 
 **Image Fetch Options**
 
@@ -1611,135 +1664,103 @@ container k8s create [--name <name>] [--node-image <image>] [--rm] [<resource op
 **Examples**
 
 ```bash
-# create a cluster with the default name (k8s-dev)
-container k8s create
+# create a cluster with the default name (cluster-dev)
+container cluster create
 
 # create a cluster with a custom name and resource allocation
-container k8s create --name my-cluster --cpus 4 --memory 8g
+container cluster create --name my-cluster --cpus 4 --memory 8g
 
 # create a cluster that removes itself when stopped
-container k8s create --name temp-cluster --rm
+container cluster create --name temp-cluster --rm
+
+# create a cluster using a custom CNI manifest instead of the bundled kindnet
+container cluster create --cni ./my-cni.yaml
+
+# create a cluster with no CNI installed
+container cluster create --cni NONE
+
+# create a cluster with a control plane and 3 worker nodes
+container cluster create --name my-cluster --workers 3
+
+# create a cluster whose nodes can pull images from the local image store
+container cluster create --shared-image-store
 ```
 
-### `container k8s start`
+### `container cluster delete (rm)`
 
-Starts a stopped Kubernetes cluster and refreshes its entry in `~/.kube/config` (the container IP can change between starts).
+Stops and deletes a Kubernetes cluster container, including any worker nodes, and removes its entry from `~/.kube/config`.
 
 **Usage**
 
 ```bash
-container k8s start [--name <name>] [--debug]
+container cluster delete [--name <name>] [--debug]
 ```
 
 **Options**
 
-*   `--name <name>`: Cluster name (default: `k8s-dev`)
-
-**Examples**
-
-```bash
-# start the default cluster
-container k8s start
-
-# start a named cluster
-container k8s start --name my-cluster
-```
-
-### `container k8s delete (rm)`
-
-Stops and deletes a Kubernetes cluster container and removes its entry from `~/.kube/config`.
-
-**Usage**
-
-```bash
-container k8s delete [--name <name>] [--debug]
-```
-
-**Options**
-
-*   `--name <name>`: Cluster name (default: `k8s-dev`)
+*   `--name <name>`: Cluster name (default: `cluster-dev`)
 
 **Examples**
 
 ```bash
 # delete the default cluster
-container k8s delete
+container cluster delete
 
 # delete a named cluster
-container k8s delete --name my-cluster
-container k8s rm --name my-cluster
+container cluster delete --name my-cluster
+container cluster rm --name my-cluster
 ```
 
-### `container k8s list (ls)`
+### `container cluster list (ls)`
 
-Lists all Kubernetes clusters with their status and node image.
+Lists Kubernetes clusters created with this version of the plugin. By default the output has one row per cluster with its name, status, node count, and Kubernetes version. Use `--nodes` to show one row per node instead. Use `-q` to print only cluster names (node names with `--nodes`).
+
+With `--format json` (or `yaml`/`toml`), each cluster is reported with an `id`, its `configuration` (the settings it was created with), and its `status`. The `status` has a `state` (`running`, `degraded` or `stopped`, derived from the state of its node containers) and `nodes` (per-node state).
+
+Clusters created by earlier versions have no stored configuration and do not appear. Cluster records are kept by the `container-core-clusters` helper service, so the container system must be running (`container system start`).
 
 **Usage**
 
 ```bash
-container k8s list [--debug]
-```
-
-**Examples**
-
-```bash
-container k8s list
-container k8s ls
-```
-
-### `container k8s load-image`
-
-Exports an image from the local `container` image store and imports it into the cluster's containerd (in the `k8s.io` namespace) so that Kubernetes can schedule pods that reference it.
-
-**Usage**
-
-```bash
-container k8s load-image [--name <name>] [--platform <platform>] <image> [--debug]
-```
-
-**Arguments**
-
-*   `<image>`: Image reference to load (e.g. `my-app:latest`)
-
-**Options**
-
-*   `--name <name>`: Cluster name (default: `k8s-dev`)
-*   `--platform <platform>`: Platform of the image variant to load from a multi-arch image (format: os/arch[/variant], default: `linux/<host-arch>`). Use this when the local store contains a multi-arch manifest list and you want to select a specific variant.
-
-**Examples**
-
-```bash
-# load an image into the default cluster
-container k8s load-image my-app:latest
-
-# load an image into a named cluster
-container k8s load-image --name my-cluster my-app:latest
-
-# load the amd64 variant of a multi-arch image
-container k8s load-image --platform linux/amd64 my-app:latest
-```
-
-### `container k8s write-config`
-
-Fetches the current kubeconfig from a running cluster and merges its context into a kubeconfig file. Use this to refresh credentials after a cluster restart or to write to an alternate config file.
-
-**Usage**
-
-```bash
-container k8s write-config [--name <name>] [--kubeconfig <path>] [--debug]
+container cluster list [--nodes] [--format json|table|yaml|toml] [-q] [--debug]
 ```
 
 **Options**
 
-*   `--name <name>`: Cluster name (default: `k8s-dev`)
+*   `--nodes`: Show one row per node instead of one row per cluster.
+*   `--format <format>`: Format of the output (`json`, `table`, `yaml`, `toml`; default `table`).
+*   `-q, --quiet`: Only output the cluster name (the node name with `--nodes`).
+
+**Examples**
+
+```bash
+container cluster ls
+container cluster ls --nodes
+container cluster ls --format json
+container cluster ls -q
+```
+
+### `container cluster write-config`
+
+Fetches the current kubeconfig from a running cluster and merges its context into a kubeconfig file. Use this to write to an alternate config file.
+
+**Usage**
+
+```bash
+container cluster write-config [--name <name>] [--kubeconfig <path>] [--debug]
+```
+
+**Options**
+
+*   `--name <name>`: Cluster name (default: `cluster-dev`)
 *   `--kubeconfig <path>`: Path to the kubeconfig file to write or append to (default: `~/.kube/config`)
 
 **Examples**
 
 ```bash
 # refresh credentials for the default cluster into ~/.kube/config
-container k8s write-config
+container cluster write-config
 
 # write the context for a named cluster to an alternate kubeconfig file
-container k8s write-config --name my-cluster --kubeconfig ~/.kube/my-cluster.kubeconfig
+container cluster write-config --name my-cluster --kubeconfig ~/.kube/my-cluster.kubeconfig
 ```

@@ -20,16 +20,49 @@ on:
         default: ""
 
 jobs:
+  # Build the cluster-shim static musl binary in a Swift Linux container, as
+  # containerization does for vminitd. The macOS job packages the artifact.
+  buildClusterShim:
+    name: Build cluster-shim
+    if: github.repository == 'apple/container'
+    timeout-minutes: 30
+    runs-on: ubuntu-24.04
+    container: swift:6.3.0-noble
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install system dependencies
+        run: apt-get update && apt-get install -y make
+
+      - name: Install Static Linux SDK
+        run: make -C cluster-shim linux-sdk
+
+      - name: Build cluster-shim (static musl, aarch64)
+        run: make -C cluster-shim build-native ARCH=aarch64
+
+      - name: Upload cluster-shim
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: cluster-shim
+          path: cluster-shim/bin/cluster-shim
+          if-no-files-found: error
+
   buildAndTest:
     name: Build and test the project
     if: github.repository == 'apple/container'
+    needs: buildClusterShim
     timeout-minutes: 90
-    runs-on: [self-hosted, macos, tahoe, ARM64]
+    runs-on: [self-hosted, macos, goldengate, ARM64]
     permissions:
       contents: read
       packages: read
     env:
       DEVELOPER_DIR: "/Applications/Xcode_swift_6.3.app/Contents/Developer"
+      # Package the cluster-shim artifact instead of building it in a container.
+      CLUSTER_SHIM_BINARY: cluster-shim/bin/cluster-shim
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -66,6 +99,12 @@ jobs:
           if [[ "${RELEASE}" == "true" ]]; then
             echo "BUILD_CONFIGURATION=release" >> $GITHUB_ENV
           fi
+
+      - name: Download cluster-shim
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: cluster-shim
+          path: cluster-shim/bin
 
       - name: Make the container project and docs
         run: |
@@ -126,7 +165,7 @@ jobs:
 
       - name: Upload coverage data
         if: ${{ inputs.coverage }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: pr-coverage-${{ inputs.pr_number }}
           path: pr-coverage/
@@ -135,7 +174,7 @@ jobs:
 
       - name: Upload coverage HTML reports
         if: ${{ inputs.coverage }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage-html-reports
           path: |
@@ -166,7 +205,7 @@ jobs:
 
       - name: Upload logs if present
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: container-test-logs
           path: container-logs.tar.gz
@@ -174,14 +213,14 @@ jobs:
           if-no-files-found: ignore
 
       - name: Save documentation artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: api-docs
           path: "./_site.tgz"
           retention-days: 14
 
       - name: Save package artifacts
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: container-package
           path: ${{ github.workspace }}/outputs
@@ -198,7 +237,7 @@ jobs:
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6
 
       - name: Download a single artifact
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: api-docs
 

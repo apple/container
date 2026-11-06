@@ -578,6 +578,105 @@ struct TestCLIMachineRuntimeSerial {
         }
     }
 
+    @Test func testUserSetupRerunsAcrossRestart() async throws {
+        try await ContainerFixture.with { f in
+            let name = "\(f.testID)-machine"
+            f.addCleanup { f.cleanupMachine(name) }
+            try f.doMachineCreate(name: name, image: machineImage)
+            try f.doMachineBoot(name: name)
+            try await f.waitForMachineStatus(name, status: "running")
+            try f.doMachineStop(name: name)
+
+            try f.doMachineBoot(name: name)
+            try await f.waitForMachineStatus(name, status: "running")
+
+            let username = NSUserName()
+            let passwdCount = try f.doMachineRun(
+                name: name, root: true,
+                command: ["grep", "-c", "^\(username):", "/etc/passwd"]
+            ).trimmingCharacters(in: .whitespacesAndNewlines)
+            #expect(passwdCount == "1", "user setup re-running on restart should not duplicate the passwd entry")
+
+            let sudoers = try f.doMachineRun(
+                name: name, root: true,
+                command: ["cat", "/etc/sudoers.d/\(username)"]
+            ).trimmingCharacters(in: .whitespacesAndNewlines)
+            #expect(sudoers == "\(username) ALL=(ALL) NOPASSWD:ALL")
+        }
+    }
+
+    @Test func testCreateWithCustomUser() async throws {
+        try await ContainerFixture.with { f in
+            let name = "\(f.testID)-machine"
+            f.addCleanup { f.cleanupMachine(name) }
+            try f.doMachineCreate(
+                name: name, image: machineImage,
+                extraArgs: ["--user", "devuser", "--uid", "1500", "--gid", "1600"])
+            try f.doMachineBoot(name: name)
+            try await f.waitForMachineStatus(name, status: "running")
+
+            let uid = try f.doMachineRun(name: name, command: ["id", "-u"])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let gid = try f.doMachineRun(name: name, command: ["id", "-g"])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let username = try f.doMachineRun(name: name, command: ["id", "-un"])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let home = try f.doMachineRun(name: name, command: ["echo", "$HOME"])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            #expect(uid == "1500")
+            #expect(gid == "1600")
+            #expect(username == "devuser")
+            #expect(home == "/home/devuser")
+
+            let sudoers = try f.doMachineRun(
+                name: name, root: true,
+                command: ["cat", "/etc/sudoers.d/devuser"]
+            ).trimmingCharacters(in: .whitespacesAndNewlines)
+            #expect(sudoers == "devuser ALL=(ALL) NOPASSWD:ALL")
+        }
+    }
+
+    @Test func testCreateWithUidGidOnlyKeepsHostUsername() async throws {
+        try await ContainerFixture.with { f in
+            let name = "\(f.testID)-machine"
+            f.addCleanup { f.cleanupMachine(name) }
+            try f.doMachineCreate(
+                name: name, image: machineImage,
+                extraArgs: ["--uid", "1500", "--gid", "1600"])
+            try f.doMachineBoot(name: name)
+            try await f.waitForMachineStatus(name, status: "running")
+
+            let uid = try f.doMachineRun(name: name, command: ["id", "-u"])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let username = try f.doMachineRun(name: name, command: ["id", "-un"])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            #expect(uid == "1500")
+            #expect(username == NSUserName(), "username should stay host-derived when only --uid/--gid are set")
+        }
+    }
+
+    @Test func testCreateWithCustomHome() async throws {
+        try await ContainerFixture.with { f in
+            let name = "\(f.testID)-machine"
+            f.addCleanup { f.cleanupMachine(name) }
+            try f.doMachineCreate(
+                name: name, image: machineImage,
+                extraArgs: ["--home", "/srv/devhome"])
+            try f.doMachineBoot(name: name)
+            try await f.waitForMachineStatus(name, status: "running")
+
+            let home = try f.doMachineRun(name: name, command: ["echo", "$HOME"])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            #expect(home == "/srv/devhome")
+
+            let listing = try f.doMachineRun(
+                name: name, root: true,
+                command: ["ls", "-ld", "/srv/devhome"]
+            ).trimmingCharacters(in: .whitespacesAndNewlines)
+            #expect(listing.hasPrefix("d"), "custom home directory should have been created")
+        }
+    }
+
     // MARK: - set tests
 
     @Test func testSetCpus() async throws {

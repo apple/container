@@ -18,7 +18,6 @@ import ContainerizationExtras
 import Darwin
 import Foundation
 import SystemPackage
-import Testing
 
 // MARK: - Build context types
 
@@ -309,12 +308,16 @@ extension ContainerFixture {
     /// Asserts that `path` exists as a regular file inside `container`.
     public func assertContainerHasFile(_ container: String, at path: String, _ comment: String? = nil) throws {
         let exists = try containerHasFile(container, at: path)
-        #expect(exists, "\(comment ?? path) should exist in container")
+        guard exists else {
+            throw CommandError.executionFailed("\(comment ?? path) should exist in container")
+        }
     }
 
     /// Asserts that `path` does NOT exist inside `container`.
     public func assertContainerMissingFile(_ container: String, at path: String, _ comment: String? = nil) throws {
         let exists = try containerHasFile(container, at: path)
-        #expect(!exists, "\(comment ?? path) should NOT exist in container")
+        guard !exists else {
+            throw CommandError.executionFailed("\(comment ?? path) should NOT exist in container")
+        }
     }
 }
