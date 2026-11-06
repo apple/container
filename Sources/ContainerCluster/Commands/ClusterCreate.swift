@@ -33,7 +33,8 @@ public struct ClusterCreate: AsyncParsableCommand {
         commandName: "create",
         abstract: "Create and start a local Kubernetes cluster and optional worker nodes",
         discussion: """
-            With --workers, --cpus and --memory size the control-plane node only (default 2 CPUs and 2g). \
+            --cpus and --memory size the control-plane node, or the single node if no workers are specified \
+            (default 1/4 of host CPUs and memory, minimum 2 CPUs and 2g). \
             Size workers with --workers count=<n>,cpus=<n>,memory=<size>; a group's count defaults to 1, and cpus and memory left out default to the single-node sizes: 1/4 of host CPUs and memory (minimum 2 CPUs and 2g).
             """
     )
@@ -115,8 +116,6 @@ public struct ClusterCreate: AsyncParsableCommand {
             fqdn: fqdn
         )
 
-        let controlPlaneResources = ClusterHelper.controlPlaneResourceFlags(resourceFlags, hasWorkers: workerCount > 0)
-
         let isTTY = isatty(FileHandle.standardError.fileDescriptor) == 1
         // TotalTasks include:
         // start, kubeadm init, one per worker, wait, write kubeconfig.
@@ -139,8 +138,8 @@ public struct ClusterCreate: AsyncParsableCommand {
             clusterName: name,
             roles: workerCount == 0 ? [StandardRoles.controlPlane, StandardRoles.worker] : [StandardRoles.controlPlane],
             nodeImage: nodeImage,
-            cpus: controlPlaneResources.cpus,
-            memory: controlPlaneResources.memory,
+            cpus: resourceFlags.cpus,
+            memory: resourceFlags.memory,
             registryScheme: registryFlags.scheme,
             maxConcurrentDownloads: imageFetchFlags.maxConcurrentDownloads,
             remove: remove,

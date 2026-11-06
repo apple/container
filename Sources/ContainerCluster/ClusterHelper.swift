@@ -174,20 +174,6 @@ public struct ClusterHelper {
         return f
     }
 
-    // TODO (katiewasnothere): These should be configurable with the container system config
-    private static let workersControlPlaneCPUs: Int64 = 2
-    private static let workersControlPlaneMemory = "2g"
-
-    /// Resolves the control plane's resources. Without workers the flags are returned unchanged, so the
-    /// node keeps the single-node defaults. With workers, unset values default to a fixed, smaller size
-    /// since the control plane no longer runs workloads. Explicit values always win.
-    public static func controlPlaneResourceFlags(_ flags: Flags.Resource, hasWorkers: Bool) -> Flags.Resource {
-        guard hasWorkers else { return flags }
-        return Flags.Resource(
-            cpus: flags.cpus ?? workersControlPlaneCPUs,
-            memory: flags.memory ?? workersControlPlaneMemory)
-    }
-
     // Shared exec helper used by bootstrap, readiness, and kubeconfig extensions.
     public static func execCapture(
         containerId: String, executable: String, arguments: [String],

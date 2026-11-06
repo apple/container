@@ -156,8 +156,8 @@ struct TestClusterMultiNodeSerial {
         }
     }
 
-    /// With workers and no resource flags, the control plane gets the fixed smaller default and
-    /// workers get the same default as a single-node cluster.
+    /// With workers and no resource flags, the control plane and workers all get the same default
+    /// as a single-node cluster.
     @Test func testDefaultSizesWithWorkers() async throws {
         try await ContainerFixture.with { f in
             let name = "cluster-\(f.testID)"
@@ -172,15 +172,13 @@ struct TestClusterMultiNodeSerial {
             }
             try result.check()
 
-            let controlPlane = try f.inspectContainer(name).configuration.resources
-            #expect(controlPlane.cpus == 2)
-            #expect(controlPlane.memoryInBytes == 2 * gib)
-
             // Single-node default: 1/4 of host CPUs and memory, minimum 2 CPUs and 2g.
             let hostGiB = ProcessInfo.processInfo.physicalMemory / gib
-            let worker = try f.inspectContainer(workerName).configuration.resources
-            #expect(worker.cpus == max(ProcessInfo.processInfo.processorCount / 4, 2))
-            #expect(worker.memoryInBytes == max(hostGiB / 4, 2) * gib)
+            for node in [name, workerName] {
+                let resources = try f.inspectContainer(node).configuration.resources
+                #expect(resources.cpus == max(ProcessInfo.processInfo.processorCount / 4, 2), "cpus for \(node)")
+                #expect(resources.memoryInBytes == max(hostGiB / 4, 2) * gib, "memory for \(node)")
+            }
         }
     }
 }

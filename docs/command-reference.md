@@ -1651,10 +1651,10 @@ container cluster create [--name <name>] [--node-image <image>] [--cni <path>] [
 
 **Resource Options**
 
-*   `--cpus <cpus>`: Number of virtual CPUs for the control-plane node (default: 1/4 of host CPUs, minimum 2; with workers, 2)
-*   `--memory <memory>`: Memory allocation for the control-plane node (default: 1/4 of host memory, minimum 2g; with workers, 2g)
+*   `--cpus <cpus>`: Number of virtual CPUs for the control-plane node (default: 1/4 of host CPUs, minimum 2)
+*   `--memory <memory>`: Memory allocation for the control-plane node (default: 1/4 of host memory, minimum 2g)
 
-With workers, the control-plane node defaults to 2 CPUs and 2g and `--cpus` and `--memory` apply to it only. A worker value that is not given defaults to the same as a single node, however many workers there are. A value given in a `--workers` group applies to that group only.
+With workers, `--cpus` and `--memory` apply to the control-plane node only. A worker value that is not given defaults to the same as a single node, however many workers there are. A value given in a `--workers` group applies to that group only.
 
 **Registry Options**
 
@@ -1685,7 +1685,7 @@ container cluster create --cni NONE
 # create a cluster with a control plane and 3 worker nodes
 container cluster create --name my-cluster --workers 3
 
-# create a cluster with a small control plane and two groups of differently sized workers
+# create a cluster with a 2 CPU, 4g control plane and two groups of differently sized workers
 container cluster create --name my-cluster --cpus 2 --memory 4g \
   --workers count=2,cpus=4,memory=8g --workers count=1,cpus=2,memory=4g
 
