@@ -283,6 +283,8 @@ mtu = 1500
 
 The default applies to `container run`, `container create`, the builder, `container machine`, and the nodes of `container cluster create`. To override it for one attachment, use `container run --network default,mtu=1400 ...`. Containers and clusters created with an MTU keep it, and a builder that is already running keeps its MTU until it is recreated.
 
+To set an MTU for every container on a network, use `container network create --mtu 1500 foo`. An MTU on an attachment overrides the network's, and the network's overrides `[network] mtu`. Changing `[network] mtu` does not affect a network created with its own MTU. `container network inspect` shows the MTU a new attachment would get as `effectiveMTU`.
+
 ## Configure default network subnets
 
 You can customize the default IPv4 and IPv6 subnets used for new networks by editing your runtime configuration file at `~/.config/container/config.toml`:

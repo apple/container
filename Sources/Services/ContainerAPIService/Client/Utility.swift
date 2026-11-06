@@ -212,16 +212,19 @@ public struct Utility {
         } else {
             let networkClient = NetworkClient()
             let builtinNetworkId = try await networkClient.builtin?.id
+            let networkNames = parsedNetworks.isEmpty ? [builtinNetworkId].compactMap { $0 } : parsedNetworks.map(\.name)
+            var networkMTUs: [String: UInt32] = [:]
+            for networkName in networkNames {
+                networkMTUs[networkName] = try await networkClient.get(id: networkName).configuration.mtu
+            }
             config.networks = try getAttachmentConfigurations(
                 containerId: config.id,
                 builtinNetworkId: builtinNetworkId,
                 networks: parsedNetworks,
                 dnsDomain: containerSystemConfig.dns.domain,
                 defaultMTU: NetworkMTU.resolve(config: containerSystemConfig.network.mtu),
+                networkMTUs: networkMTUs,
             )
-            for attachmentConfiguration in config.networks {
-                _ = try await networkClient.get(id: attachmentConfiguration.network)
-            }
         }
 
         if management.dnsDisabled {
@@ -276,6 +279,7 @@ public struct Utility {
         networks: [Parser.ParsedNetwork],
         dnsDomain: String?,
         defaultMTU: UInt32,
+        networkMTUs: [String: UInt32] = [:],
     ) throws -> [AttachmentConfiguration] {
         // Validate MAC addresses if provided
         for network in networks {
@@ -312,7 +316,7 @@ public struct Utility {
             // attach the first network using the fqdn, and the rest using just the container ID
             return try networks.enumerated().map { item in
                 let macAddress = try item.element.macAddress.map { try MACAddress($0) }
-                let mtu = item.element.mtu ?? defaultMTU
+                let mtu = item.element.mtu ?? networkMTUs[item.element.name] ?? defaultMTU
                 let aliases = try qualifyAliases(item.element.aliases, dnsDomain: dnsDomain)
                 guard item.offset == 0 else {
                     return AttachmentConfiguration(
@@ -331,7 +335,8 @@ public struct Utility {
         guard let builtinNetworkId else {
             throw ContainerizationError(.invalidState, message: "builtin network is not present")
         }
-        return [AttachmentConfiguration(network: builtinNetworkId, options: AttachmentOptions(hostname: fqdn ?? containerId, macAddress: nil, mtu: defaultMTU))]
+        let mtu = networkMTUs[builtinNetworkId] ?? defaultMTU
+        return [AttachmentConfiguration(network: builtinNetworkId, options: AttachmentOptions(hostname: fqdn ?? containerId, macAddress: nil, mtu: mtu))]
     }
 
     /// Appends the default DNS domain to the aliases that have no domain of their own.

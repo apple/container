@@ -67,6 +67,34 @@ struct TestNetworkMTUConfigSerial {
         }
     }
 
+    @available(macOS 26, *)
+    @Test func testNetworkMTUBeatsConfig() async throws {
+        try await ContainerFixture.with { f in
+            try Self.useConfiguration("[network]\nmtu = 1400\n", in: f)
+            let net = "\(f.testID)-net"
+            let c = "\(f.testID)-c"
+            try f.doNetworkCreate(net, args: ["--mtu", "1500"])
+            f.addCleanup { f.doNetworkDeleteIfExists(net) }
+
+            try await f.doLongRun(name: c, args: ["--network", net], autoRemove: false, waitUntilRunning: true)
+            f.addCleanup {
+                try? f.doStop(c)
+                try? f.doRemove(c)
+            }
+            let output = try f.doExec(c, cmd: ["ip", "link", "show", "eth0"])
+            #expect(output.contains("mtu 1500"), "expected mtu 1500 in ip link output: \(output)")
+        }
+    }
+
+    @Test func testNetworkInspectShowsTheConfiguredMTU() async throws {
+        try await ContainerFixture.with { f in
+            try Self.useConfiguration("[network]\nmtu = 1400\n", in: f)
+            let network = try f.inspectNetwork("default")
+            #expect(network.configuration.mtu == nil)
+            #expect(network.effectiveMTU == 1400)
+        }
+    }
+
     @Test func testInvalidConfigIsRejected() async throws {
         try await ContainerFixture.with { f in
             try Self.useConfiguration("[network]\nmtu = 100\n", in: f)

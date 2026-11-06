@@ -29,6 +29,7 @@ public struct NetworkInspectOutput: Codable {
     public let id: String
     public let configuration: NetworkConfiguration
     public let status: Status
+    public let effectiveMTU: UInt32?
 }
 
 // MARK: - Network lifecycle helpers

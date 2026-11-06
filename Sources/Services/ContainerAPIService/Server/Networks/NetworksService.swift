@@ -174,6 +174,7 @@ public actor NetworksService {
                 mode: configuration.mode,
                 ipv4Subnet: configuration.ipv4Subnet,
                 ipv6Subnet: configuration.ipv6Subnet,
+                mtu: configuration.mtu,
                 labels: configuration.labels,
                 plugin: configuration.plugin,
                 options: configuration.options

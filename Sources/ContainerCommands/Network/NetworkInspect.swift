@@ -16,9 +16,32 @@
 
 import ArgumentParser
 import ContainerAPIClient
+import ContainerPersistence
 import ContainerResource
 import ContainerizationError
 import Foundation
+
+/// A network as `network inspect` prints it: the resource, plus the MTU that a
+/// container attaching to it now would get.
+struct InspectedNetwork: Encodable {
+    let network: NetworkResource
+    let effectiveMTU: UInt32
+
+    init(network: NetworkResource, defaultMTU: UInt32) {
+        self.network = network
+        self.effectiveMTU = network.configuration.mtu ?? defaultMTU
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case effectiveMTU
+    }
+
+    func encode(to encoder: Encoder) throws {
+        try network.encode(to: encoder)
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(effectiveMTU, forKey: .effectiveMTU)
+    }
+}
 
 extension Application {
     public struct NetworkInspect: AsyncLoggableCommand {
@@ -48,7 +71,11 @@ extension Application {
                 )
             }
 
-            try Output.emit(Output.renderJSON(items, options: .pretty))
+            let containerSystemConfig: ContainerSystemConfig = try await ClientHealthCheck.loadContainerSystemConfig()
+            let defaultMTU = try NetworkMTU.resolve(config: containerSystemConfig.network.mtu)
+            let inspected = items.map { InspectedNetwork(network: $0, defaultMTU: defaultMTU) }
+
+            try Output.emit(Output.renderJSON(inspected, options: .pretty))
         }
     }
 }
