@@ -63,6 +63,10 @@ extension Application {
             let dstRef = try Self.parsePathRef(destination)
 
             switch (srcRef, dstRef) {
+            case (.container(let id, let path), .local("-")):
+                try await client.copyOut(id: id, source: path, archive: FileHandle.standardOutput)
+            case (.local("-"), .container(let id, let path)):
+                try await client.copyIn(id: id, archive: FileHandle.standardInput, destination: path)
             case (.container(let id, let path), .local(let localPath)):
                 let srcPath = FilePath(path)
                 let destPath = FilePath(URL(fileURLWithPath: localPath, relativeTo: .currentDirectory()).absoluteURL.path(percentEncoded: false))
