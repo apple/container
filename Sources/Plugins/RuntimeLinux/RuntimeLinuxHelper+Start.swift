@@ -74,7 +74,7 @@ extension RuntimeLinuxHelper {
                 ]
                 if #available(macOS 26, *) {
                     interfaceStrategies[NetworkInterfaceKey(plugin: "container-network-vmnet", variant: "reserved")] =
-                        NonisolatedInterfaceStrategy(defaultMTU: defaultMTU, log: log)
+                        NonisolatedInterfaceStrategy(log: log, defaultMTU: defaultMTU)
                 }
 
                 log.info("configuring XPC server")

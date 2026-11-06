@@ -29,9 +29,9 @@ public struct NonisolatedInterfaceStrategy: InterfaceStrategy {
     private let defaultMTU: UInt32
     private let log: Logger
 
-    public init(defaultMTU: UInt32, log: Logger) {
-        self.defaultMTU = defaultMTU
+    public init(log: Logger, defaultMTU: UInt32) {
         self.log = log
+        self.defaultMTU = defaultMTU
     }
 
     public func toInterface(attachment: Attachment, interfaceIndex: Int, additionalData: XPCMessage?) throws -> Interface {
