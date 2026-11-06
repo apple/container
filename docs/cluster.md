@@ -102,13 +102,13 @@ container cluster create --name my-cluster --workers 3
 
 When `--workers` is greater than `0`, the control-plane node is tainted so pods only schedule onto worker nodes, matching typical multi-node cluster behavior. Worker nodes share the control plane's `--node-image` and are named `<cluster-name>-worker-<n>`.
 
-With workers, `--cpus` and `--memory` size the control-plane node only (2 CPUs and 2GB by default, whatever the size of your host). Workers that you don't size get the same defaults as a single-node cluster (1/4 of your host's CPUs and memory, minimum 2 CPUs and 2GB), however many you create.
+`--cpus` and `--memory` size the control-plane node, or the single node if no workers are specified. With workers, the control plane defaults to 2 CPUs and 2GB, regardless of the size of your host.
 
-To size workers yourself, pass a group of workers with `--workers count=<n>,cpus=<n>,memory=<size>`. Any value you leave out gets the default above, and `count` defaults to `1`. Repeat the option to create groups of differently sized workers:
+To size workers, pass a group of workers with `--workers count=<n>,cpus=<n>,memory=<size>`. A group's `count` defaults to `1`. If you leave out `cpus` or `memory`, the workers get the single-node defaults: 1/4 of your host's CPUs and memory, minimum 2 CPUs and 2GB. Repeat the option to create groups of differently sized workers:
 
 ```bash
-# 2 workers with 4 CPUs and 8GB, plus 1 smaller worker
-container cluster create --name my-cluster \
+# Control plane with 2 CPUs and 4GB, 2 workers with 4 CPUs and 8GB, plus 1 smaller worker
+container cluster create --name my-cluster --cpus 2 --memory 4g \
   --workers count=2,cpus=4,memory=8g \
   --workers count=1,cpus=2,memory=4g
 ```
