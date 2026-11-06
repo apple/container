@@ -71,7 +71,7 @@ public actor ContainersService {
         containerSystemConfig: ContainerSystemConfig,
         log: Logger,
         debugHelpers: Bool = false
-    ) throws {
+    ) async throws {
         let containerRoot = appRoot.appendingPathComponent("containers")
         try PathUtils.createDirectoryExcludingFromBackup(containerRoot)
         self.exitMonitor = ExitMonitor(log: log)
@@ -82,14 +82,14 @@ public actor ContainersService {
         self.log = log
         self.debugHelpers = debugHelpers
         self.runtimePlugins = pluginLoader.findPlugins().filter { $0.hasType(.runtime) }
-        self.containers = try Self.loadAtBoot(root: containerRoot, loader: pluginLoader, log: log)
+        self.containers = try await Self.loadAtBoot(root: containerRoot, loader: pluginLoader, log: log)
     }
 
     public func setNetworksService(_ service: NetworksService) async {
         self.networksService = service
     }
 
-    static func loadAtBoot(root: URL, loader: PluginLoader, log: Logger) throws -> [String: ContainerState] {
+    static func loadAtBoot(root: URL, loader: PluginLoader, log: Logger) async throws -> [String: ContainerState] {
         var directories = try FileManager.default.contentsOfDirectory(
             at: root,
             includingPropertiesForKeys: [.isDirectoryKey]
@@ -103,6 +103,14 @@ public actor ContainersService {
         for dir in directories {
             do {
                 let (config, options) = try Self.getContainerConfiguration(at: dir)
+
+                guard let plugin = runtimePlugins.first(where: { $0.name == config.runtimeHandler }) else {
+                    throw ContainerizationError(
+                        .internalError,
+                        message: "failed to find runtime plugin \(config.runtimeHandler)"
+                    )
+                }
+
                 if options?.autoRemove ?? false {
                     log.info(
                         "reap auto-remove container",
@@ -127,6 +135,8 @@ public actor ContainersService {
                         )
                     }
 
+                    await RuntimeCleanupHook.run(plugin: plugin, root: dir, id: config.id, log: log)
+
                     let bundle = ContainerResource.Bundle(path: dir)
                     try? bundle.delete()
                     continue
@@ -141,12 +151,6 @@ public actor ContainersService {
                     ),
                 )
                 results[config.id] = state
-                guard runtimePlugins.first(where: { $0.name == config.runtimeHandler }) != nil else {
-                    throw ContainerizationError(
-                        .internalError,
-                        message: "failed to find runtime plugin \(config.runtimeHandler)"
-                    )
-                }
             } catch {
                 try? FileManager.default.removeItem(at: dir)
                 log.warning(
@@ -1081,12 +1085,19 @@ public actor ContainersService {
         // Only try to deregister service if we have a valid config
         // TODO: Change this so we don't have to reread the config
         // possibly store the container ID to service label mapping
+        let plugin = config.flatMap { config in self.runtimePlugins.first { $0.name == config.runtimeHandler } }
         if let config = config {
             let label = Self.fullLaunchdServiceLabel(
                 runtimeName: config.runtimeHandler,
                 instanceId: id
             )
             try? ServiceManager.deregister(fullServiceLabel: label)
+
+            if let plugin {
+                await RuntimeCleanupHook.run(plugin: plugin, root: path, id: id, log: self.log)
+            } else {
+                self.log.warning("no runtime plugin for container; skipping cleanup hook", metadata: ["id": "\(id)", "runtime": "\(config.runtimeHandler)"])
+            }
         }
 
         // Always try to delete the bundle directory, even if it's incomplete
