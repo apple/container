@@ -30,7 +30,8 @@ extension ClusterBootstrapper {
             sharedImageStore: sharedImageStore)
         var r = try await ClusterHelper.execCapture(
             containerId: nodeID, executable: "/bin/sh",
-            arguments: ["-c", "cat > /etc/kubernetes/kubeadm-config.yaml <<'EOF'\n\(configYAML)\nEOF"],
+            arguments: ["-c", "cat > /etc/kubernetes/kubeadm-config.yaml"],
+            standardInput: .data(Data("\(configYAML)\n".utf8)),
             client: client)
         guard r.code == 0 else {
             throw ContainerizationError(.internalError, message: "write kubeadm config failed on \(nodeID): \(r.output)")
@@ -70,13 +71,16 @@ extension ClusterBootstrapper {
             log.info("Skipping CNI installation", metadata: ["node": "\(nodeID)"])
         } else {
             log.info("Applying CNI manifest", metadata: ["node": "\(nodeID)"])
-            let manifest = try await Self.loadCNIManifest(path: cni, log: log)
-            let apply = "\(ClusterHelper.kubeconfigEnv) kubectl apply -f - <<'EOF'\n\(manifest)\nEOF"
-            r = try await ClusterHelper.execCapture(
-                containerId: nodeID, executable: "/bin/sh",
-                arguments: ["-c", apply], client: client)
-            guard r.code == 0 else {
-                throw ContainerizationError(.internalError, message: "apply CNI failed on \(nodeID): \(r.output)")
+            let manifestURL = try await Self.loadCNIManifest(path: cni, log: log)
+            try await ClusterHelper.applyCNIManifest(manifestURL: manifestURL, nodeID: nodeID) {
+                executable, arguments, environment, standardInput in
+                try await ClusterHelper.execCapture(
+                    containerId: nodeID,
+                    executable: executable,
+                    arguments: arguments,
+                    environment: environment,
+                    standardInput: standardInput,
+                    client: client)
             }
         }
     }
@@ -98,23 +102,23 @@ extension ClusterBootstrapper {
         return (token: parts[tokenIdx + 1], caCertHash: parts[hashIdx + 1])
     }
 
-    static func loadCNIManifest(path: String?, log: Logger) async throws -> String {
+    static func loadCNIManifest(path: String?, log: Logger) async throws -> URL {
         if let path {
-            do {
-                return try String(contentsOfFile: path, encoding: .utf8)
-            } catch {
-                throw ContainerizationError(.invalidArgument, message: "failed to read CNI manifest at \(path): \(error)")
+            let url = URL(fileURLWithPath: path)
+            guard FileManager.default.isReadableFile(atPath: url.path) else {
+                throw ContainerizationError(.invalidArgument, message: "failed to read CNI manifest at \(path)")
             }
+            return url
         }
         return try await loadKindnetManifest(log: log)
     }
 
-    private static func loadKindnetManifest(log: Logger) async throws -> String {
+    private static func loadKindnetManifest(log: Logger) async throws -> URL {
         let url = try await ClusterHelper.pluginResourceURL(log: log).appendingPathComponent("kindnet.yaml")
-        guard let contents = try? String(contentsOf: url, encoding: .utf8) else {
+        guard FileManager.default.isReadableFile(atPath: url.path) else {
             throw ContainerizationError(.internalError, message: "kindnet manifest resource missing at \(url.path)")
         }
-        return contents
+        return url
     }
 
     static func initConfigYAML(
