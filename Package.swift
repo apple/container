@@ -406,6 +406,18 @@ let package = Package(
             ],
             path: "Sources/Services/ContainerImagesService/Server"
         ),
+        .testTarget(
+            name: "ContainerImagesServiceTests",
+            dependencies: [
+                .product(name: "Containerization", package: "containerization"),
+                .product(name: "ContainerizationArchive", package: "containerization"),
+                .product(name: "ContainerizationOCI", package: "containerization"),
+                .product(name: "Logging", package: "swift-log"),
+                "ContainerImagesService",
+                "ContainerPersistence",
+                "ContainerResource",
+            ]
+        ),
         .target(
             name: "ContainerClusterService",
             dependencies: [

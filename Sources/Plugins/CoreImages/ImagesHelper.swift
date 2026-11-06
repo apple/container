@@ -102,6 +102,7 @@ extension ImagesHelper {
                 contentStore: contentStore,
                 imageStore: imageStore,
                 snapshotStore: snapshotStore,
+                containerSystemConfig: containerSystemConfig,
                 log: log
             )
             let harness = ImagesServiceHarness(service: service, log: log)
