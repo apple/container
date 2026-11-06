@@ -229,26 +229,42 @@ public actor ContainersService {
     /// Calculate disk usage for containers
     /// - Returns: Tuple of (total count, active count, total size, reclaimable size)
     public func calculateDiskUsage() async -> (Int, Int, UInt64, UInt64) {
-        await lock.withLock(logMetadata: ["acquirer": "\(#function)"]) { _ in
-            var totalSize: UInt64 = 0
-            var reclaimableSize: UInt64 = 0
-            var activeCount = 0
-
+        // Take a consistent snapshot of the container list under the lock, then
+        // release it. Walking the bundles takes as long as the containers are
+        // large, and must not block unrelated create/start/stop/delete calls.
+        let statuses = await lock.withLock(logMetadata: ["acquirer": "\(#function)"]) { _ in
+            var statuses = [String: RuntimeStatus]()
             for (id, state) in await self.containers {
-                let bundlePath = self.containerRoot.appendingPathComponent(id)
-                let containerSize = FileManager.default.allocatedSize(of: bundlePath)
-                totalSize += containerSize
-
-                if state.snapshot.status == .running {
-                    activeCount += 1
-                } else {
-                    // Stopped containers are reclaimable
-                    reclaimableSize += containerSize
-                }
+                statuses[id] = state.snapshot.status
             }
-
-            return (await self.containers.count, activeCount, totalSize, reclaimableSize)
+            return statuses
         }
+        return await self.bundleDiskUsage(of: statuses)
+    }
+
+    /// Sum the on-disk size of the given containers' bundles.
+    ///
+    /// `nonisolated` so the filesystem walk runs off the actor's executor
+    /// instead of stalling every other request to this service.
+    private nonisolated func bundleDiskUsage(of statuses: [String: RuntimeStatus]) async -> (Int, Int, UInt64, UInt64) {
+        var totalSize: UInt64 = 0
+        var reclaimableSize: UInt64 = 0
+        var activeCount = 0
+
+        for (id, status) in statuses {
+            let bundlePath = self.containerRoot.appendingPathComponent(id)
+            let containerSize = FileManager.default.allocatedSize(of: bundlePath)
+            totalSize += containerSize
+
+            if status == .running {
+                activeCount += 1
+            } else {
+                // Stopped containers are reclaimable
+                reclaimableSize += containerSize
+            }
+        }
+
+        return (statuses.count, activeCount, totalSize, reclaimableSize)
     }
 
     /// Get set of image references used by containers (for disk usage calculation)

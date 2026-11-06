@@ -177,77 +177,13 @@ actor BuildFSSync: BuildPipelineHandler {
         sender.yield(response)
     }
 
-    /// Converts a request `source` into a path relative to the context root.
-    ///
-    /// Absolute sources inside the context are made relative to it; other
-    /// absolute sources are taken to be relative to the context root, as the
-    /// shim sometimes sends them. `..` is collapsed lexically and a result
-    /// that leaves the context is rejected. This is only normalisation: the
-    /// real confinement is done by the descriptor walk.
-    private func relativePath(for source: String) throws -> FilePath {
-        if source.hasPrefix("/") {
-            let url = URL(fileURLWithPath: source).standardizedFileURL
-            if let relative = try? url.relativeChildPath(to: self.contextDir) {
-                return FilePath(relative)
-            }
-            let fallback = self.contextDir.appending(components: source.cleanPathComponent).standardizedFileURL
-            return FilePath(try fallback.relativeChildPath(to: self.contextDir))
-        }
-        let url = self.contextDir.appendingPathComponent(source).standardizedFileURL
-        return FilePath(try url.relativeChildPath(to: self.contextDir))
-    }
-
-    /// Metadata of the entry at `relative` without dereferencing it.
-    private func entryStatus(_ relative: FilePath) throws -> FileDescriptorOps.FileStatus {
-        guard let status = try FileDescriptorOps.status(self.contextFD, relativePath: relative, symlinks: .followBeneath) else {
-            throw FileDescriptorOps.Error.notFound
-        }
-        return status
-    }
-
-    /// Runs `body`, reporting a refused symlink or path as ``Error/pathIsNotChild``.
-    private func confined<T>(_ source: String, _ body: () throws -> T) throws -> T {
-        do {
-            return try body()
-        } catch FileDescriptorOps.Error.cannotFollowSymlink, FileDescriptorOps.Error.invalidRelativePath {
-            throw Error.pathIsNotChild(source, self.contextDir.cleanPath)
-        }
-    }
-
-    private struct DirEntry: Hashable {
-        let url: URL
+    private struct DirEntry {
         let isDirectory: Bool
         let relativePath: String
-
-        func hash(into hasher: inout Hasher) {
-            hasher.combine(relativePath)
-        }
-
-        static func == (lhs: DirEntry, rhs: DirEntry) -> Bool {
-            lhs.relativePath == rhs.relativePath
-        }
     }
 
-    /// Packs requested context paths into a tar archive and streams it to the shim.
-    ///
-    /// This is the primary data path for build-context transfer. BuildKit sends
-    /// a `Walk` request whose `followpaths` field names the context paths needed
-    /// for the current build step (e.g. the source of a `COPY` instruction).
-    /// If `followpaths` is omitted or empty (meaning the build step requires the
-    /// entire context, such as a step with a tmpfs mount), all files in the
-    /// context root are included.
-    /// The host resolves those globs, builds an entry set, and passes it to
-    /// `Archiver.compress` to produce the tar.
-    ///
-    /// For any symlink in the entry set whose target lies within the context
-    /// root, the target is added to the entry set so BuildKit can dereference
-    /// the symlink during `COPY`/`ADD` processing without a separate request.
-    /// Symlinks whose targets lie outside the context root are included as
-    /// symlink entries but their targets are not; BuildKit will resolve them
-    /// against the shim's local filesystem on Linux, not the macOS host.
-    ///
-    /// Dockerignore filtering is the shim's responsibility and is applied after
-    /// the tar is unpacked; this method has no knowledge of `.dockerignore`.
+    private typealias DirEntries = [String: [String: DirEntry]]
+
     func walk(
         _ sender: AsyncStream<ClientStream>.Continuation,
         _ packet: BuildTransfer,
@@ -255,8 +191,8 @@ actor BuildFSSync: BuildPipelineHandler {
     ) async throws {
         let wantsTar = packet.mode() == "tar"
 
-        var entries: [String: Set<DirEntry>] = [:]
-        let followPaths: [String] = packet.followPaths().flatMap { $0.isEmpty ? nil : $0 } ?? ["."]
+        var entries: DirEntries = [:]
+        let followPaths: [String] = packet.followPaths() ?? []
 
         let followPathsWalked = try walk(root: self.contextDir, includePatterns: followPaths)
         for url in followPathsWalked {
@@ -269,16 +205,14 @@ actor BuildFSSync: BuildPipelineHandler {
 
             let relPath = try url.relativeChildPath(to: contextDir)
             let parentPath = try url.deletingLastPathComponent().relativeChildPath(to: contextDir)
-            let entry = DirEntry(url: url, isDirectory: url.hasDirectoryPath, relativePath: relPath)
-            entries[parentPath, default: []].insert(entry)
+            entries[parentPath, default: [:]][relPath] = DirEntry(isDirectory: url.hasDirectoryPath, relativePath: relPath)
 
             if url.isSymlink {
                 let target: URL = url.resolvingSymlinksInPath()
                 if self.contextDir.parentOf(target) {
                     let relPath = try target.relativeChildPath(to: self.contextDir)
-                    let entry = DirEntry(url: target, isDirectory: target.hasDirectoryPath, relativePath: relPath)
                     let parentPath: String = try target.deletingLastPathComponent().relativeChildPath(to: self.contextDir)
-                    entries[parentPath, default: []].insert(entry)
+                    entries[parentPath, default: [:]][relPath] = DirEntry(isDirectory: target.hasDirectoryPath, relativePath: relPath)
                 }
             }
         }
@@ -334,15 +268,7 @@ actor BuildFSSync: BuildPipelineHandler {
                 return nil
             }
 
-            guard let items = entries[parent] else {
-                return nil
-            }
-
-            let include = items.contains { item in
-                item.relativePath == rel
-            }
-
-            guard include else {
+            guard entries[parent]?[rel] != nil else {
                 return nil
             }
 
@@ -421,7 +347,7 @@ actor BuildFSSync: BuildPipelineHandler {
 
     private func processDirectory(
         _ currentDir: String,
-        inputEntries: [String: Set<DirEntry>],
+        inputEntries: DirEntries,
         processedPaths: inout [String]
     ) throws {
         guard let entries = inputEntries[currentDir] else {
@@ -429,7 +355,7 @@ actor BuildFSSync: BuildPipelineHandler {
         }
 
         // Sort purely by lexicographical order of relativePath
-        let sortedEntries = entries.sorted { $0.relativePath < $1.relativePath }
+        let sortedEntries = entries.values.sorted { $0.relativePath < $1.relativePath }
 
         for entry in sortedEntries {
             processedPaths.append(entry.relativePath)
