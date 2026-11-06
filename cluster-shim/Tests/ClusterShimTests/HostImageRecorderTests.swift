@@ -88,14 +88,15 @@ struct HostImageRecorderTests {
 
         #expect(
             commits == [
-                BlobCommit(descriptor: Self.configDescriptor, labels: [:]),
-                BlobCommit(descriptor: Self.layerDescriptor, labels: [:]),
+                BlobCommit(descriptor: Self.configDescriptor, labels: [:], source: .host),
+                BlobCommit(descriptor: Self.layerDescriptor, labels: [:], source: .host),
                 BlobCommit(
                     descriptor: Self.manifestDescriptor,
                     labels: [
                         "containerd.io/gc.ref.content.config": Self.configDescriptor.digest,
                         "containerd.io/gc.ref.content.l.0": Self.layerDescriptor.digest,
-                    ]),
+                    ],
+                    source: .data(Self.manifest)),
             ])
     }
 
@@ -143,50 +144,176 @@ struct HostImageRecorderTests {
         #expect(commits.count == 3 + HostImageRecorder.maxIndexDepth)
     }
 
-    @Test func recordWithMissingLayerIsNotFoundBeforeTouchingContainerd() async throws {
+    /// Records `foo:dev` from `host` into an empty fake containerd and returns
+    /// the error it fails with, and whether it left a blob or a lease behind.
+    func failedRecord(host: FakeHostStore) async throws -> (error: RPCError?, changed: Bool) {
+        let content = FakeContent()
+        var failure: RPCError?
+        var changed = true
+        try await withConnectedRecorder(host: host, content: content) { recorder, _, leases in
+            do {
+                try await recorder.record(name: "docker.io/library/foo:dev", target: Self.indexDescriptor)
+            } catch let error as RPCError {
+                failure = error
+            }
+            changed = !content.blobs.withLock { $0.isEmpty } || !leases.current.withLock { $0.isEmpty }
+        }
+        return (failure, changed)
+    }
+
+    @Test func recordWithMissingLayerIsNotFoundBeforeChangingContainerd() async throws {
         var blobs = Self.hostBlobs
         blobs[digest(of: Self.layer)] = nil
 
-        do {
-            try await makeRecorder(blobs: blobs).record(name: "docker.io/library/foo:dev", target: Self.indexDescriptor)
-            Issue.record("expected an error")
-        } catch let error as RPCError {
-            #expect(error.code == .notFound)
-        }
+        let result = try await failedRecord(host: FakeHostStore(blobs: blobs))
+
+        #expect(result.error?.code == .notFound)
+        #expect(!result.changed)
     }
 
-    @Test func recordWithWrongLayerSizeIsDataLoss() async throws {
+    @Test func recordWithWrongLayerSizeIsDataLossBeforeChangingContainerd() async throws {
         var blobs = Self.hostBlobs
         blobs[digest(of: Self.layer)] = Self.layer + Data("x".utf8)
 
-        do {
-            try await makeRecorder(blobs: blobs).record(name: "docker.io/library/foo:dev", target: Self.indexDescriptor)
-            Issue.record("expected an error")
-        } catch let error as RPCError {
-            #expect(error.code == .dataLoss)
-        }
+        let result = try await failedRecord(host: FakeHostStore(blobs: blobs))
+
+        #expect(result.error?.code == .dataLoss)
+        #expect(!result.changed)
     }
 
-    @Test func recordWithoutPlatformManifestIsNotFound() async throws {
+    @Test func recordWithoutPlatformManifestIsNotFoundBeforeChangingContainerd() async throws {
         var blobs = Self.hostBlobs
         blobs[digest(of: Self.manifest)] = nil
 
-        do {
-            try await makeRecorder(blobs: blobs).record(name: "docker.io/library/foo:dev", target: Self.indexDescriptor)
-            Issue.record("expected an error")
-        } catch let error as RPCError {
-            #expect(error.code == .notFound)
+        let result = try await failedRecord(host: FakeHostStore(blobs: blobs))
+
+        #expect(result.error?.code == .notFound)
+        #expect(!result.changed)
+    }
+
+    /// Runs `body` with a recorder over `host` whose containerd clients reach
+    /// `content`, a fresh images service and a fresh leases service.
+    func withConnectedRecorder(
+        host: FakeHostStore,
+        content: FakeContent,
+        _ body: (HostImageRecorder, FakeImages, FakeLeases) async throws -> Void
+    ) async throws {
+        let images = FakeImages()
+        let leases = FakeLeases()
+        try await withInProcessServer(services: [content, images, leases]) { client in
+            let recorder = HostImageRecorder(
+                host: host,
+                content: ContentAPI.Client(wrapping: client),
+                images: ImagesAPI.Client(wrapping: client),
+                leases: LeasesAPI.Client(wrapping: client),
+                platform: Platform(arch: "arm64", os: "linux")
+            )
+            try await body(recorder, images, leases)
         }
     }
 
-    @Test func commitRequestSendsNoDataAtFullOffset() {
-        let request = HostImageRecorder.commitRequest(BlobCommit(descriptor: Self.layerDescriptor, labels: ["k": "v"]))
+    @Test func recordCopiesThePlatformBlobsIntoContainerd() async throws {
+        let content = FakeContent()
+        try await withConnectedRecorder(host: FakeHostStore(blobs: Self.hostBlobs), content: content) { recorder, _, _ in
+            try await recorder.record(name: "docker.io/library/foo:dev", target: Self.indexDescriptor)
+        }
 
-        #expect(request.action == .commit)
-        #expect(request.offset == Self.layerDescriptor.size)
-        #expect(request.total == Self.layerDescriptor.size)
-        #expect(request.expected == Self.layerDescriptor.digest)
-        #expect(request.data.isEmpty)
-        #expect(request.labels == ["k": "v"])
+        let stored = content.blobs.withLock { $0.mapValues(\.data) }
+        #expect(stored == Self.hostBlobs)
+    }
+
+    @Test func recordLabelsBlobsForGarbageCollection() async throws {
+        let content = FakeContent()
+        try await withConnectedRecorder(host: FakeHostStore(blobs: Self.hostBlobs), content: content) { recorder, _, _ in
+            try await recorder.record(name: "docker.io/library/foo:dev", target: Self.indexDescriptor)
+        }
+
+        let manifestLabels = content.blobs.withLock { $0[Self.manifestDescriptor.digest]?.labels }
+        #expect(
+            manifestLabels == [
+                "containerd.io/gc.ref.content.config": Self.configDescriptor.digest,
+                "containerd.io/gc.ref.content.l.0": Self.layerDescriptor.digest,
+            ])
+    }
+
+    @Test func recordCreatesTheImageAndReleasesTheLease() async throws {
+        try await withConnectedRecorder(host: FakeHostStore(blobs: Self.hostBlobs), content: FakeContent()) { recorder, images, leases in
+            try await recorder.record(name: "docker.io/library/foo:dev", target: Self.indexDescriptor)
+
+            #expect(images.targets.withLock { $0 } == ["docker.io/library/foo:dev": Self.indexDescriptor.digest])
+            #expect(leases.created.withLock { $0 } == 1)
+            #expect(leases.current.withLock { $0 }.isEmpty)
+        }
+    }
+
+    @Test func recordDoesNotCopyBlobsContainerdHas() async throws {
+        let content = FakeContent(blobs: [Self.layerDescriptor.digest: FakeBlob(data: Self.layer, labels: [:])])
+        try await withConnectedRecorder(host: FakeHostStore(blobs: Self.hostBlobs), content: content) { recorder, _, _ in
+            try await recorder.record(name: "docker.io/library/foo:dev", target: Self.indexDescriptor)
+        }
+
+        let written = Set(content.writes.withLock { $0.keys })
+        #expect(written == [Self.indexDescriptor.digest, Self.manifestDescriptor.digest, Self.configDescriptor.digest])
+    }
+
+    @Test func recordLeasesEveryBlob() async throws {
+        let content = FakeContent(blobs: [Self.layerDescriptor.digest: FakeBlob(data: Self.layer, labels: [:])])
+        try await withConnectedRecorder(host: FakeHostStore(blobs: Self.hostBlobs), content: content) { recorder, _, leases in
+            try await recorder.record(name: "docker.io/library/foo:dev", target: Self.indexDescriptor)
+
+            #expect(Array(leases.content.withLock { $0 }.values) == [Set(Self.hostBlobs.keys)])
+        }
+    }
+
+    @Test func recordStopsAtABlobLargerThanItsDescriptor() async throws {
+        var blobs = Self.hostBlobs
+        blobs[Self.layerDescriptor.digest] = Self.layer + Data("extra".utf8)
+        let host = FakeHostStore(blobs: blobs, reportedSizes: [Self.layerDescriptor.digest: Self.layerDescriptor.size])
+        let content = FakeContent()
+        try await withConnectedRecorder(host: host, content: content) { recorder, _, leases in
+            do {
+                try await recorder.record(name: "docker.io/library/foo:dev", target: Self.indexDescriptor)
+                Issue.record("expected an error")
+            } catch let error as RPCError {
+                #expect(error.code == .dataLoss)
+            }
+            #expect(content.blobs.withLock { $0[Self.layerDescriptor.digest] } == nil)
+            #expect(leases.current.withLock { $0 }.isEmpty)
+        }
+    }
+
+    @Test func recordDoesNotNeedTheHostForBlobsContainerdHas() async throws {
+        var hostBlobs = Self.hostBlobs
+        hostBlobs[Self.layerDescriptor.digest] = nil
+        let content = FakeContent(blobs: [Self.layerDescriptor.digest: FakeBlob(data: Self.layer, labels: [:])])
+        try await withConnectedRecorder(host: FakeHostStore(blobs: hostBlobs), content: content) { recorder, _, _ in
+            try await recorder.record(name: "docker.io/library/foo:dev", target: Self.indexDescriptor)
+        }
+
+        let stored = content.blobs.withLock { $0.mapValues(\.data) }
+        #expect(stored == Self.hostBlobs)
+    }
+
+    @Test func recordStreamsOnlyConfigAndLayersFromTheHost() async throws {
+        let host = FakeHostStore(blobs: Self.hostBlobs)
+        try await withConnectedRecorder(host: host, content: FakeContent()) { recorder, _, _ in
+            try await recorder.record(name: "docker.io/library/foo:dev", target: Self.indexDescriptor)
+        }
+
+        #expect(host.reads.digests.withLock { $0 } == [Self.configDescriptor.digest, Self.layerDescriptor.digest])
+    }
+
+    @Test func largeBlobIsWrittenInChunks() async throws {
+        let size = 2 * HostImageRecorder.writeChunkSize + 5
+        let layer = Data((0..<size).map { UInt8(truncatingIfNeeded: $0) })
+        let layerDescriptor = Descriptor(mediaType: MediaTypes.imageLayerGzip, digest: digest(of: layer), size: Int64(size))
+        let content = FakeContent()
+        try await withConnectedRecorder(host: FakeHostStore(blobs: [digest(of: layer): layer]), content: content) { recorder, _, _ in
+            try await recorder.record(name: "docker.io/library/foo:dev", target: layerDescriptor)
+        }
+
+        let sizes = content.writes.withLock { $0[layerDescriptor.digest] }
+        #expect(sizes == [HostImageRecorder.writeChunkSize, HostImageRecorder.writeChunkSize, 5])
+        #expect(content.blobs.withLock { $0[layerDescriptor.digest]?.data } == layer)
     }
 }
