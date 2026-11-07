@@ -581,6 +581,65 @@ import Testing
         #expect(fileInfos.contains { $0.name == "a.txt" }, "a.txt should be included when followpaths metadata is omitted")
         #expect(fileInfos.contains { $0.name == "b.txt" }, "b.txt should be included when followpaths metadata is omitted")
     }
+
+    @Test func testWalkJSONIncludesNestedSymlinkTargetWhenFollowPathsNamesSymlink() async throws {
+        let nestedDir = contextDir.appendingPathComponent("sub/nested")
+        try fm.createDirectory(at: nestedDir, withIntermediateDirectories: true)
+        try Data("payload".utf8).write(to: nestedDir.appendingPathComponent("target.txt"))
+
+        try fm.createSymbolicLink(
+            atPath: contextDir.appendingPathComponent("mylink").path(percentEncoded: false),
+            withDestinationPath: "sub/nested/target.txt"
+        )
+
+        let fssync = try BuildFSSync(contextDir)
+        let infos = try await walkJSON(fssync, followPaths: ["mylink"])
+        let names = Set(infos.map { $0.name })
+
+        #expect(names.contains("mylink"))
+        #expect(names.contains("sub"), "ancestor directory 'sub' must be in entries: got \(names)")
+        #expect(names.contains("sub/nested"), "ancestor directory 'sub/nested' must be in entries: got \(names)")
+        #expect(names.contains("sub/nested/target.txt"), "nested symlink target must be included: got \(names)")
+    }
+
+    @Test func testWalkJSONIncludesIntermediateHopsForChainedSymlinks() async throws {
+        try Data("payload".utf8).write(to: contextDir.appendingPathComponent("target.txt"))
+        try fm.createSymbolicLink(
+            atPath: contextDir.appendingPathComponent("link2").path(percentEncoded: false),
+            withDestinationPath: "target.txt"
+        )
+        try fm.createSymbolicLink(
+            atPath: contextDir.appendingPathComponent("link1").path(percentEncoded: false),
+            withDestinationPath: "link2"
+        )
+
+        let fssync = try BuildFSSync(contextDir)
+        let infos = try await walkJSON(fssync, followPaths: ["link1"])
+        let names = Set(infos.map { $0.name })
+
+        #expect(names.contains("link1"))
+        #expect(names.contains("link2"), "intermediate symlink link2 must be included: got \(names)")
+        #expect(names.contains("target.txt"))
+    }
+
+    @Test func testWalkJSONIncludesContentsOfSymlinkedDirectory() async throws {
+        let realDir = contextDir.appendingPathComponent("real_dir")
+        try fm.createDirectory(at: realDir, withIntermediateDirectories: true)
+        try Data("config-data".utf8).write(to: realDir.appendingPathComponent("config.txt"))
+
+        try fm.createSymbolicLink(
+            atPath: contextDir.appendingPathComponent("dir_link").path(percentEncoded: false),
+            withDestinationPath: "real_dir"
+        )
+
+        let fssync = try BuildFSSync(contextDir)
+        let infos = try await walkJSON(fssync, followPaths: ["dir_link"])
+        let names = Set(infos.map { $0.name })
+
+        #expect(names.contains("dir_link"))
+        #expect(names.contains("real_dir"))
+        #expect(names.contains("real_dir/config.txt"), "contents of symlinked directory must be included: got \(names)")
+    }
 }
 
 private final class ManagedAtomicFlag: @unchecked Sendable {
