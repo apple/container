@@ -386,6 +386,21 @@ struct MergeConfigTests {
         #expect(result.clusters.first { $0.name == "dev" }?.cluster.server == "https://127.0.0.1:6446")
     }
 
+    @Test func mergeIntoExistingEmptyFileSucceeds() throws {
+        let (path, cleanup) = try makeTempFile()
+        defer { cleanup() }
+
+        // An existing but empty file, as produced by `KUBECONFIG=$(mktemp)`.
+        try "".write(toFile: path.string, atomically: true, encoding: .utf8)
+
+        try ClusterHelper.mergeConfig(makeConfig(clusterName: "dev"), containerId: "dev", targetPath: path, setCurrentContext: true, log: log)
+
+        let written = try decode(String(contentsOfFile: path.string, encoding: .utf8))
+        #expect(written.clusters.count == 1)
+        #expect(written.clusters[0].name == "dev")
+        #expect(written.currentContext == "dev")
+    }
+
     @Test func mergeThrowsWhenExistingFileIsInvalidYAML() throws {
         let (path, cleanup) = try makeTempFile()
         defer { cleanup() }

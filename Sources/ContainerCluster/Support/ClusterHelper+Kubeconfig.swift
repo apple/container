@@ -149,7 +149,14 @@ extension ClusterHelper {
         if FileManager.default.fileExists(atPath: path.string) {
             do {
                 let yaml = try String(contentsOfFile: path.string, encoding: .utf8)
-                existing = try YAMLDecoder().decode(KubeConfig.self, from: yaml)
+                // An existing but empty file (e.g. `KUBECONFIG=$(mktemp)`) is not a
+                // parseable kubeconfig; treat it the same as a missing file instead
+                // of failing with a confusing decoding error.
+                if yaml.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    existing = .empty
+                } else {
+                    existing = try YAMLDecoder().decode(KubeConfig.self, from: yaml)
+                }
             } catch {
                 throw ContainerizationError(
                     .internalError,
