@@ -147,6 +147,28 @@ public struct Parser {
         try .init(from: platform)
     }
 
+    /// Validates a requested CPU count against the limits for creating a container.
+    ///
+    /// - Throws: `.invalidArgument` if `cpus` is less than 1 or more than the host's core count.
+    public static func cpus(_ cpus: Int64) throws -> Int {
+        try ContainerConfiguration.Resources.validate(cpus: cpus)
+        return Int(cpus)
+    }
+
+    /// Parses a memory size such as `8g` and validates it against the limits for creating a container.
+    ///
+    /// - Throws: `.invalidArgument` if `memory` can't be parsed, is out of range, or is below the minimum.
+    public static func memoryInBytes(_ memory: String) throws -> UInt64 {
+        let mib = try Measurement.parse(parsing: memory).converted(to: .mebibytes).value
+        // Leave headroom so converting to bytes cannot overflow.
+        guard mib.isFinite, mib < Double(Int64.max / (1024 * 1024)) else {
+            throw ContainerizationError(.invalidArgument, message: "memory '\(memory)' is out of range")
+        }
+        let bytes = Int64(mib).mib()
+        try ContainerConfiguration.Resources.validate(memoryInBytes: bytes)
+        return bytes
+    }
+
     public static func resources(
         cpus: Int64?,
         memory: String?,
@@ -158,11 +180,11 @@ public struct Parser {
         resource.memoryInBytes = Int64(defaultMemory.measurement.converted(to: .mebibytes).value).mib()
 
         if let cpus {
-            resource.cpus = Int(cpus)
+            resource.cpus = try Parser.cpus(cpus)
         }
 
         if let memory {
-            resource.memoryInBytes = try Parser.memoryStringAsMiB(memory).mib()
+            resource.memoryInBytes = try Parser.memoryInBytes(memory)
         }
 
         return resource

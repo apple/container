@@ -26,10 +26,10 @@ import NIOHTTP1
 /// Reads blobs and image descriptors from the host's content store. A blob or
 /// image the host does not have throws an `RPCError` with code `.notFound`.
 protocol HostStore: Sendable {
-    /// Returns the size of a blob, asking the host every time.
+    /// Returns the size of a blob.
     func size(digest: String) async throws -> Int64
-    /// Returns `length` bytes of a blob starting at `offset`.
-    func read(digest: String, offset: Int64, length: Int) async throws -> Data
+    /// Passes a whole blob to `write`, in the pieces it arrives in.
+    func readBlob(digest: String, into write: (Data) async throws -> Void) async throws
     /// Returns a whole manifest or index blob, checked against its digest.
     func readManifest(digest: String) async throws -> Data
     /// Returns the descriptor of the host image a reference names. The host
@@ -40,7 +40,7 @@ protocol HostStore: Sendable {
 /// A `HostStore` over HTTP on the Unix socket served by the cluster-hoststore plugin.
 ///
 ///     HEAD /blobs/<digest>          size in Content-Length
-///     GET  /blobs/<digest>          blob bytes, honours "Range: bytes=<start>-<end>"
+///     GET  /blobs/<digest>          blob bytes
 ///     GET  /images?ref=<reference>  OCI descriptor JSON
 struct HTTPHostStore: HostStore {
     let socketPath: String
@@ -58,15 +58,12 @@ struct HTTPHostStore: HostStore {
         return size
     }
 
-    func read(digest: String, offset: Int64, length: Int) async throws -> Data {
+    func readBlob(digest: String, into write: (Data) async throws -> Void) async throws {
         let digest = try parseDigest(digest)
-        var headers = HTTPHeaders()
-        headers.add(name: "Range", value: "bytes=\(offset)-\(offset + Int64(length) - 1)")
-        let response = try await send(.GET, path: "/blobs/\(digest)", headers: headers)
-        guard response.status == .partialContent else {
-            throw RPCError(code: .internalError, message: "host /blobs/\(digest): range request returned \(response.status)")
+        let response = try await send(.GET, path: "/blobs/\(digest)", headers: [:])
+        for try await buffer in response.body {
+            try await write(Data(buffer: buffer))
         }
-        return Data(buffer: try await response.body.collect(upTo: length))
     }
 
     func readManifest(digest: String) async throws -> Data {
@@ -90,7 +87,8 @@ struct HTTPHostStore: HostStore {
     }
 
     /// Sends a request, mapping a 404 to `.notFound` and other HTTP statuses
-    /// to `.unavailable`. Transport errors are thrown as they are.
+    /// to `.unavailable`. Transport errors are thrown as they are. The timeout
+    /// covers the response head; the client's read timeout covers the body.
     private func send(_ method: HTTPMethod, path: String, headers: HTTPHeaders) async throws -> HTTPClientResponse {
         guard let url = URL(httpURLWithSocketPath: socketPath, uri: path) else {
             throw RPCError(code: .internalError, message: "invalid host store path \(path)")
@@ -100,12 +98,21 @@ struct HTTPHostStore: HostStore {
         request.headers = headers
         let response = try await client.execute(request, timeout: .seconds(60))
         switch response.status {
-        case .ok, .partialContent:
+        case .ok:
             return response
         case .notFound:
             throw RPCError(code: .notFound, message: "host \(path): not found")
         default:
             throw RPCError(code: .unavailable, message: "host \(method) \(path): \(response.status)")
         }
+    }
+}
+
+/// Parses a `sha256:<hex>` digest, mapping a malformed one to invalidArgument.
+func parseDigest(_ digest: String) throws -> ParsedDigest {
+    do {
+        return try ParsedDigest(parsing: digest)
+    } catch {
+        throw RPCError(code: .invalidArgument, message: "invalid digest \(digest)")
     }
 }

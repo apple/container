@@ -32,11 +32,16 @@ typealias HTTPWriter = NIOAsyncChannelOutboundWriter<HTTPServerResponsePart>
 /// Serves host blobs and image descriptors to cluster nodes over HTTP on a Unix socket.
 ///
 ///     HEAD /blobs/<digest>          size in Content-Length
-///     GET  /blobs/<digest>          blob bytes, honours "Range: bytes=<start>-[<end>]"
+///     GET  /blobs/<digest>          blob bytes
 ///     GET  /images?ref=<reference>  OCI descriptor JSON
-struct HostStoreServer: Sendable {
+package struct HostStoreServer: Sendable {
     let containerSystemConfig: ContainerSystemConfig
     let log: Logger
+
+    package init(containerSystemConfig: ContainerSystemConfig, log: Logger) {
+        self.containerSystemConfig = containerSystemConfig
+        self.log = log
+    }
 
     private static let chunkSize = 1 << 20
     /// Connections beyond this many are closed when accepted.
@@ -44,7 +49,7 @@ struct HostStoreServer: Sendable {
     /// A connection with no reads or writes for this long is closed.
     static let idleTimeout = TimeAmount.seconds(60)
 
-    func run(socketPath: String) async throws {
+    package func run(socketPath: String) async throws {
         let server = try await Self.bind(socketPath: socketPath)
         let limit = ConnectionLimit(max: Self.maxConnections)
 
@@ -131,8 +136,7 @@ struct HostStoreServer: Sendable {
                 try await writeStatus(.badRequest, outbound: outbound)
                 return
             }
-            let rangeHeader = request.headers.first(name: "Range")
-            try await writeBlob(digest: digest, rangeHeader: rangeHeader, includeBody: request.method == .GET, outbound: outbound)
+            try await writeBlob(digest: digest, includeBody: request.method == .GET, outbound: outbound)
             return
         }
 
@@ -158,7 +162,7 @@ struct HostStoreServer: Sendable {
         try await outbound.write(.end(nil))
     }
 
-    private func writeBlob(digest: ParsedDigest, rangeHeader: String?, includeBody: Bool, outbound: HTTPWriter) async throws {
+    private func writeBlob(digest: ParsedDigest, includeBody: Bool, outbound: HTTPWriter) async throws {
         let found: (any Content)?
         do {
             found = try await RemoteContentStoreClient().get(digest: digest.description)
@@ -175,34 +179,19 @@ struct HostStoreServer: Sendable {
 
         var headers = HTTPHeaders()
         headers.add(name: "Content-Type", value: "application/octet-stream")
-        let range: Range<UInt64>
-        let status: HTTPResponseStatus
-        if let rangeHeader {
-            guard let selected = Self.byteRange(rangeHeader, size: size) else {
-                try await writeStatus(.rangeNotSatisfiable, outbound: outbound)
-                return
-            }
-            range = selected
-            status = .partialContent
-            headers.add(name: "Content-Range", value: "bytes \(range.lowerBound)-\(range.upperBound - 1)/\(size)")
-        } else {
-            range = 0..<size
-            status = .ok
-        }
-        headers.add(name: "Content-Length", value: "\(range.count)")
-        try await outbound.write(.head(HTTPResponseHead(version: .http1_1, status: status, headers: headers)))
+        headers.add(name: "Content-Length", value: "\(size)")
+        try await outbound.write(.head(HTTPResponseHead(version: .http1_1, status: .ok, headers: headers)))
         guard includeBody else {
             try await outbound.write(.end(nil))
             return
         }
 
         // Reads through the descriptor `content` opened, the file that was sized above.
-        var position = range.lowerBound
-        while position < range.upperBound {
-            let length = Int(min(UInt64(Self.chunkSize), range.upperBound - position))
+        var position: UInt64 = 0
+        while position < size {
+            let length = Int(min(UInt64(Self.chunkSize), size - position))
             guard let chunk = try content.data(offset: position, length: length), !chunk.isEmpty else {
-                throw ContainerizationError(
-                    .internalError, message: "short read of \(digest) at \(position) of \(range.upperBound)")
+                throw ContainerizationError(.internalError, message: "short read of \(digest) at \(position) of \(size)")
             }
             try await outbound.write(.body(.byteBuffer(ByteBuffer(bytes: chunk))))
             position += UInt64(chunk.count)
@@ -230,25 +219,6 @@ struct HostStoreServer: Sendable {
         default:
             return .internalServerError
         }
-    }
-
-    /// Returns the bytes a "bytes=<start>-[<end>]" range header selects from a blob
-    /// of the given size, or nil when the header is malformed or outside the blob.
-    static func byteRange(_ header: String, size: UInt64) -> Range<UInt64>? {
-        guard header.hasPrefix("bytes=") else {
-            return nil
-        }
-        let bounds = header.dropFirst("bytes=".count).split(separator: "-", maxSplits: 1, omittingEmptySubsequences: false)
-        guard bounds.count == 2, let start = UInt64(bounds[0]), start < size else {
-            return nil
-        }
-        if bounds[1].isEmpty {
-            return start..<size
-        }
-        guard let end = UInt64(bounds[1]), end >= start else {
-            return nil
-        }
-        return start..<(min(end, size - 1) + 1)
     }
 }
 

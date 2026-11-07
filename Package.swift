@@ -230,15 +230,9 @@ let package = Package(
             name: "cluster-hoststore",
             dependencies: [
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
-                .product(name: "Logging", package: "swift-log"),
-                .product(name: "NIOCore", package: "swift-nio"),
-                .product(name: "NIOHTTP1", package: "swift-nio"),
-                .product(name: "NIOPosix", package: "swift-nio"),
                 .product(name: "SystemPackage", package: "swift-system"),
-                .product(name: "Containerization", package: "containerization"),
-                "ContainerAPIClient",
+                "ClusterHostStoreService",
                 "ContainerCluster",
-                "ContainerImagesServiceClient",
                 "ContainerLog",
                 "ContainerPersistence",
                 "ContainerPlugin",
@@ -247,9 +241,27 @@ let package = Package(
             path: "Sources/Plugins/ClusterHostStore",
             exclude: ["config.toml"]
         ),
+        .target(
+            name: "ClusterHostStoreService",
+            dependencies: [
+                .product(name: "Logging", package: "swift-log"),
+                .product(name: "NIOCore", package: "swift-nio"),
+                .product(name: "NIOHTTP1", package: "swift-nio"),
+                .product(name: "NIOPosix", package: "swift-nio"),
+                .product(name: "Containerization", package: "containerization"),
+                "ContainerAPIClient",
+                "ContainerImagesServiceClient",
+                "ContainerPersistence",
+            ],
+            path: "Sources/Services/ClusterHostStoreService"
+        ),
         .testTarget(
             name: "ClusterHostStoreTests",
-            dependencies: ["cluster-hoststore"]
+            dependencies: [
+                .product(name: "NIOHTTP1", package: "swift-nio"),
+                .product(name: "Containerization", package: "containerization"),
+                "ClusterHostStoreService",
+            ]
         ),
         .executableTarget(
             name: "container-apiserver",

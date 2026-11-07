@@ -109,7 +109,18 @@ By default, `container cluster create` creates a single node that acts as both c
 container cluster create --name my-cluster --workers 3
 ```
 
-When `--workers` is greater than `0`, the control-plane node is tainted so pods only schedule onto worker nodes, matching typical multi-node cluster behavior. Worker nodes share the same `--node-image`, `--cpus`, and `--memory` settings as the control plane, and are named `<cluster-name>-worker-<n>`.
+When `--workers` is greater than `0`, the control-plane node is tainted so pods only schedule onto worker nodes, matching typical multi-node cluster behavior. Worker nodes share the control plane's `--node-image` and are named `<cluster-name>-worker-<n>`.
+
+`--cpus` and `--memory` size the control-plane node, or the single node if no workers are specified.
+
+To size workers, pass a group of workers with `--workers count=<n>,cpus=<n>,memory=<size>`. A group's `count` defaults to `1`. If you leave out `cpus` or `memory`, the workers get the single-node defaults: 1/4 of your host's CPUs and memory, minimum 2 CPUs and 2GB. Repeat the option to create groups of differently sized workers:
+
+```bash
+# Control plane with 2 CPUs and 4GB, 2 workers with 4 CPUs and 8GB, plus 1 smaller worker
+container cluster create --name my-cluster --cpus 2 --memory 4g \
+  --workers count=2,cpus=4,memory=8g \
+  --workers count=1,cpus=2,memory=4g
+```
 
 ### Access clusters with kubectl
 
@@ -147,6 +158,8 @@ spec:
 ```
 
 If the local image store does not have an image, or has none of its content for the node's platform, the node pulls it from its registry as usual.
+
+The first time a node uses a local image, it copies the image's content for its platform from your local image store, the same way it stores an image it pulls from a registry.
 
 An image name without a registry, such as `my-app:dev`, is looked up in the local image store the same way `container` resolves it, using your default registry domain (`registry.domain`). Inside the cluster, Kubernetes shows such an image under its docker.io name, for example `docker.io/library/my-app:dev`.
 
