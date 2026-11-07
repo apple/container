@@ -25,14 +25,13 @@ struct TestClusterNetworkingSerial {
     /// A name only the host image store has, so pods can start only through cluster-shim.
     private static let hostOnlyImage = "cluster-test/alpine:host-only"
 
-    /// Creates a cluster that shares the local image store when the build
-    /// includes cluster-shim.
-    private static func createCluster(_ f: ContainerFixture, name: String) throws -> CommandResult {
+    /// Shares the local image store with the cluster when the build includes cluster-shim.
+    private static var sharedImageStoreArgs: [String] {
         guard ContainerFixture.clusterShimInstalled else {
             print("[cluster-net] no cluster-shim in this build; testing without the shared image store")
-            return try f.run(["cluster", "create", "--name", name])
+            return []
         }
-        return try f.run(["cluster", "create", "--name", name, "--shared-image-store"])
+        return ["--shared-image-store"]
     }
 
     /// Makes the test image available to pods and returns the reference and pull
@@ -45,20 +44,6 @@ struct TestClusterNetworkingSerial {
         }
         try f.run(["image", "tag", testImage.rawValue, hostOnlyImage]).check()
         return (hostOnlyImage, "Never")
-    }
-
-    private func dumpEnv(_ f: ContainerFixture, clusterName: String) {
-        print("=== ENV DUMP [\(clusterName)] ===")
-        if let result = try? f.run(["system", "status"]) {
-            print("[system status]\n\(result.output)")
-        }
-        if let result = try? f.run(["list"]) {
-            print("[container list]\n\(result.output)")
-        }
-        if let result = try? f.run(["inspect", clusterName]) {
-            print("[inspect \(clusterName)] stdout: \(result.output) stderr: \(result.error)")
-        }
-        print("=== END ENV DUMP ===")
     }
 
     private func waitForPod(_ f: ContainerFixture, node: String, podName: String, timeoutSeconds: Int) throws {
@@ -82,18 +67,7 @@ struct TestClusterNetworkingSerial {
     @Test func testPodsScheduleAndRun() async throws {
         try await ContainerFixture.with { f in
             let name = "cluster-\(f.testID)"
-            f.addCleanup { _ = try? f.run(["cluster", "delete", "--name", name]) }
-
-            try f.restoreWarmupImage(.kindestNodeV1_35_5)
-            print("[cluster-net] cluster create --name \(name)")
-            let result = try Self.createCluster(f, name: name)
-            print("[cluster-net] cluster create exit=\(result.status)")
-            if result.status != 0 {
-                print("[cluster-net] cluster create stderr: \(result.error)")
-                dumpEnv(f, clusterName: name)
-                f.dumpNodeDiagnostics(node: name)
-            }
-            try result.check()
+            try f.createCluster(name: name, args: Self.sharedImageStoreArgs)
 
             let podImage = try Self.preparePodImage(f)
 
@@ -124,17 +98,7 @@ struct TestClusterNetworkingSerial {
     @Test func testPodToServiceCommunication() async throws {
         try await ContainerFixture.with { f in
             let name = "cluster-\(f.testID)"
-            f.addCleanup { _ = try? f.run(["cluster", "delete", "--name", name]) }
-
-            try f.restoreWarmupImage(.kindestNodeV1_35_5)
-            print("[cluster-net] cluster create --name \(name)")
-            let result = try Self.createCluster(f, name: name)
-            print("[cluster-net] cluster create exit=\(result.status)")
-            if result.status != 0 {
-                print("[cluster-net] cluster create stderr: \(result.error)")
-                dumpEnv(f, clusterName: name)
-            }
-            try result.check()
+            try f.createCluster(name: name, args: Self.sharedImageStoreArgs)
 
             let podImage = try Self.preparePodImage(f)
 

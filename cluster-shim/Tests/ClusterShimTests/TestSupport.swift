@@ -19,7 +19,7 @@ import Crypto
 import Foundation
 import GRPCCore
 import GRPCInProcessTransport
-import SystemPackage
+import Synchronization
 
 @testable import ClusterShim
 
@@ -29,16 +29,30 @@ struct FakeHostStore: HostStore {
     var images: [String: Descriptor] = [:]
     /// Makes every call fail as if the host store could not be reached.
     var unavailable = false
+    /// Sizes `size` reports instead of the blob's own, by digest.
+    var reportedSizes: [String: Int64] = [:]
+    /// Records the digests `readBlob` streams.
+    var reads = ReadLog()
+    /// The size of the pieces `readBlob` passes on.
+    let pieceSize = 4096
 
     func size(digest: String) async throws -> Int64 {
-        Int64(try blob(digest: digest).count)
+        let data = try blob(digest: digest)
+        guard let reported = reportedSizes[digest] else {
+            return Int64(data.count)
+        }
+        return reported
     }
 
-    func read(digest: String, offset: Int64, length: Int) async throws -> Data {
+    func readBlob(digest: String, into write: (Data) async throws -> Void) async throws {
         let data = try blob(digest: digest)
-        let start = Int(offset)
-        let end = min(start + length, data.count)
-        return data.subdata(in: start..<end)
+        reads.digests.withLock { $0.append(digest) }
+        var start = 0
+        while start < data.count {
+            let end = min(start + pieceSize, data.count)
+            try await write(data.subdata(in: start..<end))
+            start = end
+        }
     }
 
     func readManifest(digest: String) async throws -> Data {
@@ -68,16 +82,14 @@ struct FakeHostStore: HostStore {
     }
 }
 
+/// The digests a `FakeHostStore` streamed.
+final class ReadLog: Sendable {
+    let digests = Mutex<[String]>([])
+}
+
 /// Returns the `sha256:<hex>` digest of `data`.
 func digest(of data: Data) -> String {
     ParsedDigest(SHA256.hash(data: data)).description
-}
-
-/// Returns a new empty directory under the temporary directory.
-func makeTemporaryDirectory() throws -> FilePath {
-    let path = FilePath(FileManager.default.temporaryDirectory.path).appending("cluster-shim-tests-\(UUID().uuidString)")
-    try FileManager.default.createDirectory(atPath: path.string, withIntermediateDirectories: true)
-    return path
 }
 
 /// Runs `body` with a client connected in-process to a server for `services`.

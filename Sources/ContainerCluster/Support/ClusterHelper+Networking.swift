@@ -69,7 +69,7 @@ extension ClusterHelper {
 
     public static func clusterPort() async throws -> String {
         let snapshots = try await ContainerClient().list(
-            filters: ContainerListFilters(labels: [ResourceLabelKeys.plugin: pluginName])
+            filters: ContainerListFilters().withPlugin(pluginName)
         )
         let reserved = Set(snapshots.flatMap { $0.configuration.publishedPorts.map(\.hostPort) })
         let port = try findAvailableHostPort(excluding: reserved)

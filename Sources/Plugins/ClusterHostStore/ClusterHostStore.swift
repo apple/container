@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
+import ClusterHostStoreService
 import ContainerCluster
 import ContainerLog
 import ContainerPersistence

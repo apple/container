@@ -241,6 +241,23 @@ struct ImageServiceTests {
     }
 }
 
+struct ForwardingTests {
+    @Test func errorKeepsCodeAndMessageWithoutMetadata() async {
+        do {
+            let _: Int = try await forwarding {
+                throw RPCError(code: .unknown, message: "pull failed", metadata: [":status": "200", "content-type": "application/grpc"])
+            }
+            Issue.record("expected an error")
+        } catch let error as RPCError {
+            #expect(error.code == .unknown)
+            #expect(error.message == "pull failed")
+            #expect(error.metadata.isEmpty)
+        } catch {
+            Issue.record("unexpected error \(error)")
+        }
+    }
+}
+
 struct NormalizedReferenceTests {
     @Test func shortNameGetsDockerHubLibraryAndLatest() {
         #expect(normalizedReference("foo") == "docker.io/library/foo:latest")

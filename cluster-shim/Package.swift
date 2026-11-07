@@ -29,9 +29,8 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-log.git", from: "1.10.1"),
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.80.0"),
         .package(url: "https://github.com/apple/swift-protobuf.git", from: "1.36.0"),
-        .package(url: "https://github.com/apple/swift-system.git", from: "1.6.4"),
         .package(url: "https://github.com/grpc/grpc-swift-2.git", from: "2.3.0"),
-        .package(url: "https://github.com/grpc/grpc-swift-nio-transport.git", from: "2.9.0"),
+        .package(url: "https://github.com/grpc/grpc-swift-nio-transport.git", from: "2.12.0"),
         .package(url: "https://github.com/grpc/grpc-swift-protobuf.git", from: "2.2.0"),
         .package(url: "https://github.com/swift-server/async-http-client.git", from: "1.20.1"),
     ],
@@ -50,7 +49,6 @@ let package = Package(
                 .product(name: "NIOFoundationCompat", package: "swift-nio"),
                 .product(name: "NIOHTTP1", package: "swift-nio"),
                 .product(name: "SwiftProtobuf", package: "swift-protobuf"),
-                .product(name: "SystemPackage", package: "swift-system"),
             ]
         ),
         .executableTarget(
@@ -67,7 +65,6 @@ let package = Package(
                 .product(name: "ContainerizationOCI", package: "containerization"),
                 .product(name: "GRPCCore", package: "grpc-swift-2"),
                 .product(name: "GRPCInProcessTransport", package: "grpc-swift-2"),
-                .product(name: "SystemPackage", package: "swift-system"),
                 "ClusterShim",
             ]
         ),
