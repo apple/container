@@ -267,18 +267,34 @@ actor BuildFSSync: BuildPipelineHandler {
                 continue
             }
 
-            let relPath = try url.relativeChildPath(to: contextDir)
-            let parentPath = try url.deletingLastPathComponent().relativeChildPath(to: contextDir)
-            let entry = DirEntry(url: url, isDirectory: url.hasDirectoryPath, relativePath: relPath)
-            entries[parentPath, default: []].insert(entry)
+            try self.insertEntryWithAncestors(url, into: &entries)
 
             if url.isSymlink {
                 let target: URL = url.resolvingSymlinksInPath()
                 if self.contextDir.parentOf(target) {
-                    let relPath = try target.relativeChildPath(to: self.contextDir)
-                    let entry = DirEntry(url: target, isDirectory: target.hasDirectoryPath, relativePath: relPath)
-                    let parentPath: String = try target.deletingLastPathComponent().relativeChildPath(to: self.contextDir)
-                    entries[parentPath, default: []].insert(entry)
+                    var currentLink = url
+                    var visitedLinks: Set<String> = [currentLink.absoluteURL.cleanPath]
+                    while currentLink.isSymlink {
+                        let rawDest = try FileManager.default.destinationOfSymbolicLink(atPath: currentLink.cleanPath)
+                        let nextHop: URL
+                        if rawDest.hasPrefix("/") {
+                            nextHop = URL(fileURLWithPath: rawDest).standardizedFileURL
+                        } else {
+                            nextHop = currentLink.deletingLastPathComponent()
+                                .appendingPathComponent(rawDest)
+                                .standardizedFileURL
+                        }
+                        guard self.contextDir.parentOf(nextHop) else {
+                            break
+                        }
+                        try self.insertEntryWithAncestors(nextHop, into: &entries)
+                        let hopKey = nextHop.absoluteURL.cleanPath
+                        guard visitedLinks.insert(hopKey).inserted else {
+                            break
+                        }
+                        currentLink = nextHop
+                    }
+                    try self.insertEntryWithAncestors(target, into: &entries)
                 }
             }
         }
@@ -417,6 +433,26 @@ actor BuildFSSync: BuildPipelineHandler {
             try globber.match(p)
         }
         return Array(globber.results)
+    }
+
+    /// Inserts `itemURL` and all of its ancestor directories beneath `contextDir` into `entries`.
+    private func insertEntryWithAncestors(
+        _ itemURL: URL,
+        into entries: inout [String: Set<DirEntry>]
+    ) throws {
+        var current = itemURL
+        var isCurrentDirectory = current.hasDirectoryPath || (current.isDirectory && !current.isSymlink)
+        while self.contextDir.absoluteURL.cleanPath != current.absoluteURL.cleanPath,
+            self.contextDir.parentOf(current)
+        {
+            let relPath = try current.relativeChildPath(to: self.contextDir)
+            let parentURL = current.deletingLastPathComponent()
+            let parentPath = try parentURL.relativeChildPath(to: self.contextDir)
+            let entry = DirEntry(url: current, isDirectory: isCurrentDirectory, relativePath: relPath)
+            entries[parentPath, default: []].insert(entry)
+            current = parentURL
+            isCurrentDirectory = true
+        }
     }
 
     private func processDirectory(
