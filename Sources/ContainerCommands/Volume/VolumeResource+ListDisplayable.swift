@@ -26,7 +26,13 @@ extension VolumeResource: ListDisplayable {
             name,
             isAnonymous ? "anonymous" : "named",
             configuration.driver,
-            configuration.options.isEmpty ? "" : configuration.options.sorted(by: { $0.key < $1.key }).map { "\($0.key)=\($0.value)" }.joined(separator: ","),
+            // The SMB password is kept in the keychain and never stored in the options, so this
+            // redaction is defence in depth for a volume written by something other than the API server.
+            configuration.options.isEmpty
+                ? ""
+                : configuration.options.sorted(by: { $0.key < $1.key })
+                    .map { "\($0.key)=\($0.key == "password" ? "***" : $0.value)" }
+                    .joined(separator: ","),
         ]
     }
 

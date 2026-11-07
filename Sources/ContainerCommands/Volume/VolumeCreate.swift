@@ -16,6 +16,7 @@
 
 import ArgumentParser
 import ContainerAPIClient
+import ContainerResource
 import Foundation
 
 extension Application.VolumeCommand {
@@ -24,6 +25,9 @@ extension Application.VolumeCommand {
             commandName: "create",
             abstract: "Create a new volume"
         )
+
+        @Option(name: .customLong("driver"), help: "Volume driver: local, smb, or nfs (default: local; smb and nfs are experimental)")
+        var driver: String = "local"
 
         @Option(name: .customLong("label"), help: "Set metadata for a volume")
         var labels: [String] = []
@@ -51,9 +55,18 @@ extension Application.VolumeCommand {
                 parsedDriverOpts["size"] = size
             }
 
+            // The server validates the options too, but checking here fails fast with a CLI error.
+            if driver == "smb" || driver == "nfs" {
+                do {
+                    try MountOptionValidator.validate(parsedDriverOpts)
+                } catch let violation as MountOptionValidator.Violation {
+                    throw ValidationError(violation.description)
+                }
+            }
+
             let volume = try await ClientVolume.create(
                 name: name,
-                driver: "local",
+                driver: driver,
                 driverOpts: parsedDriverOpts,
                 labels: parsedLabels
             )

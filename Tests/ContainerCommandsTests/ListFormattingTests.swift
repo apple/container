@@ -39,3 +39,29 @@ struct NetworkResourceDisplayTests {
         #expect(NetworkResource.tableHeader == ["NETWORK", "SUBNET"])
     }
 }
+
+// MARK: - VolumeResource ListDisplayable conformance tests
+
+struct VolumeResourceDisplayTests {
+    @Test
+    func tableRowRedactsPasswordOption() {
+        let config = VolumeConfiguration(
+            name: "myshare",
+            driver: "smb",
+            format: "cifs",
+            source: "//server/share",
+            labels: [:],
+            options: [
+                "share": "//server/share",
+                "username": "user",
+                "password": "supersecretpassword",
+            ],
+            sizeInBytes: nil
+        )
+        let resource = VolumeResource(configuration: config)
+        let row = resource.tableRow
+
+        #expect(row == ["myshare", "named", "smb", "password=***,share=//server/share,username=user"])
+        #expect(!row[3].contains("supersecretpassword"))
+    }
+}
