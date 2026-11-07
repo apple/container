@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import Foundation
 import SystemPackage
 import Testing
 
@@ -43,5 +44,22 @@ struct LogRootTests {
     @Test func pathIsNilWhenEnvUnset() {
         // CONTAINER_LOG_ROOT is not set in the unit test environment
         #expect(LogRoot.path == nil)
+    }
+}
+
+struct ServiceRootTests {
+    @Test func defaultPathIsAbsolute() {
+        #expect(ServiceRoot.defaultPath.isAbsolute)
+    }
+
+    @Test func defaultPathEndsWithContainerComponent() {
+        #expect(ServiceRoot.defaultPath.lastComponent?.string == "com.apple.container")
+    }
+
+    @Test func defaultPathIsUnderTemporaryDirectory() {
+        let tmpDir = FilePath(FileManager.default.temporaryDirectory.path(percentEncoded: false))
+            .lexicallyNormalized()
+        let serviceRoot = ServiceRoot.defaultPath.lexicallyNormalized()
+        #expect(serviceRoot.string.hasPrefix(tmpDir.string))
     }
 }
