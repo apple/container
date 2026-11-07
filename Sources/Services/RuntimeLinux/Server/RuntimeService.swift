@@ -46,11 +46,14 @@ public actor RuntimeService {
     private let eventLoopGroup: any EventLoopGroup
     private var waiters: [String: ExitWaiter] = [:]
     private let lock: AsyncLock = AsyncLock()
+    private var isCleaning = false
     private let log: Logging.Logger
     private var state: State = .created
     private var processes: [String: ProcessInfo] = [:]
     private var socketForwarders: [SocketForwarderResult] = []
     private var networkSessions: [XPCClientSession] = []
+    private let cleanInterval: Duration?
+    private var periodicCleanTask: Task<Void, Never>? = nil
 
     private static let sshAuthSocketGuestPath = "/var/host-services/ssh-auth.sock"
     private static let sshAuthSocketEnvVar = "SSH_AUTH_SOCK"
@@ -99,6 +102,7 @@ public actor RuntimeService {
         interfaceStrategies: [NetworkInterfaceKey: InterfaceStrategy],
         eventLoopGroup: any EventLoopGroup,
         connection: xpc_connection_t,
+        cleanInterval: Duration? = .seconds(3600),
         log: Logger
     ) {
         self.root = root
@@ -107,6 +111,7 @@ public actor RuntimeService {
         self.monitor = ExitMonitor(log: log)
         self.eventLoopGroup = eventLoopGroup
         self.connection = connection
+        self.cleanInterval = cleanInterval
     }
 
     /// Returns an endpoint from an anonymous xpc connection.
@@ -336,18 +341,24 @@ public actor RuntimeService {
         self.log.debug("enter", metadata: ["func": "\(#function)"])
         defer { self.log.debug("exit", metadata: ["func": "\(#function)"]) }
 
-        return try await self.lock.withLock { lock in
+        let isInit = try await self.lock.withLock { lock in
             let id = try message.id()
             let containerInfo = try await self.getContainer()
             let containerId = containerInfo.container.id
-            if id == containerId {
-                try await self.startInitProcess(lock: lock)
-                await self.setState(.running)
-            } else {
+            guard id == containerId else {
                 try await self.startExecProcess(processId: id, lock: lock)
+                return false
             }
-            return message.reply()
+            try await self.startInitProcess(lock: lock)
+            await self.setState(.running)
+            return true
         }
+
+        if isInit {
+            self.startPeriodicClean()
+        }
+
+        return message.reply()
     }
 
     /// Get statistics for the container.
@@ -857,57 +868,165 @@ public actor RuntimeService {
 
     /// Clean up unused space in the container filesystem.
     ///
-    /// - Parameters:
-    ///   - message: An XPC message with the following parameters:
-    ///     - id: The container ID.
+    /// - Parameter message: An XPC message with the container ID.
     ///
     /// - Returns: An XPC message with no parameters.
+    /// - Throws: An error if cleaning fails or the container is not running.
     @Sendable
     public func clean(_ message: XPCMessage) async throws -> XPCMessage {
         self.log.info("`clean` xpc handler")
-        switch self.state {
-        case .running:
-            guard let id = message.string(key: RuntimeKeys.id.rawValue) else {
-                throw ContainerizationError(
-                    .invalidArgument,
-                    message: "no id supplied for clean"
-                )
-            }
+        guard message.string(key: RuntimeKeys.id.rawValue) != nil else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "no id supplied for clean"
+            )
+        }
 
-            let ctr = try getContainer()
-
-            var targets: [String] = []
-            if !ctr.config.readOnly {
-                targets.append("/")
-            }
-            for mount in ctr.config.mounts where mount.isBlock && !mount.options.readonly {
-                targets.append(mount.destination)
-            }
-
-            var failed: [String] = []
-            for path in targets {
-                do {
-                    try await ctr.container.filesystemOperation(operation: .trim, path: path)
-                } catch {
-                    self.log.error("failed to clean mount", metadata: ["path": "\(path)", "error": "\(error)"])
-                    failed.append("\(path) (\(error))")
-                }
-            }
-
-            guard failed.isEmpty else {
-                throw ContainerizationError(
-                    .internalError,
-                    message: "failed to clean mounts in \(id): \(failed.joined(separator: ", "))"
-                )
-            }
-
-            return message.reply()
-        default:
+        guard self.state == .running else {
             throw ContainerizationError(
                 .invalidState,
                 message: "cannot clean: container is not running"
             )
         }
+
+        guard !self.isCleaning else {
+            throw ContainerizationError(
+                .invalidState,
+                message: "clean already in progress"
+            )
+        }
+
+        self.isCleaning = true
+        defer { self.isCleaning = false }
+
+        try await self.performClean()
+
+        return message.reply()
+    }
+
+    /// Internal helper that performs the filesystem trim operations on the root filesystem and
+    /// any block-backed read-write mounts.
+    @discardableResult
+    private func performClean() async throws -> [String] {
+        guard self.state == .running else {
+            throw ContainerizationError(
+                .invalidState,
+                message: "cannot clean: container is not running"
+            )
+        }
+
+        let ctr = try getContainer()
+
+        var targets: [String] = []
+        if !ctr.config.readOnly {
+            targets.append("/")
+        }
+        for mount in ctr.config.mounts where mount.isBlock && !mount.options.readonly {
+            targets.append(mount.destination)
+        }
+
+        var failed: [String] = []
+        for path in targets {
+            let clock = ContinuousClock()
+            let start = clock.now
+            do {
+                try await ctr.container.filesystemOperation(operation: .trim, path: path)
+                let elapsed = clock.now - start
+                self.log.info(
+                    "cleaned mount",
+                    metadata: [
+                        "path": "\(path)",
+                        "elapsedSeconds": "\(elapsed.secondsWithMilliseconds)",
+                    ]
+                )
+            } catch {
+                let elapsed = clock.now - start
+                self.log.error(
+                    "failed to clean mount",
+                    metadata: [
+                        "path": "\(path)",
+                        "elapsedSeconds": "\(elapsed.secondsWithMilliseconds)",
+                        "error": "\(error)",
+                    ]
+                )
+                failed.append("\(path) (\(error))")
+            }
+        }
+
+        guard failed.isEmpty else {
+            throw ContainerizationError(
+                .internalError,
+                message: "failed to clean mounts in \(ctr.container.id): \(failed.joined(separator: ", "))"
+            )
+        }
+
+        return targets
+    }
+
+    private func performPeriodicClean() async {
+        guard self.state == .running else {
+            return
+        }
+
+        guard !self.isCleaning else {
+            self.log.info("skipping periodic container clean: clean already in progress")
+            return
+        }
+
+        self.isCleaning = true
+        defer { self.isCleaning = false }
+
+        self.log.info("running periodic container clean")
+        let clock = ContinuousClock()
+        let start = clock.now
+        do {
+            try await self.performClean()
+            let duration = clock.now - start
+            self.log.info(
+                "periodic container clean completed",
+                metadata: ["elapsedSeconds": "\(duration.secondsWithMilliseconds)"]
+            )
+        } catch {
+            let duration = clock.now - start
+            self.log.error(
+                "periodic container clean failed",
+                metadata: [
+                    "elapsedSeconds": "\(duration.secondsWithMilliseconds)",
+                    "error": "\(error)",
+                ]
+            )
+        }
+    }
+
+    private func startPeriodicClean() {
+        guard self.periodicCleanTask == nil, let cleanInterval = self.cleanInterval, cleanInterval > .zero else {
+            return
+        }
+
+        self.periodicCleanTask = Task { [weak self] in
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(for: cleanInterval)
+                } catch {
+                    break
+                }
+
+                guard !Task.isCancelled else {
+                    break
+                }
+
+                guard let self else {
+                    break
+                }
+
+                await self.performPeriodicClean()
+            }
+        }
+    }
+
+    private func stopPeriodicClean() {
+        self.periodicCleanTask?.cancel()
+        self.periodicCleanTask = nil
     }
 
     /// Dial a vsock port on the virtual machine.
@@ -1402,6 +1521,7 @@ public actor RuntimeService {
     }
 
     private func cleanUpContainer(containerInfo: ContainerInfo, exitStatus: ExitStatus? = nil) async throws {
+        self.stopPeriodicClean()
         let container = containerInfo.container
         let id = container.id
 
@@ -1723,5 +1843,14 @@ extension RuntimeService {
             self.log.error("failed to create bundle", metadata: ["error": "\(error)"])
             throw error
         }
+    }
+}
+
+extension Duration {
+    /// Seconds as a string with millisecond resolution, e.g. "12.345".
+    fileprivate var secondsWithMilliseconds: String {
+        let (seconds, attoseconds) = self.components
+        let ms = seconds * 1000 + attoseconds / 1_000_000_000_000_000
+        return String(format: "%d.%03d", ms / 1000, ms % 1000)
     }
 }
