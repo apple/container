@@ -88,6 +88,12 @@ extension APIServer {
                     routes: &routes
                 )
 
+                // Reconnect to any container whose runtime survived an abnormal termination
+                // of a previous apiserver instance, before accepting any requests -- so
+                // `container list`/`stop`/etc. see accurate state from the first request.
+                log.info("reconciling container state with any still-running runtimes")
+                await containersService.reconcileOrphanedRuntimes()
+
                 let server = XPCServer(
                     identifier: "com.apple.container.apiserver",
                     routes: routes.reduce(
