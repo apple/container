@@ -47,6 +47,12 @@ struct ClientProcessTests {
     }
 
     @Test
+    func forwardedSignalFallsBackToNumberForRealTimeSignals() throws {
+        #expect(try ClientProcessImpl.forwardedSignalName(34) == "34")
+        #expect(try ClientProcessImpl.forwardedSignalName(64) == "64")
+    }
+
+    @Test
     func forwardedSignalRejectsUnsupportedSignal() {
         #expect(throws: Error.self) {
             try ClientProcessImpl.forwardedSignalName(Int32.max)
