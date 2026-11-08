@@ -38,8 +38,9 @@ trust that message when `container system status` also reports the service down.
 | `docker compose` | no equivalent — see `references/docker-migration.md` |
 
 `run`, `build`, `exec`, `logs`, `cp`, `inspect`, `stats`, `start`, `stop`, `kill`, `export`,
-`prune`, `volume *`, and `network *` match Docker, as do the common `run` flags: `-d`, `--rm`,
-`-i`, `-t`, `-e`, `-p`, `-v`, `-w`, `--name`, `--network`, `--entrypoint`.
+`prune`, `volume *` (except `volume prune`, which also deletes named volumes), and `network *`
+match Docker, as do the common `run` flags: `-d`, `--rm`, `-i`, `-t`, `-e`, `-p`, `-v`, `-w`,
+`--name`, `--network`, `--entrypoint`.
 
 `restart`, `commit`, `attach`, `top`, `rename`, `pause`, `port`, and `--restart` have no
 equivalent. Check `references/docker-migration.md` before assuming anything else exists.
@@ -52,6 +53,9 @@ equivalent. Check `references/docker-migration.md` before assuming anything else
   binds a host port; it is not needed for basic reachability. Get IPs from `container inspect`.
 - **Builds run in a builder container.** If a build fails oddly, check `container builder
   status`; `container builder start` takes `--cpus` and `--memory`.
+- **Nothing caps or reclaims disk use on its own.** Each volume, container, and image snapshot
+  is a sparse image that can reach 512 GiB. Create volumes with `-s`, delete what you created by
+  name, and never prune without asking. See `references/storage.md`.
 - **Name resolution takes three steps, and works only on the `default` network:**
 
   ```bash
@@ -89,4 +93,5 @@ containerized application. See `references/container-machines.md`.
 
 - `references/docker-migration.md` — full mapping, what has no equivalent, replacing compose
 - `references/container-machines.md` — container machine workflows and host integrations
+- `references/storage.md` — disk growth, sizing volumes, cleaning up by name
 - `container <command> --help` — authoritative flags, always current
