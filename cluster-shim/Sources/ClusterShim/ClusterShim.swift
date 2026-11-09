@@ -20,34 +20,31 @@ import Foundation
 import GRPCCore
 import GRPCNIOTransportHTTP2
 import Logging
-import SystemPackage
 
-/// Where cluster-shim finds and serves its sockets and stores.
+/// Where cluster-shim finds and serves its sockets.
 public struct ShimPaths: Sendable {
     /// The host content store, relayed into the node.
     public var hostSocket: String
-    /// Where containerd's proxy content plugin connects.
-    public var contentSocket: String
     /// The kubelet's imageServiceEndpoint.
     public var imageSocket: String
     /// containerd's API and CRI services.
     public var containerdSocket: String
-    /// containerd's local content store directory.
-    public var contentRoot: String
 
-    public init(hostSocket: String, contentSocket: String, imageSocket: String, containerdSocket: String, contentRoot: String) {
+    public init(hostSocket: String, imageSocket: String, containerdSocket: String) {
         self.hostSocket = hostSocket
-        self.contentSocket = contentSocket
         self.imageSocket = imageSocket
         self.containerdSocket = containerdSocket
-        self.contentRoot = contentRoot
     }
 }
 
-/// Serves containerd's content store and the kubelet's CRI image service on
-/// root-only Unix sockets until one of the servers stops.
+/// The rate of PING and other control frames cluster-shim accepts from
+/// containerd and the kubelet. grpc-go sends a PING for most DATA frames it
+/// receives, far more than the default limit allows while a blob is copied.
+let controlFrameLimit = RateLimit(maxCount: 65535, window: .seconds(1))
+
+/// Serves the kubelet's CRI image service on a root-only Unix socket until the
+/// server stops.
 public func runClusterShim(paths: ShimPaths, log: Logger) async throws {
-    let local = try LocalStore(root: FilePath(paths.contentRoot))
     // Fail at once when the host store is unreachable, so requests fall
     // through to containerd instead of waiting out connection retries.
     var httpConfig = HTTPClient.Configuration()
@@ -55,10 +52,13 @@ public func runClusterShim(paths: ShimPaths, log: Logger) async throws {
     // Shorter than the host store server's 60 second idle timeout, so the
     // client drops an idle connection before the server closes it.
     httpConfig.connectionPool.idleTimeout = .seconds(30)
+    // Fails a blob whose body stops arriving, however large the blob is.
+    httpConfig.timeout.read = .seconds(60)
     let host = HTTPHostStore(socketPath: paths.hostSocket, client: HTTPClient(configuration: httpConfig))
 
     var clientConfig = HTTP2ClientTransport.Posix.Config.defaults
     clientConfig.http2.authority = "localhost"
+    clientConfig.http2.rateLimits.controlFrames = controlFrameLimit
     let containerd = GRPCClient(
         transport: try HTTP2ClientTransport.Posix(
             target: .unixDomainSocket(path: paths.containerdSocket),
@@ -74,11 +74,6 @@ public func runClusterShim(paths: ShimPaths, log: Logger) async throws {
         platform: .current
     )
 
-    let contentTransport = try serverTransport(socketPath: paths.contentSocket)
-    let contentServer = GRPCServer(
-        transport: contentTransport,
-        services: [ContentService(store: TieredStore(local: local, host: host))]
-    )
     let imageTransport = try serverTransport(socketPath: paths.imageSocket)
     let imageServer = GRPCServer(
         transport: imageTransport,
@@ -94,14 +89,11 @@ public func runClusterShim(paths: ShimPaths, log: Logger) async throws {
 
     try await withThrowingDiscardingTaskGroup { group in
         group.addTask { try await containerd.runConnections() }
-        group.addTask { try await contentServer.serve() }
         group.addTask { try await imageServer.serve() }
 
-        _ = try await contentTransport.listeningAddress
         _ = try await imageTransport.listeningAddress
-        try restrictToOwner(socketPath: paths.contentSocket)
-        try restrictToOwner(socketPath: paths.imageSocket)
-        log.info("serving", metadata: ["content": "\(paths.contentSocket)", "images": "\(paths.imageSocket)"])
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: paths.imageSocket)
+        log.info("serving", metadata: ["images": "\(paths.imageSocket)"])
     }
 }
 
@@ -114,10 +106,6 @@ private func serverTransport(socketPath: String) throws -> HTTP2ServerTransport.
         try fileManager.removeItem(atPath: socketPath)
     }
     var config = HTTP2ServerTransport.Posix.Config.defaults
-    config.rpc.maxRequestPayloadSize = 16 << 20
+    config.http2.rateLimits.controlFrames = controlFrameLimit
     return HTTP2ServerTransport.Posix(address: .unixDomainSocket(path: socketPath), transportSecurity: .plaintext, config: config)
-}
-
-private func restrictToOwner(socketPath: String) throws {
-    try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: socketPath)
 }

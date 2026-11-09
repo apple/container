@@ -58,26 +58,31 @@ extension Application {
         public mutating func run() async throws {
             let client = ContainerClient()
 
+            var errors: [any Error] = []
             let containers: [String]
             if self.all {
-                let filters = ContainerListFilters().withoutMachines()
+                let filters = ContainerListFilters().withoutPlugins([ResourcePluginValues.machine, ResourcePluginValues.cluster])
                 containers = try await client.list(filters: filters).map { $0.id }
             } else {
-                containers = containerIds
+                // Cluster nodes are managed by `container cluster`, so naming one reports it as not found.
+                let filters = ContainerListFilters().withoutPlugins([ResourcePluginValues.cluster])
+                let (found, notFoundErrors) = try await client.findContainers(named: containerIds, filters: filters)
+                containers = found.map { $0.id }
+                errors += notFoundErrors
             }
 
             let opts = ContainerStopOptions(
                 timeoutInSeconds: self.time,
                 signal: self.signal
             )
-            try await Self.stopContainers(
-                client: client,
-                containers: containers,
-                stopOptions: opts
-            )
+            errors += await Self.stopContainers(client: client, containers: containers, stopOptions: opts)
+            if !errors.isEmpty {
+                throw AggregateError(errors)
+            }
         }
 
-        static func stopContainers(client: ContainerClient, containers: [String], stopOptions: ContainerStopOptions) async throws {
+        /// Stops the given containers in parallel, returning an error for each one that failed to stop.
+        static func stopContainers(client: ContainerClient, containers: [String], stopOptions: ContainerStopOptions) async -> [any Error] {
             var errors: [any Error] = []
             await withTaskGroup(of: (any Error)?.self) { group in
                 for container in containers {
@@ -98,10 +103,7 @@ extension Application {
                     }
                 }
             }
-
-            if !errors.isEmpty {
-                throw AggregateError(errors)
-            }
+            return errors
         }
     }
 }

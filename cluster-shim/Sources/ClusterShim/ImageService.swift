@@ -35,11 +35,11 @@ struct ImageService: CRIImageAPI.SimpleServiceProtocol {
     var imageWait: Duration = .seconds(10)
 
     func listImages(request: Runtime_V1_ListImagesRequest, context: ServerContext) async throws -> Runtime_V1_ListImagesResponse {
-        try await containerd.listImages(request)
+        try await forwarding { try await containerd.listImages(request) }
     }
 
     func removeImage(request: Runtime_V1_RemoveImageRequest, context: ServerContext) async throws -> Runtime_V1_RemoveImageResponse {
-        try await containerd.removeImage(request)
+        try await forwarding { try await containerd.removeImage(request) }
     }
 
     func streamImages(
@@ -47,19 +47,21 @@ struct ImageService: CRIImageAPI.SimpleServiceProtocol {
         response: RPCWriter<Runtime_V1_StreamImagesResponse>,
         context: ServerContext
     ) async throws {
-        try await containerd.streamImages(request) { upstream in
-            for try await message in upstream.messages {
-                try await response.write(message)
+        try await forwarding {
+            try await containerd.streamImages(request) { upstream in
+                for try await message in upstream.messages {
+                    try await response.write(message)
+                }
             }
         }
     }
 
     func imageFsInfo(request: Runtime_V1_ImageFsInfoRequest, context: ServerContext) async throws -> Runtime_V1_ImageFsInfoResponse {
-        try await containerd.imageFsInfo(request)
+        try await forwarding { try await containerd.imageFsInfo(request) }
     }
 
     func imageStatus(request: Runtime_V1_ImageStatusRequest, context: ServerContext) async throws -> Runtime_V1_ImageStatusResponse {
-        let response = try await containerd.imageStatus(request)
+        let response = try await forwarding { try await containerd.imageStatus(request) }
         if response.hasImage {
             return response
         }
@@ -71,7 +73,7 @@ struct ImageService: CRIImageAPI.SimpleServiceProtocol {
 
     func pullImage(request: Runtime_V1_PullImageRequest, context: ServerContext) async throws -> Runtime_V1_PullImageResponse {
         guard try await recordIfOnHost(reference: request.image.image) else {
-            return try await containerd.pullImage(request)
+            return try await forwarding { try await containerd.pullImage(request) }
         }
 
         var statusRequest = Runtime_V1_ImageStatusRequest()
@@ -91,7 +93,7 @@ struct ImageService: CRIImageAPI.SimpleServiceProtocol {
     private func waitForImage(_ request: Runtime_V1_ImageStatusRequest) async throws -> Runtime_V1_ImageStatusResponse {
         let deadline = ContinuousClock.now + imageWait
         while true {
-            let response = try await containerd.imageStatus(request)
+            let response = try await forwarding { try await containerd.imageStatus(request) }
             if response.hasImage || ContinuousClock.now >= deadline {
                 return response
             }
@@ -146,4 +148,14 @@ func normalizedReference(_ reference: String) -> String? {
     }
     qualified.normalize()
     return qualified.description
+}
+
+/// Runs a call to containerd and rethrows its `RPCError` with only the code and
+/// message, dropping the response headers the client keeps as metadata.
+func forwarding<Result>(_ call: () async throws -> Result) async throws -> Result {
+    do {
+        return try await call()
+    } catch let error as RPCError {
+        throw RPCError(code: error.code, message: error.message)
+    }
 }

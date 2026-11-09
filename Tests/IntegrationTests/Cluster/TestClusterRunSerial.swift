@@ -47,17 +47,7 @@ struct TestClusterRunSerial {
     @Test func testRunSingleNode() async throws {
         try await ContainerFixture.with { f in
             let name = "cluster-\(f.testID)"
-            f.addCleanup { _ = try? f.run(["cluster", "delete", "--name", name]) }
-
-            try f.restoreWarmupImage(.kindestNodeV1_35_5)
-            print("[cluster-run] cluster create --name \(name)")
-            let result = try f.run(["cluster", "create", "--name", name])
-            print("[cluster-run] cluster create exit=\(result.status)")
-            if result.status != 0 {
-                print("[cluster-run] cluster create stderr: \(result.error)")
-                f.dumpNodeDiagnostics(node: name)
-            }
-            try result.check()
+            let result = try f.createCluster(name: name)
             #expect(result.output.contains(name))
 
             let containerStatus = try f.getContainerStatus(name)
@@ -81,27 +71,8 @@ struct TestClusterRunSerial {
         try await ContainerFixture.with { f in
             let name1 = "cluster-\(f.testID)-a"
             let name2 = "cluster-\(f.testID)-b"
-            f.addCleanup { _ = try? f.run(["cluster", "delete", "--name", name1]) }
-            f.addCleanup { _ = try? f.run(["cluster", "delete", "--name", name2]) }
-
-            try f.restoreWarmupImage(.kindestNodeV1_35_5)
-            print("[cluster-run] cluster create --name \(name1)")
-            let result1 = try f.run(["cluster", "create", "--name", name1])
-            print("[cluster-run] cluster create exit=\(result1.status)")
-            if result1.status != 0 {
-                print("[cluster-run] cluster create stderr: \(result1.error)")
-                f.dumpNodeDiagnostics(node: name1)
-            }
-            #expect(result1.status == 0)
-
-            print("[cluster-run] cluster create --name \(name2)")
-            let result2 = try f.run(["cluster", "create", "--name", name2])
-            print("[cluster-run] cluster create exit=\(result2.status)")
-            if result2.status != 0 {
-                print("[cluster-run] cluster create stderr: \(result2.error)")
-                f.dumpNodeDiagnostics(node: name2)
-            }
-            #expect(result2.status == 0)
+            try f.createCluster(name: name1)
+            try f.createCluster(name: name2)
 
             #expect(try f.getContainerStatus(name1) == "running")
             #expect(try f.getContainerStatus(name2) == "running")

@@ -34,7 +34,7 @@ extension Application {
 
         public func run() async throws {
             let client = ContainerClient()
-            let filters = ContainerListFilters(status: .stopped).withoutMachines()
+            let filters = ContainerListFilters(status: .stopped).withoutPlugins([ResourcePluginValues.machine, ResourcePluginValues.cluster])
             let containersToPrune = try await client.list(filters: filters)
 
             var prunedContainerIds = [String]()

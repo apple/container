@@ -31,7 +31,12 @@ public struct ClusterCreate: AsyncParsableCommand {
 
     public static let configuration = CommandConfiguration(
         commandName: "create",
-        abstract: "Create and start a local Kubernetes cluster and optional worker nodes"
+        abstract: "Create and start a local Kubernetes cluster and optional worker nodes",
+        discussion: """
+            --cpus and --memory size the control-plane node, or the single node if no workers are specified \
+            (default 1/4 of host CPUs and memory, minimum 2 CPUs and 2g). \
+            Size workers with --workers count=<n>,cpus=<n>,memory=<size>; a group's count defaults to 1, and cpus and memory left out default to the single-node sizes: 1/4 of host CPUs and memory (minimum 2 CPUs and 2g).
+            """
     )
 
     @Option(name: .long, help: "Cluster name")
@@ -55,15 +60,31 @@ public struct ClusterCreate: AsyncParsableCommand {
     @Option(name: .long, help: "Optional path to a CNI manifest to apply, or \"NONE\" to skip installing a CNI.")
     var cni: String?
 
-    @Option(name: .long, help: "Number of worker nodes to create")
-    var workers: UInt = 0
+    @Option(
+        name: .long,
+        help: "Worker nodes to create: a number, or count=<n>,cpus=<n>,memory=<size> (repeat for groups of differently sized workers)",
+        transform: { try WorkerGroup(parsing: $0) })
+    var workers: [WorkerGroup] = []
 
     @Flag(help: "Let nodes pull images from the local image store")
     var sharedImageStore = false
 
     public func validate() throws {
-        guard workers <= ClusterConfiguration.maxWorkers else {
-            throw ValidationError("--workers must be at most \(ClusterConfiguration.maxWorkers)")
+        // Fail before anything is created, the same as invalid --workers values do.
+        do {
+            if let cpus = resourceFlags.cpus { _ = try Parser.cpus(cpus) }
+            if let memory = resourceFlags.memory { _ = try Parser.memoryInBytes(memory) }
+        } catch {
+            throw ValidationError(wrapping: error)
+        }
+
+        var total: UInt = 0
+        for group in workers {
+            // Compare against the remaining room so the running total can't overflow.
+            guard group.count <= ClusterConfiguration.maxWorkers - total else {
+                throw ValidationError("--workers must total at most \(ClusterConfiguration.maxWorkers) worker nodes")
+            }
+            total += group.count
         }
     }
 
@@ -81,13 +102,16 @@ public struct ClusterCreate: AsyncParsableCommand {
         let containerSystemConfig: ContainerSystemConfig = try await ClientHealthCheck.loadContainerSystemConfig()
         let fqdn = ClusterHelper.fqdn(for: name, domain: containerSystemConfig.dns.domain)
 
+        // validate() has already bounded the total by ClusterConfiguration.maxWorkers.
+        let workerCount = workers.reduce(0) { $0 + Int($1.count) }
+
         // Validates the name, node image and worker count; fails before provisioning the node VM.
         let configuration = try ClusterConfiguration.make(
             name: name,
             nodeImage: nodeImage,
             remove: remove,
             sharedImageStore: sharedImageStore,
-            workers: workers,
+            workers: UInt(workerCount),
             cni: cni,
             fqdn: fqdn
         )
@@ -100,7 +124,7 @@ public struct ClusterCreate: AsyncParsableCommand {
             showTasks: true,
             showItems: true,
             ignoreSmallSize: true,
-            totalTasks: 4 + Int(workers),
+            totalTasks: 4 + workerCount,
             clearOnFinish: isTTY,
             outputMode: isTTY ? .ansi : .plain
         )
@@ -112,7 +136,7 @@ public struct ClusterCreate: AsyncParsableCommand {
         let controlPlane = try LinuxNodeProvisioner(
             name: name,
             clusterName: name,
-            roles: workers == 0 ? [StandardRoles.controlPlane, StandardRoles.worker] : [StandardRoles.controlPlane],
+            roles: workerCount == 0 ? [StandardRoles.controlPlane, StandardRoles.worker] : [StandardRoles.controlPlane],
             nodeImage: nodeImage,
             cpus: resourceFlags.cpus,
             memory: resourceFlags.memory,
@@ -123,20 +147,25 @@ public struct ClusterCreate: AsyncParsableCommand {
             fqdn: fqdn,
             sharedImageStore: sharedImageStore
         )
-        let workerNodes = try (0..<Int(workers)).map { index in
-            try LinuxNodeProvisioner(
-                name: ClusterHelper.workerName(cluster: name, index: index + 1),
-                clusterName: name,
-                roles: [StandardRoles.worker],
-                nodeImage: nodeImage,
-                cpus: resourceFlags.cpus,
-                memory: resourceFlags.memory,
-                registryScheme: registryFlags.scheme,
-                maxConcurrentDownloads: imageFetchFlags.maxConcurrentDownloads,
-                remove: remove,
-                containerSystemConfig: containerSystemConfig,
-                sharedImageStore: sharedImageStore
-            )
+        // Workers are numbered across groups.
+        var workerNodes: [LinuxNodeProvisioner] = []
+        for group in workers {
+            for _ in 0..<group.count {
+                workerNodes.append(
+                    try LinuxNodeProvisioner(
+                        name: ClusterHelper.workerName(cluster: name, index: workerNodes.count + 1),
+                        clusterName: name,
+                        roles: [StandardRoles.worker],
+                        nodeImage: nodeImage,
+                        cpus: group.cpus,
+                        memory: group.memory,
+                        registryScheme: registryFlags.scheme,
+                        maxConcurrentDownloads: imageFetchFlags.maxConcurrentDownloads,
+                        remove: remove,
+                        containerSystemConfig: containerSystemConfig,
+                        sharedImageStore: sharedImageStore
+                    ))
+            }
         }
 
         let clusterBootstrapper = ClusterBootstrapper(
