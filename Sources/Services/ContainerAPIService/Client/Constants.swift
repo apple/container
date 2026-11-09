@@ -18,4 +18,7 @@
 public enum Constants {
     /// The keychain ID to use for registry credentials.
     public static let keychainID = "com.apple.container.registry"
+
+    /// The keychain ID to use for volume credentials, such as SMB passwords.
+    public static let volumeKeychainID = "com.apple.container.volume"
 }

@@ -153,11 +153,13 @@ public actor RuntimeService {
             }
 
             let dynamicEnv = try message.dynamicEnv()
+            let mountCredentials = try message.mountCredentials()
 
             let bundle = ContainerResource.Bundle(path: self.root)
             try bundle.createLogFile()
 
             var config = try bundle.configuration
+            try Self.validateStoredMountsCarryNoSecrets(config)
 
             var kernel = try bundle.kernel
             // Built-in defaults keyed by arg name. Each is applied only if the user did not already
@@ -271,7 +273,13 @@ public actor RuntimeService {
                 memoryInBytes: config.resources.memoryInBytes + VMResources.guestMemoryOverhead
             )
             let container = try LinuxContainer(id, rootfs: rootfs, vmm: vmm, vm: vmResources, logger: self.log) { czConfig in
-                try Self.configureContainer(czConfig: &czConfig, config: config, dynamicEnv: dynamicEnv, log: self.log)
+                try Self.configureContainer(
+                    czConfig: &czConfig,
+                    config: config,
+                    dynamicEnv: dynamicEnv,
+                    mountCredentials: mountCredentials,
+                    log: self.log
+                )
                 czConfig.interfaces = interfaces
                 czConfig.process.stdout = stdout
                 czConfig.process.stderr = stderr
@@ -1116,10 +1124,41 @@ public actor RuntimeService {
         }
     }
 
+    /// Checks that no mount in the stored configuration carries a secret.
+    ///
+    /// The password of an SMB volume lives in the API server's credential store and arrives with
+    /// the bootstrap message; it is never written to the bundle. A bundle that carries one has been
+    /// tampered with or written by something other than the API server, so the container does not start.
+    static func validateStoredMountsCarryNoSecrets(_ config: ContainerConfiguration) throws {
+        for mount in config.mounts {
+            do {
+                try mount.validateNoSecretOptions()
+            } catch let violation as MountOptionValidator.Violation {
+                throw ContainerizationError(
+                    .invalidState,
+                    message: "the stored configuration of container \(config.id) carries a secret for \(mount.destination): \(violation)"
+                )
+            }
+        }
+    }
+
+    /// Returns the mount with the password that the API server resolved for its volume, if any.
+    ///
+    /// Only an SMB mount with a volume name that has a credential is changed; every other mount is
+    /// returned as-is. The password is added to a copy that becomes the guest mount, not to the
+    /// configuration the runtime keeps and reports through its state.
+    static func applyMountCredential(from credentials: [String: String], to mount: Filesystem) -> Filesystem {
+        guard mount.isSMB, let name = mount.volumeName, let password = credentials[name] else {
+            return mount
+        }
+        return mount.addingSMBPassword(password)
+    }
+
     private static func configureContainer(
         czConfig: inout LinuxContainer.Configuration,
         config: ContainerConfiguration,
         dynamicEnv: [String: String] = [:],
+        mountCredentials: [String: String] = [:],
         log: Logger? = nil,
     ) throws {
         czConfig.cpus = config.resources.cpus
@@ -1152,6 +1191,17 @@ public actor RuntimeService {
         }
 
         for mount in config.mounts {
+            // The stored configuration is not trusted to be what the API server accepted,
+            // since the file can be damaged or edited, so check the mount options again.
+            do {
+                try mount.validateMountOptions()
+            } catch let violation as MountOptionValidator.Violation {
+                throw ContainerizationError(
+                    .invalidState,
+                    message: "the stored configuration of container \(config.id) has invalid mount options for \(mount.destination): \(violation)"
+                )
+            }
+
             if try mount.isSocket() {
                 let attrs = try? FileManager.default.attributesOfItem(atPath: mount.source)
                 let permissions = (attrs?[.posixPermissions] as? NSNumber)
@@ -1164,7 +1214,9 @@ public actor RuntimeService {
                 )
                 czConfig.sockets.append(socket)
             } else {
-                czConfig.mounts.append(mount.asMount)
+                // The SMB password is added only to the guest mount that is built here. `config`
+                // stays as stored, so the runtime never holds or reports the secret elsewhere.
+                czConfig.mounts.append(Self.applyMountCredential(from: mountCredentials, to: mount).asMount)
             }
         }
 
@@ -1472,6 +1524,11 @@ extension XPCMessage {
         return dynamicEnv
     }
 
+    fileprivate func mountCredentials() throws -> [String: String] {
+        let data = self.dataNoCopy(key: RuntimeKeys.mountCredentials.rawValue)
+        return try data.map { try JSONDecoder().decode([String: String].self, from: $0) } ?? [:]
+    }
+
 }
 
 extension ContainerResource.Bundle {
@@ -1523,6 +1580,20 @@ extension Filesystem {
                     "\(Filesystem.CacheMode.vzRuntimeOptionKey)=\(cacheMode.asVZRuntimeOption)",
                     "\(Filesystem.SyncMode.vzRuntimeOptionKey)=\(syncMode.asVZRuntimeOption)",
                 ],
+            )
+        case .smb(_, let share, _):
+            return .any(
+                type: "cifs",
+                source: share,
+                destination: self.destination,
+                options: self.resolvedMountOptions
+            )
+        case .nfs(_, let share, _):
+            return .any(
+                type: "nfs",
+                source: share,
+                destination: self.destination,
+                options: self.resolvedMountOptions
             )
         }
     }
