@@ -159,15 +159,33 @@ public struct ServiceManager {
 
     public static func getDomainString() throws -> String {
         let currentSessionType = try getLaunchdSessionType()
-        switch currentSessionType {
+        let uid = getuid()
+        return try resolveDomainString(
+            sessionType: currentSessionType,
+            uid: uid,
+            isGuiDomainAvailable: {
+                (try? runLaunchctlPrint(target: "gui/\(uid)").status) == 0
+            }
+        )
+    }
+
+    static func resolveDomainString(
+        sessionType: String,
+        uid: uid_t,
+        isGuiDomainAvailable: () -> Bool = { false }
+    ) throws -> String {
+        switch sessionType {
         case LaunchPlist.Domain.System.rawValue:
             return LaunchPlist.Domain.System.rawValue.lowercased()
         case LaunchPlist.Domain.Background.rawValue:
-            return "user/\(getuid())"
+            if isGuiDomainAvailable() {
+                return "gui/\(uid)"
+            }
+            return "user/\(uid)"
         case LaunchPlist.Domain.Aqua.rawValue:
-            return "gui/\(getuid())"
+            return "gui/\(uid)"
         default:
-            throw ContainerizationError(.internalError, message: "unsupported session type \(currentSessionType)")
+            throw ContainerizationError(.internalError, message: "unsupported session type \(sessionType)")
         }
     }
 }

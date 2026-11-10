@@ -52,4 +52,58 @@ struct ServiceManagerTests {
         let label = "\(domain)/com.apple.container.bogus-\(UUID().uuidString)"
         #expect(try !ServiceManager.isRegistered(fullServiceLabel: label))
     }
+
+    @Test
+    func testResolveDomainStringAquaUsesGuiDomain() throws {
+        var probedGuiDomain = false
+        let domain = try ServiceManager.resolveDomainString(
+            sessionType: "Aqua",
+            uid: 501,
+            isGuiDomainAvailable: {
+                probedGuiDomain = true
+                return false
+            }
+        )
+        #expect(domain == "gui/501")
+        #expect(!probedGuiDomain)
+    }
+
+    @Test
+    func testResolveDomainStringBackgroundPrefersGuiDomainWhenAvailable() throws {
+        let domain = try ServiceManager.resolveDomainString(
+            sessionType: "Background",
+            uid: 501,
+            isGuiDomainAvailable: { true }
+        )
+        #expect(domain == "gui/501")
+    }
+
+    @Test
+    func testResolveDomainStringBackgroundFallsBackToUserDomainWhenHeadless() throws {
+        let domain = try ServiceManager.resolveDomainString(
+            sessionType: "Background",
+            uid: 501,
+            isGuiDomainAvailable: { false }
+        )
+        #expect(domain == "user/501")
+    }
+
+    @Test
+    func testResolveDomainStringSystemUsesSystemDomain() throws {
+        let domain = try ServiceManager.resolveDomainString(
+            sessionType: "System",
+            uid: 0
+        )
+        #expect(domain == "system")
+    }
+
+    @Test
+    func testResolveDomainStringUnsupportedSessionThrows() {
+        #expect(throws: (any Error).self) {
+            _ = try ServiceManager.resolveDomainString(
+                sessionType: "LoginWindow",
+                uid: 501
+            )
+        }
+    }
 }
