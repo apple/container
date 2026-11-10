@@ -30,7 +30,7 @@ import Testing
 struct DiskUsagePathTests {
     private let log = Logger(label: "test")
 
-    private func makeContainersService(appRoot: FilePath) throws -> ContainersService {
+    private func makeContainersService(appRoot: FilePath) async throws -> ContainersService {
         let appRoot = URL(fileURLWithPath: appRoot.string)
         let pluginLoader = try PluginLoader(
             appRoot: appRoot,
@@ -39,7 +39,7 @@ struct DiskUsagePathTests {
             pluginDirectories: [],
             pluginFactories: []
         )
-        return try ContainersService(
+        return try await ContainersService(
             appRoot: appRoot,
             pluginLoader: pluginLoader,
             containerSystemConfig: ContainerSystemConfig(),
@@ -61,7 +61,7 @@ struct DiskUsagePathTests {
     )
     func containerDiskUsageRejectsUnsafeIdentifier(_ id: String) async throws {
         try await TemporaryStorage.withTempDir { appRoot in
-            let harness = ContainersHarness(service: try makeContainersService(appRoot: appRoot), log: log)
+            let harness = ContainersHarness(service: try await makeContainersService(appRoot: appRoot), log: log)
             let message = XPCMessage(route: XPCRoute.containerDiskUsage)
             message.set(key: .id, value: id)
 
