@@ -60,7 +60,7 @@ Currently, memory pages freed to the Linux operating system by processes running
 
 ### macOS 15 limitations
 
-`container` relies on the new features and enhancements present in macOS 26. You can run `container` on macOS 15, but you will need to be aware of some user experience and functional limitations. There is no plan to address issues found with macOS 15 that cannot be reproduced on macOS 26.
+`container` relies on the new features and enhancements present in macOS 26 and later. You can run `container` on macOS 15, but you will need to be aware of some user experience and functional limitations. There is no plan to address issues found with macOS 15 that cannot be reproduced on macOS 26 or later.
 
 #### Network isolation
 
