@@ -21,6 +21,8 @@
 # VHS renders the terminal in a headless browser. If it can't find Chrome, it
 # downloads Chromium to ~/.cache/rod the first time it runs.
 
+# --- Set up ------------------------------------------------------------------
+
 ROOT_DIR=$(cd "$(dirname "$0")/.." && pwd)
 DEMO_ASSETS="${ROOT_DIR}/docs/assets/demo"
 DEMO_DIR="${HOME}/hello"
@@ -28,10 +30,18 @@ CONTAINER_NAME=web
 MACHINE_NAME=ubuntu
 MACHINE_IMAGE=ubuntu-machine:26.10
 
+# The tape records into .build/demo-gif. The committed GIF is only replaced
+# once the recording passes the tests at the end.
+SCRATCH_GIF=.build/demo-gif/landing-movie.gif
+TRANSCRIPT=.build/demo-gif/landing-movie.txt
+GIF=docs/assets/landing-movie.gif
+
 if [ -n "${CONTAINER_BIN_DIR}" ]; then
     PATH="$(cd "${CONTAINER_BIN_DIR}" && pwd):${PATH}"
     export PATH
 fi
+
+# --- Check dependencies -------------------------------------------------------
 
 # Check everything that can be checked quickly before the slow pre-warm, so a
 # missing dependency fails here instead of on camera.
@@ -101,6 +111,8 @@ if [ -n "$(container machine ls | awk 'NR > 1')" ]; then
     exit 1
 fi
 
+# --- Produce the recording ----------------------------------------------------
+
 cleanup() {
     container stop "${CONTAINER_NAME}" >/dev/null 2>&1 || true
     container rm "${CONTAINER_NAME}" >/dev/null 2>&1 || true
@@ -111,6 +123,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# Pre-warm the images, so that nothing downloads on camera.
 echo "Pre-warming images..."
 container image pull python:slim
 container build -t "${MACHINE_IMAGE}" "${DEMO_ASSETS}"
@@ -123,46 +136,27 @@ if ! container run --rm "${MACHINE_IMAGE}" sh -c 'cd /tmp && apt-get download -q
 fi
 
 # Stop the service so that the recorded `container system start` is real.
-container system stop || echo "warning: couldn't stop the container system service; continuing."
+if ! container system stop; then
+    echo "error: couldn't stop the container system service."
+    exit 1
+fi
 
 # A small project in your home directory, so the container machine can see it:
-# a Swift package, plus a Keynote file that's clearly from a Mac. Cleanup only
-# removes the directory if it was created here.
+# the outline of a Swift package, plus a Keynote file that's clearly from a Mac.
+# Cleanup only removes the directory if it was created here.
 mkdir "${DEMO_DIR}"
 DEMO_DIR_CREATED=1
-mkdir -p "${DEMO_DIR}/Sources/Hello" "${DEMO_DIR}/Tests/HelloTests"
-cat >"${DEMO_DIR}/Package.swift" <<'EOF'
-// swift-tools-version: 6.2
-import PackageDescription
-
-let package = Package(
-    name: "Hello",
-    targets: [
-        .executableTarget(name: "Hello"),
-        .testTarget(name: "HelloTests", dependencies: ["Hello"]),
-    ]
-)
-EOF
-cat >"${DEMO_DIR}/Sources/Hello/main.swift" <<'EOF'
-print("Hello, world!")
-EOF
-cat >"${DEMO_DIR}/README.md" <<'EOF'
-# Hello
-EOF
-touch "${DEMO_DIR}/Design.key"
+mkdir "${DEMO_DIR}/Sources" "${DEMO_DIR}/Tests"
+touch "${DEMO_DIR}/Package.swift" "${DEMO_DIR}/README.md" "${DEMO_DIR}/Design.key"
 
 export DEMO_DIR
 export DEMO_ENV="${DEMO_ASSETS}/demo-env.bash"
 
-# The tape records into .build/demo-gif. The committed GIF is only replaced
-# once the recording passes the checks below.
-SCRATCH_GIF=.build/demo-gif/landing-movie.gif
-TRANSCRIPT=.build/demo-gif/landing-movie.txt
-GIF=docs/assets/landing-movie.gif
-
 echo "Recording..."
 cd "${ROOT_DIR}"
 vhs "${DEMO_ASSETS}/landing-movie.tape"
+
+# --- Test the output ----------------------------------------------------------
 
 # The transcript has a snapshot of the screen after every tape command. Only
 # check for things that mean the demo is broken, not for output that changes
