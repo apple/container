@@ -272,7 +272,13 @@ public actor ContainersService {
                         try await bootstrap(id: id, stdio: [FileHandle?](repeating: nil, count: 3), dynamicEnv: [:])
                         try await startProcess(id: id, processID: id)
                     } catch {
-                        try await kill(id: id, processID: id, signal: "SIGKILL")
+                        do {
+                            try await kill(id: id, processID: id, signal: "SIGKILL")
+                        } catch {
+                            log.error(
+                                "failed to kill container after restart failure",
+                                metadata: ["id": "\(id)", "error": "\(error)"])
+                        }
                         log.error(
                             "failed to restart container",
                             metadata: ["id": "\(id)", "error": "\(error)"])
