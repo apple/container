@@ -9,7 +9,7 @@ The tool consumes and produces [OCI-compatible container images](https://github.
 
 `container` uses the [Containerization](https://github.com/apple/containerization) Swift package for low-level container, image, and process management.
 
-![introductory movie showing some basic commands](./docs/assets/landing-movie.gif)
+<img src="./docs/assets/landing-movie.gif" width="830" alt="Introductory movie: running a web server in a container, then opening an Ubuntu container machine that shares your home directory">
 
 ## Get started
 

@@ -531,6 +531,11 @@ docs:
 	@rm -rf _site
 	@scripts/make-docs.sh _site container
 
+.PHONY: demo-gif
+demo-gif:
+	@echo Recording the README demo...
+	@scripts/record-demo.sh
+
 .PHONY: cleancontent
 cleancontent:
 	@bin/container system stop || true
