@@ -520,6 +520,10 @@ public actor ContainersService {
                 return
             }
 
+            // A new start (by the user or the restart scheduler) clears any previous manual stop,
+            // so the restart policy applies again to this run.
+            state.manualStopped = false
+
             let path = self.containerRoot.appendingPathComponent(id)
             let (config, _) = try Self.getContainerConfiguration(at: path)
             try AttachmentNameValidator.validateStored(id: id, networks: config.networks)
@@ -743,6 +747,15 @@ public actor ContainersService {
             var state = try await self.getContainerState(id: id, context: context)
 
             state.manualStopped = true
+
+            // The container is waiting to be restarted and has no running sandbox yet.
+            // Cancel the pending restart; the scheduler bails when it sees the status change.
+            if state.snapshot.status == .restarting {
+                state.snapshot.status = .stopped
+                state.backOff = nil
+                await self.setContainerState(id, state, context: context)
+                return
+            }
             await self.setContainerState(id, state, context: context)
 
             // Stop should be idempotent.
