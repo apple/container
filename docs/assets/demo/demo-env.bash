@@ -10,6 +10,11 @@
 PS1='jappleseed@mac \w % '
 NOTE_PROMPT_LEN=25  # length of "jappleseed@mac ~/hello % "
 
+# The tape always records in bash, whatever your login shell is. Make sure this
+# throwaway shell never writes its history, which would include the off-camera
+# commands (note, source, clear).
+unset HISTFILE
+
 # Prints a caption. The tape types `note '...'` while recording is hidden, so
 # this erases that command line (however many rows it wrapped onto) and leaves
 # only the caption on screen. A caption starts with a blank line unless the

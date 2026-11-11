@@ -9,6 +9,10 @@
 # on the host, but the user is anonymized to `jappleseed` (see
 # docs/assets/demo/demo-env.bash).
 #
+# The tape records into .build/demo-gif, along with a text transcript of every
+# screen. The script checks the transcript for errors before it optimizes the
+# GIF and copies it to docs/assets/landing-movie.gif.
+#
 # Captions are typed off-camera as `note '...'`, which replaces the typed line
 # with the caption (`note + '...'` continues the previous caption). The GIF is
 # rendered at twice the size of the 830-pixel README column on GitHub, so it's
@@ -23,7 +27,8 @@
 # the screen's height (about 37 rows). After a clear, the first caption should say
 # where we are (the Mac or the Ubuntu machine).
 
-Output docs/assets/landing-movie.gif
+Output .build/demo-gif/landing-movie.gif
+Output .build/demo-gif/landing-movie.txt
 
 Require container
 Require curl
