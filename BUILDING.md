@@ -8,7 +8,7 @@ To build the `container` project, you need:
 - A running `container` installation, to build the `cluster-shim` Linux binary in a container. Builds leave `cluster-shim` out with a warning when `container` is not running, and clusters from those builds cannot use `--shared-image-store`. To use a prebuilt binary instead, set `CLUSTER_SHIM_BINARY` to its path.
 
 > [!IMPORTANT]
-> There is a bug in the `vmnet` framework on macOS 26 that causes network creation to fail if the `container` helper applications are located under your `Documents` or `Desktop` directories. If you use `make install`, you can simply run the `container` binary in `/usr/local`. If you prefer to use the binaries that `make all` creates in your project `bin` and `libexec` directories, locate your project elsewhere, such as `~/projects/container`, until this issue is resolved.
+> In macOS 26 or later, network creation may fail if the `container` helper applications are located under your `Documents` or `Desktop` directories. If you use `make install`, you can simply run the `container` binary in `/usr/local`. If you prefer to use the binaries that `make all` creates in your project `bin` and `libexec` directories, locate your project elsewhere, such as `~/projects/container`.
 
 ## Compile and test
 

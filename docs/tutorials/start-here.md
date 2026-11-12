@@ -267,7 +267,7 @@ You will often see these two options abbreviated and specified together as `-ti`
 Your web server is accessible from other containers as well as from your host. Launch a second container using your `web-test` image, and this time, specify a `curl` command to retrieve the `index.html` content from the first container.
 
 > [!NOTE]
-> Container relies on the new features and enhancements present in macOS 26 and later.
+> Container relies on new features and enhancements present in macOS 26 and later.
 > As a result, the functionality of accessing the web server from another container will not work on macOS 15.
 > See https://github.com/apple/container/blob/main/docs/technical-overview.md#macos-15-limitations for more details.
 
