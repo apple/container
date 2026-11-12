@@ -57,7 +57,7 @@ extension Application {
             )
         }
 
-        private static func tail(
+        static func tail(
             fh: FileHandle,
             n: Int?,
             follow: Bool
@@ -86,13 +86,7 @@ extension Application {
                 for line in lines {
                     print(line)
                 }
-            } else {
-                // Fast path if all they want is the full file.
-                guard let data = try fh.readToEnd() else {
-                    // Seems you get nil if it's a zero byte read, or you
-                    // try and read from dev/null.
-                    return
-                }
+            } else if let data = try fh.readToEnd() {
                 guard let str = String(data: data, encoding: .utf8) else {
                     throw ContainerizationError(
                         .internalError,

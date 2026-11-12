@@ -175,7 +175,7 @@ public actor MachinesService {
         return snapshots
     }
 
-    public func create(configuration: MachineConfiguration, resources: MachineResources?, bootConfig: MachineConfig) async throws {
+    public func create(configuration: MachineConfiguration, bootConfig: MachineConfig) async throws {
         self.log.debug("\(#function)")
 
         try await self.lock.withLock { context in
@@ -191,7 +191,6 @@ public actor MachinesService {
                 path: path,
                 machineConfiguration: configuration,
                 resourceRoot: self.resourceRoot,
-                resources: resources,
                 bootConfig: bootConfig,
             )
 
@@ -363,13 +362,23 @@ public actor MachinesService {
                 sbin: path.appending(MachineBundle.sbinDirectory),
                 initializedFile: path.appending(MachineBundle.initializedFile),
                 homeMountOption: bootConfig.homeMount,
+                virtualization: bootConfig.virtualization,
             )
 
             config.resources.cpus = bootConfig.cpus
             config.resources.cpuOverhead = 0
             config.resources.memoryInBytes = bootConfig.memory.toUInt64(unit: .bytes)
 
-            let kernel = try await ClientKernel.getDefaultKernel(for: .current)
+            let kernel: Kernel
+            if let kernelPath = bootConfig.kernelPath {
+                let validated = try MachineConfig.validateKernelPath(kernelPath.string)
+                kernel = Kernel(
+                    path: URL(fileURLWithPath: validated.string),
+                    platform: self.systemPlatform(from: state.snapshot.configuration.platform)
+                )
+            } else {
+                kernel = try await ClientKernel.getDefaultKernel(for: .current)
+            }
 
             var fhs: [FileHandle] = []
             do {
@@ -628,6 +637,7 @@ extension MachineConfiguration {
         sbin: FilePath,
         initializedFile: FilePath,
         homeMountOption: MachineConfig.HomeMountOption,
+        virtualization: Bool,
     ) async throws -> ContainerConfiguration {
         var config = ContainerConfiguration(
             id: cid,
@@ -665,7 +675,7 @@ extension MachineConfiguration {
 
         config.platform = platform
         config.labels = [
-            ResourceLabelKeys.plugin: "machine"
+            ResourceLabelKeys.plugin: ResourcePluginValues.machine
         ]
         let domain = Self.defaultDNSDomain
         config.dns = ContainerConfiguration.DNSConfiguration(
@@ -685,6 +695,9 @@ extension MachineConfiguration {
 
         config.capAdd = ["ALL"]
         config.ssh = true
+        config.virtualization = virtualization
+        config.readonlyPaths = []
+        config.maskedPaths = []
 
         config.rosetta = platform.architecture == "amd64" && Arch.hostArchitecture() == .arm64
 

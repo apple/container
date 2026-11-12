@@ -64,7 +64,7 @@ extension Application {
         @Argument var references: [String]
 
         public func run() async throws {
-            let containerSystemConfig: ContainerSystemConfig = try await Application.loadContainerSystemConfig()
+            let containerSystemConfig: ContainerSystemConfig = try await ClientHealthCheck.loadContainerSystemConfig()
             let p = try DefaultPlatform.resolve(platform: platform, os: os, arch: arch, log: log)
 
             let progressConfig = try ProgressConfig(
@@ -97,9 +97,17 @@ extension Application {
                     } catch {
                         var available: [String] = []
                         if let index = try? await image.index() {
-                            available = index.manifests
-                                .compactMap { $0.platform?.description }
-                                .filter { $0 != "unknown/unknown" }
+                            for desc in index.manifests {
+                                guard let platform = desc.platform, platform.description != "unknown/unknown" else {
+                                    continue
+                                }
+                                // The index can list platforms whose content is not in the store, for example
+                                // after a pull or a load of a single platform. Only report those that can be saved.
+                                guard (try? await image.manifest(for: platform)) != nil, !available.contains(platform.description) else {
+                                    continue
+                                }
+                                available.append(platform.description)
+                            }
                         }
                         let availableStr = available.isEmpty ? "none" : available.joined(separator: ", ")
                         throw ContainerizationError(
@@ -140,7 +148,15 @@ extension Application {
 
             progress.finish()
             for reference in references {
-                print(reference)
+                if output == nil {
+                    // stdout is carrying the OCI archive in this branch, so the
+                    // saved-reference list goes to stderr via the logger. Printing
+                    // it to stdout appends non-archive bytes after the tar EOF and
+                    // corrupts the stream for redirection and pipelines (#1801).
+                    log.info("\(reference)")
+                } else {
+                    print(reference)
+                }
             }
         }
     }

@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerNetworkClient
 import ContainerResource
 import ContainerXPC
 import ContainerizationExtras
@@ -23,13 +24,21 @@ public protocol NetworkService: Sendable {
     /// Gets the properties of the realized network.
     func status() async throws -> NetworkStatus
 
-    /// Register a hostname and allocate associated addresses.
+    /// Register a hostname and aliases that resolve to it, and allocate associated addresses.
+    ///
+    /// Each alias is in its normalized string form: an exact name, or a name with a leading dot that
+    /// matches every name below it.
     func allocate(
         hostname: String,
         macAddress: MACAddress?,
+        aliases: [String],
         session: XPCServerSession
     ) async throws -> (attachment: Attachment, additionalData: XPCMessage?)
 
-    /// Return the attachment for a hostname if it is registered with the network.
-    func lookup(hostname: String) async throws -> Attachment?
+    /// Look up a name on the network.
+    ///
+    /// The name can be the hostname of an attachment, an alias of it, or a name below a subtree alias.
+    /// Returns the attachment that the name resolves to and how the name matched, or nil if the name
+    /// does not resolve on this network.
+    func lookup(name: String) async throws -> NetworkMatch?
 }

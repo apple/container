@@ -90,11 +90,16 @@ struct ConfigurationLoaderTests {
             #expect(config.build.memory == BuildConfig.defaultMemory)
             #expect(config.container.cpus == 4)
             #expect(config.container.memory == ContainerConfig.defaultMemory)
+            #expect(config.container.dns?.domain == nil)
+            #expect(config.container.dns?.nameservers == nil)
+            #expect(config.container.dns?.searchDomains == nil)
+            #expect(config.container.dns?.options == nil)
             #expect(config.dns.domain == nil)
             #expect(!config.build.image.isEmpty)
             #expect(!config.vminit.image.isEmpty)
             #expect(!config.kernel.binaryPath.isEmpty)
             #expect(!config.kernel.url.absoluteString.isEmpty)
+            #expect(config.kernel.digest == KernelConfig.defaultDigest)
             #expect(config.network.subnet == nil)
             #expect(config.network.subnetv6 == nil)
             #expect(config.registry.domain == "docker.io")
@@ -114,12 +119,19 @@ struct ConfigurationLoaderTests {
                 cpus = 16
                 memory = "8g"
 
+                [container.dns]
+                domain = "container.custom"
+                nameservers = ["1.1.1.1", "8.8.8.8"]
+                searchDomains = ["corp.local", "lab.corp.local"]
+                options = ["ndots:2", "timeout:1"]
+
                 [dns]
-                domain = "custom"
+                domain = "host.custom"
 
                 [kernel]
                 binaryPath = "custom/path"
                 url = "https://example.com/kernel.tar"
+                digest = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 
                 [network]
                 subnet = "10.0.0.1/16"
@@ -142,11 +154,16 @@ struct ConfigurationLoaderTests {
             #expect(config.container.cpus == 16)
             let expectedContainerMemory = try MemorySize("8g")
             #expect(config.container.memory == expectedContainerMemory)
-            #expect(config.dns.domain == "custom")
+            #expect(config.container.dns?.domain == "container.custom")
+            #expect(config.container.dns?.nameservers == ["1.1.1.1", "8.8.8.8"])
+            #expect(config.container.dns?.searchDomains == ["corp.local", "lab.corp.local"])
+            #expect(config.container.dns?.options == ["ndots:2", "timeout:1"])
+            #expect(config.dns.domain == "host.custom")
             #expect(config.build.image == "custom-builder:latest")
             #expect(config.vminit.image == "custom-init:latest")
             #expect(config.kernel.binaryPath == "custom/path")
             #expect(config.kernel.url.absoluteString == "https://example.com/kernel.tar")
+            #expect(config.kernel.digest == "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
             let expectedSubnet = try CIDRv4("10.0.0.1/16")
             let expectedSubnetV6 = try CIDRv6("fd01::/48")
             #expect(config.network.subnet == expectedSubnet)
@@ -170,6 +187,69 @@ struct ConfigurationLoaderTests {
             #expect(config.build.memory == BuildConfig.defaultMemory)
             #expect(config.container.cpus == 4)
             #expect(config.container.memory == ContainerConfig.defaultMemory)
+        }
+    }
+
+    @Test func customKernelURLWithoutDigestThrows() async throws {
+        try await TemporaryStorage.withTempDir { tempDir in
+            let toml = """
+                [kernel]
+                url = "https://example.com/custom-kernel.tar"
+                """
+            let tmpFile = tempDir.appending("test.toml")
+            try Self.writeToml(toml, to: tmpFile)
+
+            await #expect(throws: (any Error).self) {
+                let _: ContainerSystemConfig = try await ConfigurationLoader.load(configurationFiles: [tmpFile])
+            }
+        }
+    }
+
+    @Test func layeredCustomKernelURLCanUseDigestFromLowerLayer() async throws {
+        try await TemporaryStorage.withTempDir { tempDir in
+            let userFile = tempDir.appending("user.toml")
+            let systemFile = tempDir.appending("system.toml")
+
+            try Self.writeToml(
+                """
+                [kernel]
+                url = "https://example.com/custom-kernel.tar"
+                """, to: userFile)
+            try Self.writeToml(
+                """
+                [kernel]
+                digest = "\(KernelConfig.defaultDigest)"
+                """, to: systemFile)
+
+            let config: ContainerSystemConfig = try await ConfigurationLoader.load(
+                configurationFiles: [userFile, systemFile])
+            #expect(config.kernel.url.absoluteString == "https://example.com/custom-kernel.tar")
+            #expect(config.kernel.digest == KernelConfig.defaultDigest)
+        }
+    }
+
+    @Test func customKernelURLWithDigestCanBeConstructed() {
+        let digest = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+        let config = KernelConfig(url: URL(string: "https://example.com/custom-kernel.tar")!, digest: digest)
+        #expect(config.url.absoluteString == "https://example.com/custom-kernel.tar")
+        #expect(config.digest == digest)
+    }
+
+    @Test func containerDNSArraysLoadFromTomlIndependently() async throws {
+        try await TemporaryStorage.withTempDir { tempDir in
+            let toml = """
+                [container.dns]
+                nameservers = ["1.1.1.1", "8.8.8.8"]
+                """
+            let tmpFile = tempDir.appending("dns.toml")
+            try Self.writeToml(toml, to: tmpFile)
+
+            let config: ContainerSystemConfig = try await ConfigurationLoader.load(configurationFiles: [tmpFile])
+            #expect(config.container.dns?.nameservers == ["1.1.1.1", "8.8.8.8"])
+            #expect(config.container.dns?.domain == nil)
+            #expect(config.container.dns?.searchDomains == nil)
+            #expect(config.container.dns?.options == nil)
+            #expect(config.dns.domain == nil)
         }
     }
 
@@ -212,6 +292,22 @@ struct ConfigurationLoaderTests {
             #expect(config.build.cpus == 2)
             #expect(config.container.cpus == 4)
             #expect(config.registry.domain == "docker.io")
+        }
+    }
+
+    @Test func loadFollowsSymlinkedSourceFile() async throws {
+        try await TemporaryStorage.withTempDir { tempDir in
+            let realFile = tempDir.appending("real-config.toml")
+            try Self.writeToml("[build]\ncpus = 8\n", to: realFile)
+
+            let symlinkPath = tempDir.appending("config.toml")
+            try FileManager.default.createSymbolicLink(
+                atPath: symlinkPath.string, withDestinationPath: realFile.string)
+
+            let config: ContainerSystemConfig = try await ConfigurationLoader.load(
+                configurationFiles: [symlinkPath]
+            )
+            #expect(config.build.cpus == 8)
         }
     }
 
@@ -261,6 +357,45 @@ struct ConfigurationLoaderTests {
             try ConfigurationLoader.copyConfigurationToReadOnly(from: source, to: destBase)
             let destFile = destBase.appending("config").appending("config.toml")
             #expect(!FileManager.default.fileExists(atPath: destFile.string))
+        }
+    }
+
+    @Test func copyConfigDoesNotFollowDestinationSymlink() async throws {
+        try await TemporaryStorage.withTempDir { tempDir in
+            let source = tempDir.appending("config.toml")
+            try Self.writeToml("[build]\ncpus = 8", to: source)
+
+            let outsideDir = tempDir.appending("outside")
+            try FileManager.default.createDirectory(
+                atPath: outsideDir.string, withIntermediateDirectories: true)
+            let outsideFile = outsideDir.appending("do-not-touch")
+            try Self.writeToml("untouched", to: outsideFile)
+
+            let destBase = tempDir.appending("dest")
+            let destFile = destBase.appending("config").appending("config.toml")
+            try FileManager.default.createDirectory(
+                atPath: destFile.removingLastComponent().string,
+                withIntermediateDirectories: true)
+            try FileManager.default.createSymbolicLink(
+                atPath: destFile.string, withDestinationPath: outsideDir.string)
+
+            try ConfigurationLoader.copyConfigurationToReadOnly(from: source, to: destBase)
+
+            var isDirectory: ObjCBool = false
+            let exists = FileManager.default.fileExists(atPath: destFile.string, isDirectory: &isDirectory)
+            #expect(exists)
+            #expect(!isDirectory.boolValue)
+
+            let attrs = try FileManager.default.attributesOfItem(atPath: destFile.string)
+            #expect(attrs[.type] as? FileAttributeType != .typeSymbolicLink)
+            let perms = try #require(attrs[.posixPermissions] as? Int)
+            #expect(perms == 0o444)
+
+            let copied = try String(contentsOf: URL(filePath: destFile.string), encoding: .utf8)
+            #expect(copied.contains("cpus = 8"))
+
+            let outsideContents = try String(contentsOf: URL(filePath: outsideFile.string), encoding: .utf8)
+            #expect(outsideContents == "untouched")
         }
     }
 

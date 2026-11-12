@@ -33,7 +33,7 @@ touch ~/.config/container/config.toml
 
 Open the file in the editor of your choice and add only the sections and keys you want to change. 
 
-For this tutorial, increase the default CPU and memory limits used for each new container and set a DNS domain for resolving container IP addresses from the host. 
+For this tutorial, increase the default CPU and memory limits used for each new container, and set a DNS domain so containers get hostnames under that domain (a container named `my-web-server` becomes `my-web-server.test`).
 
 ```toml
 [container]
@@ -54,6 +54,19 @@ To make your edits take effect, stop and start the system:
 container system stop
 container system start
 ```
+
+### Route macOS DNS queries for the domain to `container`
+
+The `[dns] domain` change above only affects the `container` service and the containers
+it runs. Complete the setup by telling macOS to route `*.test` queries there too:
+
+```bash
+sudo container system dns create test
+```
+
+Enter your administrator password when prompted. See [Networking: Set up DNS-based
+container names](../networking.md#set-up-dns-based-container-names) for what this step
+does.
 
 ### Verify the values are loaded
 
@@ -77,6 +90,7 @@ domain = "test"
 [kernel]
 binaryPath = "opt/kata/share/kata-containers/vmlinux-6.18.15-186"
 url = "https://github.com/kata-containers/kata-containers/releases/download/3.28.0/kata-static-3.28.0-arm64.tar.zst"
+digest = "sha256:f63d54507d1f18635d94475077e4c2330de4d8e05cedf25f7c38f063b0e66a91"
 
 [network]
 
@@ -84,7 +98,7 @@ url = "https://github.com/kata-containers/kata-containers/releases/download/3.28
 domain = "docker.io"
 
 [vminit]
-image = "ghcr.io/apple/containerization/vminit:0.32.2"
+image = "ghcr.io/apple/containerization/vminit:0.34.0"
 ```
 
 For machine-readable output, pass `--format json`:

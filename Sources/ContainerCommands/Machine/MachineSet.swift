@@ -66,7 +66,16 @@ extension Application {
                 },
                 uniquingKeysWith: { _, last in last }
             )
-            let newConfig = try snapshot.bootConfig.with(kwargs)
+
+            if kwargs["virtualization"] == "true" {
+                try MachineCapabilities.requireNestedVirtualizationSupported()
+            }
+            var validatedKwargs = kwargs
+            if let raw = kwargs["kernel"], !raw.isEmpty {
+                validatedKwargs["kernel"] = try MachineConfig.validateKernelPath(raw).string
+            }
+
+            let newConfig = try snapshot.bootConfig.with(validatedKwargs)
 
             try await client.setConfig(id: resolvedName, bootConfig: newConfig)
 

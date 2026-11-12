@@ -23,6 +23,13 @@ import GRPCCore
 import Logging
 import TerminalProgress
 
+/// Handles the `resolver` stage of the build protocol.
+///
+/// Resolves image references on behalf of BuildKit: authenticates with
+/// registries, pulls missing base-image manifests and layers, and stores
+/// them in the local content store. BuildKit delegates these operations to
+/// the host because registry credentials and network access live on the
+/// macOS side, not inside the builder VM.
 struct BuildImageResolver: BuildPipelineHandler {
     let contentStore: ContentStore
     let quiet: Bool

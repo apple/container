@@ -38,12 +38,6 @@ public struct MachinesHarness: Sendable {
             )
         }
 
-        let machineResources = message.dataNoCopy(key: MachineKeys.machineResources.rawValue)
-        var resources: MachineResources? = nil
-        if let machineResources {
-            resources = try JSONDecoder().decode(MachineResources.self, from: machineResources)
-        }
-
         let bootConfigData = message.dataNoCopy(key: MachineKeys.bootConfig.rawValue)
         guard let bootConfigData else {
             throw ContainerizationError(.invalidArgument, message: "bootConfig cannot be empty")
@@ -52,7 +46,7 @@ public struct MachinesHarness: Sendable {
 
         let config = try JSONDecoder().decode(MachineConfiguration.self, from: machineConfig)
 
-        try await service.create(configuration: config, resources: resources, bootConfig: bootConfig)
+        try await service.create(configuration: config, bootConfig: bootConfig)
         return message.reply()
     }
 

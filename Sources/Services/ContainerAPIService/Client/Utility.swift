@@ -20,12 +20,19 @@ import Containerization
 import ContainerizationError
 import ContainerizationExtras
 import ContainerizationOCI
+import DNSServer
 import Foundation
 import Logging
 import TerminalProgress
 
+// MARK: - Collection capacity hints
+// Dictionary(minimumCapacity:) and reserveCapacity() are used in this file to
+// pre-allocate storage when the final collection size is known from the input.
+// This avoids incremental reallocation overhead in hot-path parser methods.
+
 public struct Utility {
     static let publishedPortCountLimit = 64
+    private static let runtimePrefix = "container-runtime-"
 
     public static func createContainerID(name: String?) -> String {
         guard let name else {
@@ -51,14 +58,6 @@ public struct Utility {
         return String(hex.prefix(12))
     }
 
-    public static func validEntityName(_ name: String) throws {
-        let pattern = #"^[a-zA-Z0-9][a-zA-Z0-9_.-]+$"#
-        let regex = try Regex(pattern)
-        if try regex.firstMatch(in: name) == nil {
-            throw ContainerizationError(.invalidArgument, message: "invalid entity name \(name)")
-        }
-    }
-
     public static func validMACAddress(_ macAddress: String) throws {
         let pattern = #"^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$"#
         let regex = try Regex(pattern)
@@ -80,13 +79,18 @@ public struct Utility {
         progressUpdate: @escaping ProgressUpdateHandler,
         log: Logger
     ) async throws -> (ContainerConfiguration, Kernel, String?) {
-        let requestedPlatform = try DefaultPlatform.resolveWithDefaults(
-            platform: management.platform,
+        let scheme = try RequestScheme(registry.scheme)
+        let candidates = try await ClientImage.platforms(reference: image, scheme: scheme, containerSystemConfig: containerSystemConfig)
+        let platform = try management.platform.map(Parser.platform(from:))
+
+        let requestedPlatform = try PlatformResolver.resolve(
+            platform: platform,
             os: management.os,
             arch: management.arch,
+            candidates: candidates,
+            reference: image,
             log: log
         )
-        let scheme = try RequestScheme(registry.scheme)
 
         await progressUpdate([
             .setDescription("Fetching image"),
@@ -222,12 +226,10 @@ public struct Utility {
         if management.dnsDisabled {
             config.dns = nil
         } else {
-            let domain = management.dns.domain ?? containerSystemConfig.dns.domain
-            config.dns = .init(
-                nameservers: management.dns.nameservers,
-                domain: domain,
-                searchDomains: management.dns.searchDomains,
-                options: management.dns.options
+            config.dns = dnsConfiguration(
+                from: management.dns,
+                defaults: containerSystemConfig.container.dns,
+                hostDomainFallback: containerSystemConfig.dns.domain
             )
         }
 
@@ -258,11 +260,11 @@ public struct Utility {
         let caps = try Parser.capabilities(capAdd: management.capAdd, capDrop: management.capDrop)
         config.capAdd = caps.capAdd
         config.capDrop = caps.capDrop
+        config.maskedPaths = try Parser.maskedPaths(management.maskedPaths)
+        config.readonlyPaths = try Parser.readonlyPaths(management.readonlyPaths)
         config.stopSignal = imageConfig?.stopSignal
 
-        if let runtime = management.runtime {
-            config.runtimeHandler = runtime
-        }
+        config.runtimeHandler = management.runtime ?? "\(runtimePrefix)\(requestedPlatform.os)"
 
         return (config, kernel, management.initImage)
     }
@@ -309,15 +311,16 @@ public struct Utility {
             return try networks.enumerated().map { item in
                 let macAddress = try item.element.macAddress.map { try MACAddress($0) }
                 let mtu = item.element.mtu ?? 1280
+                let aliases = try qualifyAliases(item.element.aliases, dnsDomain: dnsDomain)
                 guard item.offset == 0 else {
                     return AttachmentConfiguration(
                         network: item.element.name,
-                        options: AttachmentOptions(hostname: containerId, macAddress: macAddress, mtu: mtu)
+                        options: AttachmentOptions(hostname: containerId, macAddress: macAddress, mtu: mtu, aliases: aliases)
                     )
                 }
                 return AttachmentConfiguration(
                     network: item.element.name,
-                    options: AttachmentOptions(hostname: fqdn ?? containerId, macAddress: macAddress, mtu: mtu)
+                    options: AttachmentOptions(hostname: fqdn ?? containerId, macAddress: macAddress, mtu: mtu, aliases: aliases)
                 )
             }
         }
@@ -329,18 +332,89 @@ public struct Utility {
         return [AttachmentConfiguration(network: builtinNetworkId, options: AttachmentOptions(hostname: fqdn ?? containerId, macAddress: nil, mtu: 1280))]
     }
 
+    /// Appends the default DNS domain to the aliases that have no domain of their own.
+    ///
+    /// This follows the rule that makes `--name foo` the hostname `foo.test.` when the default domain
+    /// is `test`: a name without a dot gets the domain, and a name with a dot is taken to be
+    /// qualified already. For a name with a leading dot, which matches every name below it, the rule
+    /// applies to the name after the dot. Without a default domain the aliases are left as they are,
+    /// and the server rejects any that is not fully qualified.
+    ///
+    /// - Parameters:
+    ///   - aliases: The aliases of an attachment, in their normalized form.
+    ///   - dnsDomain: The default DNS domain from the system configuration, if there is one.
+    /// - Returns: The qualified aliases.
+    static func qualifyAliases(_ aliases: [String], dnsDomain: String?) throws -> [String] {
+        guard let dnsDomain else {
+            return aliases
+        }
+        return try aliases.map { alias in
+            let isSubtree = alias.hasPrefix(".")
+            let name = isSubtree ? String(alias.dropFirst()) : alias
+            guard !name.contains(".") else {
+                return alias
+            }
+            do {
+                return try DNSMatchRule("\(isSubtree ? "." : "")\(name).\(dnsDomain)").description
+            } catch {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "cannot qualify alias \"\(alias)\" with the default DNS domain \"\(dnsDomain)\": \(error)"
+                )
+            }
+        }
+    }
+
+    /// Resolves the DNS configuration for a container from CLI flags, falling back
+    /// to the defaults configured in `~/.config/container/config.toml`.
+    ///
+    /// Precedence: CLI flags > `[container.dns]` defaults > host domain fallback.
+    /// `hostDomainFallback` is the API server's own DNS domain (the `[dns]` section),
+    /// used so a container's default domain still matches the host domain when no
+    /// `--dns-domain` flag and no `[container.dns]` domain are configured.
+    public static func dnsConfiguration(
+        from flags: Flags.DNS,
+        defaults: ContainerDNSConfig?,
+        hostDomainFallback: String? = nil
+    ) -> ContainerConfiguration.DNSConfiguration {
+        let nameservers =
+            flags.nameservers.isEmpty
+            ? (defaults?.nameservers ?? [])
+            : flags.nameservers
+        let domain = flags.domain ?? defaults?.domain ?? hostDomainFallback
+        let searchDomains =
+            flags.searchDomains.isEmpty
+            ? (defaults?.searchDomains ?? [])
+            : flags.searchDomains
+        let options =
+            flags.options.isEmpty
+            ? (defaults?.options ?? [])
+            : flags.options
+        return .init(
+            nameservers: nameservers,
+            domain: domain,
+            searchDomains: searchDomains,
+            options: options
+        )
+    }
     private static func getKernel(management: Flags.Management) async throws -> Kernel {
         // For the image itself we'll take the user input and try with it as we can do userspace
         // emulation for x86, but for the kernel we need it to match the hosts architecture.
         let s: SystemPlatform = .current
+        var kernel: Kernel
         if let userKernel = management.kernel {
             guard FileManager.default.fileExists(atPath: userKernel) else {
                 throw ContainerizationError(.notFound, message: "kernel file not found at path \(userKernel)")
             }
             let p = URL(filePath: userKernel)
-            return .init(path: p, platform: s)
+            kernel = .init(path: p, platform: s)
+        } else {
+            kernel = try await ClientKernel.getDefaultKernel(for: s)
         }
-        return try await ClientKernel.getDefaultKernel(for: s)
+        // Persist any user-supplied boot args onto the kernel command line. A key supplied
+        // here overrides the runtime's matching built-in default (see RuntimeService.bootstrap).
+        kernel.commandLine.kernelArgs.append(contentsOf: management.kernelArgs)
+        return kernel
     }
 
     /// Parses key-value pairs from command line arguments.
@@ -349,7 +423,7 @@ public struct Utility {
     /// - Parameter pairs: Array of strings in "key=value" format
     /// - Returns: Dictionary mapping keys to values
     public static func parseKeyValuePairs(_ pairs: [String]) -> [String: String] {
-        var result: [String: String] = [:]
+        var result: [String: String] = Dictionary(minimumCapacity: pairs.count)
         for pair in pairs {
             let components = pair.split(separator: "=", maxSplits: 1)
             if components.count == 2 {

@@ -112,6 +112,7 @@ public enum XPCKeys: String {
     case kernelFilePath
     case systemPlatform
     case kernelForce
+    case kernelDigest
 
     /// Init image reference
     case initImage
@@ -164,6 +165,7 @@ public enum XPCRoute: String {
     case containerCopyIn
     case containerCopyOut
     case containerExport
+    case containerClean
 
     case pluginLoad
     case pluginGet

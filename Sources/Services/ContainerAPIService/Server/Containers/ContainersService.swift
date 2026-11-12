@@ -71,9 +71,9 @@ public actor ContainersService {
         containerSystemConfig: ContainerSystemConfig,
         log: Logger,
         debugHelpers: Bool = false
-    ) throws {
+    ) async throws {
         let containerRoot = appRoot.appendingPathComponent("containers")
-        try FileManager.default.createDirectory(at: containerRoot, withIntermediateDirectories: true)
+        try PathUtils.createDirectoryExcludingFromBackup(containerRoot)
         self.exitMonitor = ExitMonitor(log: log)
         self.lock = AsyncLock(log: log)
         self.containerRoot = containerRoot
@@ -82,14 +82,14 @@ public actor ContainersService {
         self.log = log
         self.debugHelpers = debugHelpers
         self.runtimePlugins = pluginLoader.findPlugins().filter { $0.hasType(.runtime) }
-        self.containers = try Self.loadAtBoot(root: containerRoot, loader: pluginLoader, log: log)
+        self.containers = try await Self.loadAtBoot(root: containerRoot, loader: pluginLoader, log: log)
     }
 
     public func setNetworksService(_ service: NetworksService) async {
         self.networksService = service
     }
 
-    static func loadAtBoot(root: URL, loader: PluginLoader, log: Logger) throws -> [String: ContainerState] {
+    static func loadAtBoot(root: URL, loader: PluginLoader, log: Logger) async throws -> [String: ContainerState] {
         var directories = try FileManager.default.contentsOfDirectory(
             at: root,
             includingPropertiesForKeys: [.isDirectoryKey]
@@ -103,6 +103,14 @@ public actor ContainersService {
         for dir in directories {
             do {
                 let (config, options) = try Self.getContainerConfiguration(at: dir)
+
+                guard let plugin = runtimePlugins.first(where: { $0.name == config.runtimeHandler }) else {
+                    throw ContainerizationError(
+                        .internalError,
+                        message: "failed to find runtime plugin \(config.runtimeHandler)"
+                    )
+                }
+
                 if options?.autoRemove ?? false {
                     log.info(
                         "reap auto-remove container",
@@ -127,6 +135,8 @@ public actor ContainersService {
                         )
                     }
 
+                    await RuntimeCleanupHook.run(plugin: plugin, root: dir, id: config.id, log: log)
+
                     let bundle = ContainerResource.Bundle(path: dir)
                     try? bundle.delete()
                     continue
@@ -141,12 +151,6 @@ public actor ContainersService {
                     ),
                 )
                 results[config.id] = state
-                guard runtimePlugins.first(where: { $0.name == config.runtimeHandler }) != nil else {
-                    throw ContainerizationError(
-                        .internalError,
-                        message: "failed to find runtime plugin \(config.runtimeHandler)"
-                    )
-                }
             } catch {
                 try? FileManager.default.removeItem(at: dir)
                 log.warning(
@@ -290,48 +294,20 @@ public actor ContainersService {
                 )
             }
 
-            var allHostnames = Set<String>()
+            var existingNetworks = [AttachmentConfiguration]()
             for container in await self.containers.values {
-                for attachmentConfiguration in container.snapshot.configuration.networks {
-                    allHostnames.insert(attachmentConfiguration.options.hostname)
-                }
+                existingNetworks.append(contentsOf: container.snapshot.configuration.networks)
             }
-
-            var conflictingHostnames = [String]()
-            for attachmentConfiguration in configuration.networks {
-                if allHostnames.contains(attachmentConfiguration.options.hostname) {
-                    conflictingHostnames.append(attachmentConfiguration.options.hostname)
-                }
-            }
-
-            guard conflictingHostnames.isEmpty else {
-                throw ContainerizationError(
-                    .exists,
-                    message: "hostname(s) already exist: \(conflictingHostnames)"
-                )
-            }
+            try AttachmentNameValidator.validate(networks: configuration.networks, existing: existingNetworks)
 
             guard self.runtimePlugins.first(where: { $0.name == configuration.runtimeHandler }) != nil else {
                 throw ContainerizationError(
                     .notFound,
-                    message: "unable to locate runtime plugin \(configuration.runtimeHandler)"
+                    message: "unable to locate runtime plugin \(configuration.runtimeHandler); pass --runtime to select one"
                 )
             }
 
-            // Protect against a user providing a memory amount that will cause us to not be able
-            // to boot. We can go lower, but this is a somewhat safe threshold. Containerization
-            // also gives a little bit extra than the user asked for to account for guest agent overhead.
-            //
-            // NOTE: We could potentially leave this validation to the runtime service(s), as
-            // it's possible there could be an implementation that can get away with a lower
-            // amount and be perfectly safe.
-            let minimumMemory: UInt64 = 200.mib()
-            guard configuration.resources.memoryInBytes >= minimumMemory else {
-                throw ContainerizationError(
-                    .invalidArgument,
-                    message: "minimum memory amount allowed is 200 MiB (got \(configuration.resources.memoryInBytes) bytes)"
-                )
-            }
+            try ContainerConfiguration.Resources.validate(memoryInBytes: configuration.resources.memoryInBytes)
 
             let path = self.containerRoot.appendingPathComponent(configuration.id)
             let systemPlatform = kernel.platform
@@ -419,13 +395,14 @@ public actor ContainersService {
 
             let path = self.containerRoot.appendingPathComponent(id)
             let (config, _) = try Self.getContainerConfiguration(at: path)
+            try AttachmentNameValidator.validateStored(id: id, networks: config.networks)
 
             var networkBootstrapInfos = [NetworkBootstrapInfo]()
             for n in config.networks {
-                guard let (plugin, options) = try await self.networksService?.pluginConfiguration(id: n.network) else {
-                    throw ContainerizationError(.internalError, message: "failed to get plugin configuration for network \(n.network)")
+                guard let plugin = try await self.networksService?.plugin(for: n.network) else {
+                    throw ContainerizationError(.internalError, message: "failed to get plugin for network \(n.network)")
                 }
-                networkBootstrapInfos.append(NetworkBootstrapInfo(plugin: plugin, options: options))
+                networkBootstrapInfos.append(NetworkBootstrapInfo(plugin: plugin))
             }
 
             do {
@@ -743,16 +720,19 @@ public actor ContainersService {
         }
 
         // Logs doesn't care if the container is running or not, just that
-        // the bundle is there, and that the files actually exist. We do
+        // the bundle is there; a log file that doesn't exist reads as empty. We do
         // first try and get the container state so we get a nicer error message
         // (container foo not found) however.
         do {
             _ = try _getContainerState(id: id)
             let path = self.containerRoot.appendingPathComponent(id)
             let bundle = ContainerResource.Bundle(path: path)
+            // A missing log means there are no messages yet, not that the bundle is broken: the
+            // runtime creates both at bootstrap, so a container that has never been started has
+            // neither.
             return [
-                try FileHandle(forReadingFrom: bundle.containerLog),
-                try FileHandle(forReadingFrom: bundle.bootlog),
+                try self.openLog(bundle.containerLog, of: id),
+                try self.openLog(bundle.bootlog, of: id),
             ]
         } catch {
             throw ContainerizationError(
@@ -760,6 +740,47 @@ public actor ContainersService {
                 message: "failed to open container logs: \(error)"
             )
         }
+    }
+
+    /// The log at `url`, or an empty stand-in when it doesn't exist. Other failures throw.
+    private func openLog(_ url: URL, of id: String) throws -> FileHandle {
+        if let handle = try Self.openIfPresent(url) {
+            return handle
+        }
+        log.debug(
+            "ContainersService: log not present, returning it empty",
+            metadata: ["id": "\(id)", "log": "\(url.lastPathComponent)"]
+        )
+        return try Self.emptyLog()
+    }
+
+    /// A stand-in for a log that doesn't exist: `/dev/null` opened for reading.
+    ///
+    /// Not `FileHandle.nullDevice`, which has no file descriptor (`fileDescriptor` is -1): these
+    /// handles go to the client over XPC, a -1 dups back as -1, and the client's
+    /// `fileHandles(key:)` then returns nil, so `container logs` would still fail.
+    static func emptyLog() throws -> FileHandle {
+        let fd = open("/dev/null", O_RDONLY | O_CLOEXEC | O_NOFOLLOW)
+        guard fd >= 0 else {
+            throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+        }
+        return FileHandle(fileDescriptor: fd, closeOnDealloc: true)
+    }
+
+    /// Opens `url` for reading, or returns nil if it doesn't exist. Any other failure, such
+    /// as a permissions problem, still throws.
+    ///
+    /// `O_NOFOLLOW`: these are fixed paths inside a container's bundle that runtimes create as
+    /// regular files, so a symlink there is never legitimate, and following one would hand
+    /// the caller whatever file it points at. A symlink fails with ELOOP rather than ENOENT,
+    /// so it is refused, not read as an empty log.
+    static func openIfPresent(_ url: URL) throws -> FileHandle? {
+        let fd = open(url.path, O_RDONLY | O_CLOEXEC | O_NOFOLLOW)
+        guard fd >= 0 else {
+            if errno == ENOENT { return nil }
+            throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+        }
+        return FileHandle(fileDescriptor: fd, closeOnDealloc: true)
     }
 
     /// Copy a file or directory from the host into the container.
@@ -901,14 +922,34 @@ public actor ContainersService {
         self.log.debug("\(#function)")
 
         let state = try self._getContainerState(id: id)
-        guard state.snapshot.status == .stopped else {
-            throw ContainerizationError(.invalidState, message: "container is not stopped")
-        }
-
         let path = self.containerRoot.appendingPathComponent(id)
         let bundle = ContainerResource.Bundle(path: path)
         let rootfs = bundle.containerRootfsBlock
-        try EXT4.EXT4Reader(blockDevice: FilePath(rootfs)).export(archive: FilePath(archive))
+
+        switch state.snapshot.status {
+        case .running:
+            let client = try state.getClient()
+            let snapshot = rootfs.appendingPathExtension("snapshot")
+            defer { try? FileManager.default.removeItem(at: snapshot) }
+            try await client.snapshotDisk(imagePath: rootfs.path, destinationPath: snapshot.path)
+            try EXT4.EXT4Reader(blockDevice: FilePath(snapshot)).export(archive: FilePath(archive))
+        case .stopped:
+            try EXT4.EXT4Reader(blockDevice: FilePath(rootfs)).export(archive: FilePath(archive))
+        default:
+            throw ContainerizationError(.invalidState, message: "container must be running or stopped")
+        }
+    }
+
+    public func clean(id: String) async throws {
+        self.log.debug("\(#function)")
+
+        let state = try self._getContainerState(id: id)
+        guard state.snapshot.status == .running else {
+            throw ContainerizationError(.invalidState, message: "container is not running")
+        }
+
+        let client = try state.getClient()
+        try await client.clean(id: id)
     }
 
     private func handleContainerExit(id: String, code: ExitStatus? = nil) async throws {
@@ -1044,12 +1085,19 @@ public actor ContainersService {
         // Only try to deregister service if we have a valid config
         // TODO: Change this so we don't have to reread the config
         // possibly store the container ID to service label mapping
+        let plugin = config.flatMap { config in self.runtimePlugins.first { $0.name == config.runtimeHandler } }
         if let config = config {
             let label = Self.fullLaunchdServiceLabel(
                 runtimeName: config.runtimeHandler,
                 instanceId: id
             )
             try? ServiceManager.deregister(fullServiceLabel: label)
+
+            if let plugin {
+                await RuntimeCleanupHook.run(plugin: plugin, root: path, id: id, log: self.log)
+            } else {
+                self.log.warning("no runtime plugin for container; skipping cleanup hook", metadata: ["id": "\(id)", "runtime": "\(config.runtimeHandler)"])
+            }
         }
 
         // Always try to delete the bundle directory, even if it's incomplete

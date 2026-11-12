@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerizationOS
 import Foundation
 import Testing
 
@@ -179,7 +180,8 @@ let testCases = [
         #expect(throws: Never.self) {
             try globber.match(test.pattern)
             let found: Bool = !globber.results.isEmpty
-            #expect(found == test.expectSuccess, "expected match to be \(test.expectSuccess), instead got \(found) \(tempDir.childrenRecursive)")
+            let onDisk = FileManager.default.enumerator(at: tempDir, includingPropertiesForKeys: nil)?.allObjects ?? []
+            #expect(found == test.expectSuccess, "expected match to be \(test.expectSuccess), instead got \(found) \(onDisk)")
         }
     }
 
@@ -201,5 +203,117 @@ let testCases = [
             try globber.match("abc/**")
             #expect(globber.results.isEmpty, "expected to find no matches, instead found \(globber.results)")
         }
+    }
+
+    // MARK: - Directory symlink traversal
+    //
+    // Globber must be able to descend through a directory symlink whose fully
+    // resolved target is still inside the match root (the same containment
+    // check BuildFSSync.read()/info() apply before serving content), while
+    // continuing to treat a symlink that escapes the root as a leaf with no
+    // children. See the discussion on
+    // https://github.com/apple/container-ghsa-2v2q-4q35-h585/pull/2.
+
+    @Test("Match descends through an in-context directory symlink")
+    func testMatchFollowsInContextDirectorySymlink() throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let real = tempDir.appendingPathComponent("real")
+        let link = tempDir.appendingPathComponent("link")
+        let file = real.appendingPathComponent("file.txt")
+
+        try FileManager.default.createDirectory(at: real, withIntermediateDirectories: true)
+        try "hello".write(to: file, atomically: true, encoding: .utf8)
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: real)
+
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let globber = Globber(tempDir)
+        try globber.match("link/file.txt")
+
+        // Compare by name rather than exact path: on macOS /var is itself a
+        // symlink to /private/var, and FileManager.contentsOfDirectory vs.
+        // URL.resolvingSymlinksInPath() normalize that inconsistently, so a
+        // temp-dir-rooted URL built by hand won't reliably string-match a URL
+        // Globber discovered through the real filesystem APIs.
+        #expect(
+            globber.results.contains { $0.isSymlink && $0.lastPathComponent == "link" },
+            "expected the symlink itself to be preserved in results, got \(globber.results)"
+        )
+        #expect(
+            globber.results.contains { $0.lastPathComponent == "file.txt" },
+            "expected the resolved physical file to be present in results, got \(globber.results)"
+        )
+    }
+
+    @Test("Recursive glob descends through an in-context directory symlink")
+    func testMatchRecursiveGlobFollowsInContextDirectorySymlink() throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let real = tempDir.appendingPathComponent("real")
+        let link = tempDir.appendingPathComponent("link")
+        let file = real.appendingPathComponent("file.txt")
+
+        try FileManager.default.createDirectory(at: real, withIntermediateDirectories: true)
+        try "hello".write(to: file, atomically: true, encoding: .utf8)
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: real)
+
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let globber = Globber(tempDir)
+        try globber.match("link/**")
+
+        #expect(globber.results.contains { $0.isSymlink && $0.lastPathComponent == "link" })
+        #expect(globber.results.contains { $0.lastPathComponent == "real" })
+        #expect(globber.results.contains { $0.lastPathComponent == "file.txt" })
+    }
+
+    @Test("Match does not descend through a directory symlink that escapes the root")
+    func testMatchDoesNotDescendThroughSymlinkEscapingRoot() throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let outsideDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let link = tempDir.appendingPathComponent("link")
+        let secret = outsideDir.appendingPathComponent("secret.txt")
+
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: outsideDir, withIntermediateDirectories: true)
+        try "supersecret".write(to: secret, atomically: true, encoding: .utf8)
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: outsideDir)
+
+        defer {
+            try? FileManager.default.removeItem(at: tempDir)
+            try? FileManager.default.removeItem(at: outsideDir)
+        }
+
+        let globber = Globber(tempDir)
+        try globber.match("link/secret.txt")
+
+        #expect(globber.results.isEmpty, "expected no match through a symlink escaping the root, got \(globber.results)")
+    }
+
+    @Test("Recursive glob through a symlink escaping the root never leaks out-of-root files")
+    func testMatchRecursiveGlobDoesNotLeakOutsideRoot() throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let outsideDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let link = tempDir.appendingPathComponent("link")
+        let secret = outsideDir.appendingPathComponent("secret.txt")
+
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: outsideDir, withIntermediateDirectories: true)
+        try "supersecret".write(to: secret, atomically: true, encoding: .utf8)
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: outsideDir)
+
+        defer {
+            try? FileManager.default.removeItem(at: tempDir)
+            try? FileManager.default.removeItem(at: outsideDir)
+        }
+
+        let globber = Globber(tempDir)
+        try globber.match("link/**")
+
+        let leaked = globber.results.filter { url in
+            guard !url.isSymlink else { return false }
+            let resolved = url.resolvingSymlinksInPath()
+            return !tempDir.parentOf(resolved) && resolved.cleanPath != tempDir.cleanPath
+        }
+        #expect(leaked.isEmpty, "match() produced non-symlink results that physically resolve outside the root: \(leaked)")
     }
 }

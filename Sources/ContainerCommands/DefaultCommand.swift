@@ -35,7 +35,7 @@ struct DefaultCommand: AsyncLoggableCommand {
 
     func run() async throws {
         // See if we have a possible plugin command.
-        let pluginLoader = try? await Application.createPluginLoader()
+        let pluginLoader = try? await Utility.createPluginLoader(log: log)
         guard let command = remaining.first else {
             await Application.printModifiedHelpText(pluginLoader: pluginLoader)
             return
@@ -84,12 +84,11 @@ struct DefaultCommand: AsyncLoggableCommand {
         guard let plugin = pluginLoader?.findPlugin(name: command), plugin.config.isCLI else {
             throw ValidationError(
                 """
-                Plugin 'container-\(command)' not found.
+                unknown command '\(command)'
 
                 - If system services are not running, start them with: container system start
-                - If the plugin isn't installed, ensure it exists under:
 
-                Check to see that the plugin exists under:
+                If '\(command)' is a plugin, check that it exists under:
                   - \(hintPaths)
 
                 """

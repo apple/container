@@ -22,8 +22,8 @@ import PackageDescription
 
 let releaseVersion = ProcessInfo.processInfo.environment["RELEASE_VERSION"] ?? "0.0.0"
 let gitCommit = ProcessInfo.processInfo.environment["GIT_COMMIT"] ?? "unspecified"
-let builderShimVersion = "0.12.0"
-let scVersion = "0.33.4"
+let builderShimVersion = "0.13.3"
+let scVersion = "0.54.0"
 
 let package = Package(
     name: "container",
@@ -34,10 +34,12 @@ let package = Package(
         .library(name: "ContainerAPIService", targets: ["ContainerAPIService"]),
         .library(name: "ContainerAPIClient", targets: ["ContainerAPIClient"]),
         .library(name: "ContainerImagesService", targets: ["ContainerImagesService", "ContainerImagesServiceClient"]),
+        .library(name: "ContainerClusterService", targets: ["ContainerClusterService", "ContainerClusterServiceClient"]),
         .library(name: "ContainerNetworkClient", targets: ["ContainerNetworkClient"]),
         .library(name: "ContainerNetworkServer", targets: ["ContainerNetworkServer"]),
         .library(name: "ContainerNetworkVmnetServer", targets: ["ContainerNetworkVmnetServer"]),
         .library(name: "ContainerResource", targets: ["ContainerResource"]),
+        .library(name: "ContainerTestSupport", targets: ["ContainerTestSupport"]),
         .library(name: "ContainerLog", targets: ["ContainerLog"]),
         .library(name: "ContainerPersistence", targets: ["ContainerPersistence"]),
         .library(name: "ContainerPlugin", targets: ["ContainerPlugin"]),
@@ -51,18 +53,19 @@ let package = Package(
         .library(name: "TerminalProgress", targets: ["TerminalProgress"]),
         .library(name: "MachineAPIClient", targets: ["MachineAPIClient"]),
         .library(name: "MachineAPIService", targets: ["MachineAPIService"]),
+        .library(name: "ContainerCluster", targets: ["ContainerCluster"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/containerization.git", exact: Version(stringLiteral: scVersion)),
-        .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.3.0"),
+        .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.7.0"),
         .package(url: "https://github.com/apple/swift-collections.git", from: "1.2.0"),
         .package(url: "https://github.com/apple/swift-configuration", from: "1.0.0"),
-        .package(url: "https://github.com/apple/swift-log.git", from: "1.0.0"),
+        .package(url: "https://github.com/apple/swift-log.git", from: "1.10.1"),
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.80.0"),
         .package(url: "https://github.com/apple/swift-protobuf.git", from: "1.36.0"),
         .package(url: "https://github.com/apple/swift-system.git", from: "1.6.4"),
         .package(url: "https://github.com/grpc/grpc-swift-2.git", from: "2.3.0"),
-        .package(url: "https://github.com/grpc/grpc-swift-nio-transport.git", from: "2.4.4"),
+        .package(url: "https://github.com/grpc/grpc-swift-nio-transport.git", from: "2.9.0"),
         .package(url: "https://github.com/grpc/grpc-swift-protobuf.git", from: "2.2.0"),
         .package(url: "https://github.com/swift-server/async-http-client.git", from: "1.20.1"),
         .package(url: "https://github.com/swiftlang/swift-docc-plugin.git", from: "1.1.0"),
@@ -81,34 +84,46 @@ let package = Package(
             path: "Sources/CLI"
         ),
         .testTarget(
-            name: "CLITests",
+            name: "IntegrationTests",
             dependencies: [
                 .product(name: "AsyncHTTPClient", package: "async-http-client"),
+                .product(name: "Logging", package: "swift-log"),
+                .product(name: "NIOCore", package: "swift-nio"),
+                .product(name: "NIOHTTP1", package: "swift-nio"),
+                .product(name: "NIOPosix", package: "swift-nio"),
+                .product(name: "SystemPackage", package: "swift-system"),
                 .product(name: "Containerization", package: "containerization"),
                 .product(name: "ContainerizationArchive", package: "containerization"),
                 .product(name: "ContainerizationExtras", package: "containerization"),
+                .product(name: "ContainerizationOCI", package: "containerization"),
                 .product(name: "ContainerizationOS", package: "containerization"),
                 .product(name: "TOML", package: "swift-toml"),
-                "ContainerBuild",
+                "ContainerAPIClient",
                 "ContainerLog",
                 "ContainerPersistence",
+                "ContainerPlugin",
                 "ContainerResource",
+                "ContainerTestSupport",
+                "MachineAPIClient",
                 "Yams",
             ],
-            path: "Tests/CLITests"
+            path: "Tests/IntegrationTests"
         ),
         .target(
             name: "ContainerCommands",
             dependencies: [
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "Logging", package: "swift-log"),
+                .product(name: "NIO", package: "swift-nio"),
                 .product(name: "SwiftProtobuf", package: "swift-protobuf"),
                 .product(name: "TOML", package: "swift-toml"),
                 .product(name: "Containerization", package: "containerization"),
+                .product(name: "ContainerizationArchive", package: "containerization"),
                 .product(name: "ContainerizationOCI", package: "containerization"),
                 .product(name: "ContainerizationOS", package: "containerization"),
                 "ContainerBuild",
                 "ContainerAPIClient",
+                "ContainerImagesServiceClient",
                 "ContainerLog",
                 "ContainerPersistence",
                 "ContainerPlugin",
@@ -132,12 +147,20 @@ let package = Package(
                 .product(name: "NIOPosix", package: "swift-nio"),
                 .product(name: "Containerization", package: "containerization"),
                 .product(name: "ContainerizationArchive", package: "containerization"),
+                .product(name: "ContainerizationExtras", package: "containerization"),
                 .product(name: "ContainerizationOCI", package: "containerization"),
+                .product(name: "ContainerizationOS", package: "containerization"),
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "GRPCCore", package: "grpc-swift-2"),
                 .product(name: "GRPCNIOTransportHTTP2", package: "grpc-swift-nio-transport"),
                 .product(name: "GRPCProtobuf", package: "grpc-swift-protobuf"),
+                .product(name: "SystemPackage", package: "swift-system"),
                 "ContainerAPIClient",
+                "ContainerImagesServiceClient",
+                "ContainerLog",
+                "ContainerPersistence",
+                "ContainerResource",
+                "TerminalProgress",
             ]
         ),
         .testTarget(
@@ -149,8 +172,95 @@ let package = Package(
         .testTarget(
             name: "ContainerCommandsTests",
             dependencies: [
+                .product(name: "Containerization", package: "containerization"),
+                .product(name: "ContainerizationOCI", package: "containerization"),
+                "ContainerAPIClient",
                 "ContainerCommands",
                 "ContainerResource",
+            ]
+        ),
+        .testTarget(
+            name: "ClusterPluginTests",
+            dependencies: [
+                "ContainerAPIClient",
+                "ContainerCluster",
+                "ContainerClusterServiceClient",
+                "ContainerResource",
+                "Yams",
+            ]
+        ),
+        .testTarget(
+            name: "ContainerClusterServiceTests",
+            dependencies: [
+                .product(name: "Logging", package: "swift-log"),
+                .product(name: "SystemPackage", package: "swift-system"),
+                "ContainerClusterService",
+                "ContainerClusterServiceClient",
+                "ContainerResource",
+                "ContainerXPC",
+            ]
+        ),
+        .target(
+            name: "ContainerCluster",
+            dependencies: [
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                .product(name: "Logging", package: "swift-log"),
+                .product(name: "Containerization", package: "containerization"),
+                .product(name: "ContainerizationOCI", package: "containerization"),
+                .product(name: "ContainerizationOS", package: "containerization"),
+                .product(name: "SystemPackage", package: "swift-system"),
+                "ContainerAPIClient",
+                "ContainerClusterServiceClient",
+                "ContainerLog",
+                "ContainerPersistence",
+                "ContainerPlugin",
+                "ContainerResource",
+                "ContainerVersion",
+                "TerminalProgress",
+                "Yams",
+            ]
+        ),
+        .executableTarget(
+            name: "cluster",
+            dependencies: ["ContainerCluster"],
+            path: "Sources/Plugins/Cluster",
+            exclude: ["config.toml", "Resources"]
+        ),
+        .executableTarget(
+            name: "cluster-hoststore",
+            dependencies: [
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                .product(name: "SystemPackage", package: "swift-system"),
+                "ClusterHostStoreService",
+                "ContainerCluster",
+                "ContainerLog",
+                "ContainerPersistence",
+                "ContainerPlugin",
+                "ContainerVersion",
+            ],
+            path: "Sources/Plugins/ClusterHostStore",
+            exclude: ["config.toml"]
+        ),
+        .target(
+            name: "ClusterHostStoreService",
+            dependencies: [
+                .product(name: "Logging", package: "swift-log"),
+                .product(name: "NIOCore", package: "swift-nio"),
+                .product(name: "NIOHTTP1", package: "swift-nio"),
+                .product(name: "NIOPosix", package: "swift-nio"),
+                .product(name: "Containerization", package: "containerization"),
+                "ContainerAPIClient",
+                "ContainerImagesServiceClient",
+                "ContainerPersistence",
+            ],
+            path: "Sources/Services/ClusterHostStoreService"
+        ),
+        .testTarget(
+            name: "ClusterHostStoreTests",
+            dependencies: [
+                .product(name: "NIOHTTP1", package: "swift-nio"),
+                .product(name: "Containerization", package: "containerization"),
+                "ClusterHostStoreService",
             ]
         ),
         .executableTarget(
@@ -199,6 +309,7 @@ let package = Package(
                 "ContainerRuntimeClient",
                 "ContainerVersion",
                 "ContainerXPC",
+                "DNSServer",
                 "TerminalProgress",
             ],
             path: "Sources/Services/ContainerAPIService/Server"
@@ -207,9 +318,17 @@ let package = Package(
             name: "ContainerAPIServiceTests",
             dependencies: [
                 .product(name: "Containerization", package: "containerization"),
+                .product(name: "ContainerizationExtras", package: "containerization"),
+                "ContainerAPIService",
+                "ContainerAPIClient",
+                "ContainerNetworkClient",
+                "ContainerPersistence",
+                "ContainerPlugin",
                 "ContainerResource",
                 "ContainerRuntimeLinuxClient",
                 "ContainerRuntimeClient",
+                "ContainerTestSupport",
+                "ContainerXPC",
             ]
         ),
         .target(
@@ -243,6 +362,25 @@ let package = Package(
                 "ContainerPersistence",
                 "ContainerTestSupport",
             ]
+        ),
+        .executableTarget(
+            name: "container-core-clusters",
+            dependencies: [
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                .product(name: "Logging", package: "swift-log"),
+                .product(name: "SystemPackage", package: "swift-system"),
+                "ContainerAPIClient",
+                "ContainerClusterService",
+                "ContainerClusterServiceClient",
+                "ContainerLog",
+                "ContainerPersistence",
+                "ContainerPlugin",
+                "ContainerResource",
+                "ContainerVersion",
+                "ContainerXPC",
+            ],
+            path: "Sources/Plugins/CoreClusters",
+            exclude: ["config.toml"]
         ),
         .executableTarget(
             name: "container-core-images",
@@ -279,6 +417,29 @@ let package = Package(
                 "TerminalProgress",
             ],
             path: "Sources/Services/ContainerImagesService/Server"
+        ),
+        .target(
+            name: "ContainerClusterService",
+            dependencies: [
+                .product(name: "Logging", package: "swift-log"),
+                .product(name: "Containerization", package: "containerization"),
+                .product(name: "SystemPackage", package: "swift-system"),
+                "ContainerClusterServiceClient",
+                "ContainerPersistence",
+                "ContainerResource",
+                "ContainerXPC",
+            ],
+            path: "Sources/Services/ContainerClusterService/Server"
+        ),
+        .target(
+            name: "ContainerClusterServiceClient",
+            dependencies: [
+                .product(name: "Logging", package: "swift-log"),
+                .product(name: "Containerization", package: "containerization"),
+                "ContainerResource",
+                "ContainerXPC",
+            ],
+            path: "Sources/Services/ContainerClusterService/Client"
         ),
         .target(
             name: "ContainerImagesServiceClient",
@@ -327,6 +488,7 @@ let package = Package(
                 "ContainerNetworkClient",
                 "ContainerResource",
                 "ContainerXPC",
+                "DNSServer",
             ],
             path: "Sources/Services/Network/Server"
         ),
@@ -334,7 +496,11 @@ let package = Package(
             name: "ContainerNetworkServerTests",
             dependencies: [
                 .product(name: "ContainerizationExtras", package: "containerization"),
+                "ContainerNetworkClient",
                 "ContainerNetworkServer",
+                "ContainerResource",
+                "ContainerXPC",
+                "DNSServer",
             ]
         ),
         .target(
@@ -405,9 +571,11 @@ let package = Package(
             dependencies: [
                 .product(name: "Collections", package: "swift-collections"),
                 .product(name: "Containerization", package: "containerization"),
+                .product(name: "TOML", package: "swift-toml"),
                 "ContainerXPC",
                 "CAuditToken",
                 "CVersion",
+                "Yams",
             ]
         ),
         .testTarget(
@@ -562,7 +730,21 @@ let package = Package(
         .target(
             name: "ContainerTestSupport",
             dependencies: [
-                .product(name: "SystemPackage", package: "swift-system")
+                .product(name: "AsyncHTTPClient", package: "async-http-client"),
+                .product(name: "Containerization", package: "containerization"),
+                .product(name: "ContainerizationArchive", package: "containerization"),
+                .product(name: "ContainerizationExtras", package: "containerization"),
+                .product(name: "Logging", package: "swift-log"),
+                .product(name: "NIOCore", package: "swift-nio"),
+                .product(name: "NIOHTTP1", package: "swift-nio"),
+                .product(name: "NIOPosix", package: "swift-nio"),
+                .product(name: "SystemPackage", package: "swift-system"),
+                .product(name: "TOML", package: "swift-toml"),
+                "ContainerAPIClient",
+                "ContainerLog",
+                "ContainerPersistence",
+                "ContainerPlugin",
+                "ContainerResource",
             ]
         ),
         .target(
@@ -612,6 +794,33 @@ let package = Package(
             ],
             path: "Sources/Plugins/MachineAPIServer",
             exclude: ["config.toml", "Resources"]
+        ),
+        .executableTarget(
+            name: "container-build",
+            dependencies: [
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                "ContainerAPIClient",
+                "ContainerCommands",
+                "TerminalProgress",
+            ],
+            path: "Sources/Plugins/ContainerBuild",
+            exclude: ["config.toml"]
+        ),
+        .executableTarget(
+            name: "container-builder",
+            dependencies: [
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                .product(name: "ContainerizationExtras", package: "containerization"),
+                .product(name: "Logging", package: "swift-log"),
+                "ContainerAPIClient",
+                "ContainerBuild",
+                "ContainerLog",
+                "ContainerPersistence",
+                "ContainerResource",
+                "TerminalProgress",
+            ],
+            path: "Sources/Plugins/ContainerBuilder",
+            exclude: ["config.toml"]
         ),
     ]
 )

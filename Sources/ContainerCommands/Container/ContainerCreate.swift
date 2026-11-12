@@ -56,7 +56,7 @@ extension Application {
         var arguments: [String] = []
 
         public func run() async throws {
-            let containerSystemConfig: ContainerSystemConfig = try await Application.loadContainerSystemConfig()
+            let containerSystemConfig: ContainerSystemConfig = try await ClientHealthCheck.loadContainerSystemConfig()
             let progressConfig = try ProgressConfig(
                 showTasks: true,
                 showItems: true,
@@ -70,7 +70,10 @@ extension Application {
             progress.start()
 
             let id = Utility.createContainerID(name: self.managementFlags.name)
-            try Utility.validEntityName(id)
+
+            guard ManagedContainer.nameValid(id) else {
+                throw ContainerizationError(.invalidArgument, message: "container ID \(id) is not a valid container ID")
+            }
 
             let ck = try await Utility.containerConfigFromFlags(
                 id: id,

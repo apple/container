@@ -36,8 +36,8 @@ $(PROTOC):
 
 .PHONY: protoc-gen-swift
 protoc-gen-swift:
-	@$(SWIFT) build --product protoc-gen-swift
-	@$(SWIFT) build --product protoc-gen-grpc-swift-2
+	@$(SWIFT) build -c $(BUILD_CONFIGURATION) --product protoc-gen-swift
+	@$(SWIFT) build -c $(BUILD_CONFIGURATION) --product protoc-gen-grpc-swift-2
 
 .PHONY: protos
 protos: $(PROTOC) protoc-gen-swift

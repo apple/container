@@ -105,7 +105,16 @@ Use the `--help` flag to see which abbreviations exist.
 
 ### Set up a local DNS domain (optional)
 
-`container` includes an embedded DNS service that simplifies access to your containerized applications. If you want to configure a local DNS domain named `test` for this tutorial, run:
+`container` includes an embedded DNS service that simplifies access to your containerized applications. For what each step does, see [Networking: Set up DNS-based container names](../networking.md#set-up-dns-based-container-names); the short version, to set up a domain named `test`:
+
+Set `domain = "test"` under `[dns]` in `~/.config/container/config.toml`, then restart the service:
+
+```bash
+container system stop
+container system start
+```
+
+Then tell macOS to route `*.test` queries to `container`'s DNS service:
 
 ```bash
 sudo container system dns create test
@@ -113,7 +122,7 @@ sudo container system dns create test
 
 Enter your administrator password when prompted. The first command requires administrator privileges to create a file containing the domain configuration under the `/etc/resolver` directory, and to tell the macOS DNS resolver to reload its configuration files.
 
-With the domain set to `test`, if you use `--name my-web-server` to start a container, queries to `my-web-server.test` will respond with that container's IP address. You can customize the domain in `~/.config/container/config.toml`.
+See [Customize `container` default configuration values](./container-system-config-tutorial.md) for instructions on how to set the default domain name that the `container` service uses for container name resolution on the host. With the default domain set to `test`, if you use `--name my-web-server` to start a container, queries to `my-web-server.test` will respond with that container's IP address. 
 
 ## Build an image
 
@@ -198,7 +207,7 @@ Open the website, using the container's IP address in the URL:
 open http://192.168.64.3
 ```
 
-If you configured the local domain `test` earlier in the tutorial, you can also open the page with the full hostname for the container:
+If you configured the default domain name `test` for the `container` service earlier in the tutorial, you can also open the page with the full hostname for the container:
 
 ```bash
 open http://my-web-server.test
@@ -223,6 +232,9 @@ my-web-server   0.23%   12.45 MiB / 1.00 GiB  856.00 KiB / 1.2 KiB 2.10 MiB / 51
 
 > [!NOTE]
 > Without the `--no-stream` flag, `container stats` continuously updates the display in real-time, similar to the `top` command. Press Ctrl+C to exit the live view.
+
+See [Resource usage](../resource-usage.md) for what each metric means, setting
+CPU/memory limits, and reclaiming disk space.
 
 ### Run other commands in the container
 

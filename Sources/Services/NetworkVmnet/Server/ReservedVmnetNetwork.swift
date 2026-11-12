@@ -63,6 +63,8 @@ public final class ReservedVmnetNetwork: ContainerNetworkServer.Network {
 
     public nonisolated var id: String { configuration.id }
 
+    public nonisolated var variant: String? { "reserved" }
+
     public var status: NetworkStatus? {
         stateMutex.withLock { $0.status }
     }

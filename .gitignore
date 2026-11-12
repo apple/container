@@ -15,6 +15,7 @@ installer/
 .venv/
 .claude/
 .clitests/
+.vscode/
 test_results/
 *.pid
 *.log
@@ -31,3 +32,7 @@ coverage-reports/
 # API docs for local preview only.
 _site/
 _serve/
+
+# Default APP_ROOT and SCRATCH_ROOT for local test runs.
+.test-data/
+.test-scratch/

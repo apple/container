@@ -17,6 +17,7 @@
 import ArgumentParser
 import ContainerAPIClient
 import ContainerPersistence
+import ContainerResource
 import ContainerizationError
 import ContainerizationOCI
 import Foundation
@@ -33,6 +34,9 @@ extension Application {
 
         @OptionGroup(title: "Management options")
         var managementFlags: Flags.MachineManagement
+
+        @OptionGroup(title: "User options")
+        var userFlags: Flags.MachineUser
 
         @OptionGroup(title: "Registry options")
         var registryFlags: Flags.Registry
@@ -64,10 +68,21 @@ extension Application {
         @Option(name: .long, help: "User's home directory mount option (ro, rw, none). Default: rw")
         public var homeMount: String?
 
+        @Flag(name: .long, help: "Enable nested virtualization (requires Apple Silicon M3+ and macOS 15+ and kernel with CONFIG_KVM=y)")
+        public var virtualization: Bool = false
+
+        @Option(name: .long, help: "Path to a custom kernel binary (e.g. vmlinux).")
+        public var kernel: String?
+
         @Argument(help: "Container image reference (e.g., alpine:3.22)")
         var image: String
 
         public func run() async throws {
+            if virtualization {
+                try MachineCapabilities.requireNestedVirtualizationSupported()
+            }
+            let resolvedKernel = try kernel.map { try MachineConfig.validateKernelPath($0) }
+
             let progressConfig = try self.progressFlags.makeConfig(
                 showTasks: true,
                 showItems: true,
@@ -88,6 +103,8 @@ extension Application {
                     "cpus": cpus.map { "\($0)" },
                     "memory": memory,
                     "home-mount": homeMount,
+                    "virtualization": virtualization ? "true" : nil,
+                    "kernel": resolvedKernel?.string,
                 ].compactMapValues { $0 }
             )
 
@@ -102,13 +119,16 @@ extension Application {
                 id = "\(imageName)-\(suffix)"
             }
 
-            try Utility.validEntityName(id)
+            guard ManagedContainer.nameValid(id) else {
+                throw ContainerizationError(.invalidArgument, message: "machine ID \(id) is not a valid machine ID")
+            }
 
             let client = MachineClient()
-            let (config, resources) = try await MachineClient.machineConfigFromFlags(
+            let config = try await MachineClient.machineConfigFromFlags(
                 id: id,
                 image: image,
                 management: managementFlags,
+                user: userFlags,
                 registry: registryFlags,
                 imageFetch: imageFetchFlags,
                 containerSystemConfig: containerSystemConfig,
@@ -116,7 +136,7 @@ extension Application {
             )
 
             do {
-                try await client.create(configuration: config, resources: resources, bootConfig: bootConfig)
+                try await client.create(configuration: config, bootConfig: bootConfig)
                 progress.finish()  // Finish before subsequent output to avoid mangling
             } catch let error as ContainerizationError {
                 if let cause = error.cause as? ContainerizationError, cause.isCode(.exists) {
@@ -131,7 +151,7 @@ extension Application {
             }
 
             if !noBoot {
-                try await bootMachine(id: id, client: client, log: log, interactive: false)
+                try await bootMachine(id: id, client: client, log: log)
             }
 
             print(id)

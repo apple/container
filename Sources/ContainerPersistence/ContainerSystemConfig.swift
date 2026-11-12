@@ -70,7 +70,7 @@ public final class ContainerSystemConfig: Codable, Sendable, Initable {
         self.container = try container.decodeIfPresent(ContainerConfig.self, forKey: .container) ?? .init()
         self.dns = try container.decodeIfPresent(DNSConfig.self, forKey: .dns) ?? .init()
         self.kernel = try container.decodeIfPresent(KernelConfig.self, forKey: .kernel) ?? .init()
-        self.machine = try container.decodeIfPresent(MachineConfig.self, forKey: .machine) ?? .init(cpus: nil, memory: nil, homeMount: nil)
+        self.machine = try container.decodeIfPresent(MachineConfig.self, forKey: .machine) ?? MachineConfig.default
         self.network = try container.decodeIfPresent(NetworkConfig.self, forKey: .network) ?? .init()
         self.registry = try container.decodeIfPresent(RegistryConfig.self, forKey: .registry) ?? .init()
         self.vminit = try container.decodeIfPresent(VminitConfig.self, forKey: .vminit) ?? .init()
@@ -118,16 +118,23 @@ final public class ContainerConfig: Codable, Sendable {
 
     public let cpus: Int
     public let memory: MemorySize
+    public let dns: ContainerDNSConfig?
 
-    public init(cpus: Int = defaultCPUs, memory: MemorySize = defaultMemory) {
+    public init(
+        cpus: Int = defaultCPUs,
+        memory: MemorySize = defaultMemory,
+        dns: ContainerDNSConfig? = nil
+    ) {
         self.cpus = cpus
         self.memory = memory
+        self.dns = dns
     }
 
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.cpus = try container.decodeIfPresent(Int.self, forKey: .cpus) ?? Self.defaultCPUs
         self.memory = try container.decodeIfPresent(MemorySize.self, forKey: .memory) ?? Self.defaultMemory
+        self.dns = try container.decodeIfPresent(ContainerDNSConfig.self, forKey: .dns)
     }
 }
 
@@ -141,6 +148,33 @@ final public class DNSConfig: Codable, Sendable {
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.domain = try container.decodeIfPresent(String.self, forKey: .domain)
+    }
+}
+
+final public class ContainerDNSConfig: Codable, Sendable {
+    public let domain: String?
+    public let nameservers: [String]?
+    public let searchDomains: [String]?
+    public let options: [String]?
+
+    public init(
+        domain: String? = nil,
+        nameservers: [String]? = nil,
+        searchDomains: [String]? = nil,
+        options: [String]? = nil
+    ) {
+        self.domain = domain
+        self.nameservers = nameservers
+        self.searchDomains = searchDomains
+        self.options = options
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.domain = try container.decodeIfPresent(String.self, forKey: .domain)
+        self.nameservers = try container.decodeIfPresent([String].self, forKey: .nameservers)
+        self.searchDomains = try container.decodeIfPresent([String].self, forKey: .searchDomains)
+        self.options = try container.decodeIfPresent([String].self, forKey: .options)
     }
 }
 
@@ -165,24 +199,25 @@ final public class VminitConfig: Codable, Sendable {
 }
 
 final public class KernelConfig: Codable, Sendable {
-    public static let defaultBinaryPath = "opt/kata/share/kata-containers/vmlinux-6.18.15-186"
+    public static let defaultBinaryPath = "opt/kata/share/kata-containers/vmlinux-6.18.56-208-debug"
     public static let defaultURL: URL =
-        URL(string: "https://github.com/kata-containers/kata-containers/releases/download/3.28.0/kata-static-3.28.0-arm64.tar.zst")!
+        URL(string: "https://github.com/kata-containers/kata-containers/releases/download/4.3.1/kata-static-4.3.1-arm64.tar.zst")!
+    public static let defaultDigest = "sha256:2c5bf7cde334ad5307d482f45cceda496f91c9b6b96f5278c47f4f4eac1bbae6"
 
     private enum CodingKeys: String, CodingKey {
         case binaryPath
         case url
+        case digest
     }
 
     public let binaryPath: String
     public let url: URL
+    public let digest: String
 
-    public init(
-        binaryPath: String = defaultBinaryPath,
-        url: URL = defaultURL
-    ) {
+    public init(binaryPath: String = defaultBinaryPath, url: URL = defaultURL, digest: String = defaultDigest) {
         self.binaryPath = binaryPath
         self.url = url
+        self.digest = digest
     }
 
     public init(from decoder: any Decoder) throws {
@@ -190,12 +225,26 @@ final public class KernelConfig: Codable, Sendable {
         self.binaryPath =
             try container.decodeIfPresent(String.self, forKey: .binaryPath)
             ?? Self.defaultBinaryPath
-        if let urlString = try container.decodeIfPresent(String.self, forKey: .url),
-            let parsed = URL(string: urlString)
-        {
+        if let urlString = try container.decodeIfPresent(String.self, forKey: .url) {
+            guard let parsed = URL(string: urlString) else {
+                throw DecodingError.dataCorruptedError(
+                    forKey: .url,
+                    in: container,
+                    debugDescription: "invalid kernel URL '\(urlString)'")
+            }
             self.url = parsed
         } else {
             self.url = Self.defaultURL
+        }
+        if let digest = try container.decodeIfPresent(String.self, forKey: .digest) {
+            self.digest = digest
+        } else if self.url.absoluteString == Self.defaultURL.absoluteString {
+            self.digest = Self.defaultDigest
+        } else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .digest,
+                in: container,
+                debugDescription: "kernel.digest is required when kernel.url is not the default URL")
         }
     }
 
@@ -209,6 +258,7 @@ final public class KernelConfig: Codable, Sendable {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(binaryPath, forKey: .binaryPath)
         try container.encode(url.absoluteString, forKey: .url)
+        try container.encode(digest, forKey: .digest)
     }
 }
 

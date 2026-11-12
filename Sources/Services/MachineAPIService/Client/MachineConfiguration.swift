@@ -26,19 +26,38 @@ public struct UserSetup: Sendable, Codable, Equatable {
     public var username: String
     public var uid: UInt32
     public var gid: UInt32
-
-    public var home: String {
-        "/home/\(username)"
-    }
+    public var home: String
 
     public var user: ProcessConfiguration.User {
         .id(uid: uid, gid: gid)
     }
 
-    public init(username: String, uid: UInt32, gid: UInt32) {
+    /// The `CONTAINER_*` environment variables `MachineUserSetup.script` expects.
+    public var processEnvironment: [String] {
+        [
+            "CONTAINER_USER=\(username)",
+            "CONTAINER_HOME=\(home)",
+            "CONTAINER_UID=\(uid)",
+            "CONTAINER_GID=\(gid)",
+        ]
+    }
+
+    public init(username: String, uid: UInt32, gid: UInt32, home: String? = nil) {
         self.username = username
         self.uid = uid
         self.gid = gid
+        self.home = home ?? "/home/\(username)"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.username = try container.decode(String.self, forKey: .username)
+        self.uid = try container.decode(UInt32.self, forKey: .uid)
+        self.gid = try container.decode(UInt32.self, forKey: .gid)
+        // DEPRECATED 1.3.0 - `decodeIfPresent` used for down-revision compatibility with bundles
+        // persisted before `home` existed; replace with plain `decode` once compatibility with
+        // pre-1.3.0 bundles is no longer required (2.0.0).
+        self.home = try container.decodeIfPresent(String.self, forKey: .home) ?? "/home/\(self.username)"
     }
 }
 
@@ -67,13 +86,8 @@ public struct MachineConfiguration: Sendable, Codable {
     public var processEnvironment: [String] {
         [
             "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
-
             "CONTAINER_MACHINE_ID=\(id)",
-            "CONTAINER_USER=\(userSetup.username)",
-            "CONTAINER_HOME=\(userSetup.home)",
-            "CONTAINER_UID=\(userSetup.uid)",
-            "CONTAINER_GID=\(userSetup.gid)",
-        ]
+        ] + userSetup.processEnvironment
     }
 
     public var dnsName: String {

@@ -50,6 +50,8 @@ public actor AllocationOnlyVmnetNetwork: Network {
 
     public nonisolated var id: String { configuration.id }
 
+    public nonisolated var variant: String? { "allocationOnly" }
+
     public var status: NetworkStatus? { _status }
 
     public nonisolated func withAdditionalData(_ handler: (XPCMessage?) throws -> Void) throws {
