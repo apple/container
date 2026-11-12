@@ -16,7 +16,6 @@
 
 import ArgumentParser
 import ContainerAPIClient
-import ContainerizationError
 import Foundation
 
 extension Application {
@@ -31,13 +30,7 @@ extension Application {
         public var logOptions: Flags.Logging
 
         @Argument(help: "Container IDs")
-        var containerIds: [String] = []
-
-        public func validate() throws {
-            if containerIds.count == 0 {
-                throw ContainerizationError(.invalidArgument, message: "no containers specified")
-            }
-        }
+        var containerIds: [String]
 
         public mutating func run() async throws {
             let client = ContainerClient()
