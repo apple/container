@@ -16,7 +16,6 @@
 
 import ArgumentParser
 import ContainerLog
-import ContainerPersistence
 import ContainerPlugin
 import ContainerResource
 import ContainerRuntimeClient
@@ -65,16 +64,12 @@ extension RuntimeLinuxHelper {
                 try adjustLimits()
                 signal(SIGPIPE, SIG_IGN)
 
-                let containerSystemConfig: ContainerSystemConfig = try await ConfigurationLoader.load()
-                let defaultMTU = try NetworkMTU.resolve(config: containerSystemConfig.network.mtu)
-
                 // FIXME: The network plugins that the runtime supports should be configurable elsewhere
                 var interfaceStrategies: [NetworkInterfaceKey: InterfaceStrategy] = [
-                    NetworkInterfaceKey(plugin: "container-network-vmnet", variant: "allocationOnly"): IsolatedInterfaceStrategy(defaultMTU: defaultMTU)
+                    NetworkInterfaceKey(plugin: "container-network-vmnet", variant: "allocationOnly"): IsolatedInterfaceStrategy()
                 ]
                 if #available(macOS 26, *) {
-                    interfaceStrategies[NetworkInterfaceKey(plugin: "container-network-vmnet", variant: "reserved")] =
-                        NonisolatedInterfaceStrategy(log: log, defaultMTU: defaultMTU)
+                    interfaceStrategies[NetworkInterfaceKey(plugin: "container-network-vmnet", variant: "reserved")] = NonisolatedInterfaceStrategy(log: log)
                 }
 
                 log.info("configuring XPC server")

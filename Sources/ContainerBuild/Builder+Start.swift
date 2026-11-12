@@ -228,9 +228,8 @@ extension Builder {
         guard let defaultNetwork = try await networkClient.builtin else {
             throw ContainerizationError(.invalidState, message: "default network is not present")
         }
-        let mtu = try NetworkMTU.resolve(config: containerSystemConfig.network.mtu)
         config.networks = [
-            AttachmentConfiguration(network: defaultNetwork.id, options: AttachmentOptions(hostname: Builder.builderContainerId, mtu: mtu))
+            AttachmentConfiguration(network: defaultNetwork.id, options: AttachmentOptions(hostname: Builder.builderContainerId))
         ]
         config.dns = ContainerConfiguration.DNSConfiguration(
             nameservers: dns.nameservers,

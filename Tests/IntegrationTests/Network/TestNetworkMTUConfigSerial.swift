@@ -18,7 +18,7 @@ import ContainerTestSupport
 import Foundation
 import Testing
 
-/// Serial tests for `[network] mtu` — the configuration file is read by every CLI invocation.
+/// Serial tests for `[network] mtu`, which sets the MTU of networks created without one.
 ///
 /// These write to the isolated application root, so they only run when the test
 /// targets set `CONTAINER_APP_ROOT`, and never touch the user's own configuration.
@@ -39,74 +39,102 @@ struct TestNetworkMTUConfigSerial {
         }
     }
 
-    @Test func testConfigSetsDefaultAttachmentMTU() async throws {
+    /// Creates a network for one test and deletes it afterwards.
+    private static func createNetwork(in f: ContainerFixture) throws -> String {
+        let net = "\(f.testID)-net"
+        try f.doNetworkCreate(net)
+        f.addCleanup { f.doNetworkDeleteIfExists(net) }
+        return net
+    }
+
+    /// Runs a container on a network and stops it afterwards.
+    private static func runContainer(_ suffix: String, on network: String, in f: ContainerFixture) async throws -> String {
+        let c = "\(f.testID)-\(suffix)"
+        f.addCleanup {
+            try? f.doStop(c)
+            try? f.doRemove(c)
+        }
+        try await f.doLongRun(name: c, args: ["--network", network], autoRemove: false, waitUntilRunning: true)
+        return c
+    }
+
+    @available(macOS 26, *)
+    @Test func testConfigSetsMTUOfNewNetwork() async throws {
         try await ContainerFixture.with { f in
             try Self.useConfiguration("[network]\nmtu = 1400\n", in: f)
-            let c = "\(f.testID)-c"
-            try await f.doLongRun(name: c, autoRemove: false, waitUntilRunning: true)
-            f.addCleanup {
-                try? f.doStop(c)
-                try? f.doRemove(c)
-            }
+            let net = try Self.createNetwork(in: f)
+            #expect(try f.inspectNetwork(net).configuration.mtu == 1400)
+
+            let c = try await Self.runContainer("c", on: net, in: f)
             let output = try f.doExec(c, cmd: ["ip", "link", "show", "eth0"])
             #expect(output.contains("mtu 1400"), "expected mtu 1400 in ip link output: \(output)")
         }
     }
 
-    @Test func testNetworkFlagBeatsConfig() async throws {
+    @available(macOS 26, *)
+    @Test func testNetworkKeepsItsMTUWhenConfigChanges() async throws {
         try await ContainerFixture.with { f in
             try Self.useConfiguration("[network]\nmtu = 1400\n", in: f)
-            let c = "\(f.testID)-c"
-            try await f.doLongRun(name: c, args: ["--network", "default,mtu=1500"], autoRemove: false, waitUntilRunning: true)
-            f.addCleanup {
-                try? f.doStop(c)
-                try? f.doRemove(c)
-            }
+            let net = try Self.createNetwork(in: f)
+            try Self.useConfiguration("[network]\nmtu = 1500\n", in: f)
+
+            let c = try await Self.runContainer("c", on: net, in: f)
             let output = try f.doExec(c, cmd: ["ip", "link", "show", "eth0"])
-            #expect(output.contains("mtu 1500"), "expected mtu 1500 in ip link output: \(output)")
+            #expect(output.contains("mtu 1400"), "expected mtu 1400 in ip link output: \(output)")
         }
     }
 
-    @Test func testInvalidConfigIsRejected() async throws {
+    @available(macOS 26, *)
+    @Test func testAttachmentMayLowerTheNetworkMTU() async throws {
         try await ContainerFixture.with { f in
-            try Self.useConfiguration("[network]\nmtu = 100\n", in: f)
+            try Self.useConfiguration("[network]\nmtu = 1500\n", in: f)
+            let net = try Self.createNetwork(in: f)
+
+            let c = try await Self.runContainer("c", on: "\(net),mtu=1400", in: f)
+            let output = try f.doExec(c, cmd: ["ip", "link", "show", "eth0"])
+            #expect(output.contains("mtu 1400"), "expected mtu 1400 in ip link output: \(output)")
+        }
+    }
+
+    @available(macOS 26, *)
+    @Test func testAttachmentMayNotRaiseTheNetworkMTU() async throws {
+        try await ContainerFixture.with { f in
+            try Self.useConfiguration("[network]\nmtu = 1400\n", in: f)
+            let net = try Self.createNetwork(in: f)
+
             let c = "\(f.testID)-c"
-            let result = try f.run(["run", "--rm", "--name", c, WarmupImage.alpine320.rawValue, "true"])
+            let result = try f.run(["run", "--rm", "--name", c, "--network", "\(net),mtu=1500", WarmupImage.alpine320.rawValue, "true"])
             #expect(result.status != 0)
-            #expect(result.error.contains("invalid mtu value '100'"))
+            #expect(result.error.contains("must not exceed the MTU 1400 of network \(net)"), "expected the mtu error, got: \(result.error)")
         }
     }
 
-    /// The CLI validates the configuration when it creates a container, but not when it starts one,
-    /// so only the runtime helper sees a value that went bad after the container was created.
-    @Test func testInvalidConfigIsReportedWhenTheHelperStarts() async throws {
+    @available(macOS 26, *)
+    @Test func testInvalidConfigIsRejectedWhenCreatingANetwork() async throws {
         try await ContainerFixture.with { f in
-            let c = "\(f.testID)-c"
-            try f.doCreate(name: c)
-            f.addCleanup { try? f.doRemoveIfExists(c, force: true) }
             try Self.useConfiguration("[network]\nmtu = 100\n", in: f)
+            let net = "\(f.testID)-net"
+            f.addCleanup { f.doNetworkDeleteIfExists(net) }
 
-            let result = try f.run(["start", c])
+            let result = try f.run(["network", "create", net])
             #expect(result.status != 0)
             #expect(result.error.contains("invalid mtu value '100'"), "expected the mtu error, got: \(result.error)")
         }
     }
 
     /// A packet the size of a QUIC handshake datagram must cross the attachment whole, both ways.
-    @Test func testConfiguredMTUCarriesLargerPacketsUnfragmented() async throws {
+    @available(macOS 26, *)
+    @Test func testNetworkMTUCarriesLargerPacketsUnfragmented() async throws {
         try await ContainerFixture.with { f in
             try Self.useConfiguration("[network]\nmtu = 1500\n", in: f)
-            let c = "\(f.testID)-c"
-            try await f.doLongRun(name: c, autoRemove: false, waitUntilRunning: true)
-            f.addCleanup {
-                try? f.doStop(c)
-                try? f.doRemove(c)
-            }
+            let net = try Self.createNetwork(in: f)
+            let c = try await Self.runContainer("c", on: net, in: f)
+
             let script = """
                 set -e
                 gateway=$(ip route show default | awk '/ via / {print $3; exit}')
                 ping -c 1 -W 5 -s 1280 "$gateway" >/dev/null
-                awk '/^Ip:/ { if (!seen) { for (i = 1; i <= NF; i++) name[i] = $i; seen = 1 } else { for (i = 1; i <= NF; i++) if (name[i] == "ReasmReqds" || name[i] == "FragCreates") print name[i], $i } }' /proc/net/snmp
+                \(Self.fragmentCounters)
                 """
             let output = try f.doExec(c, cmd: ["sh", "-c", script])
             #expect(output.contains("ReasmReqds 0"), "the reply was fragmented: \(output)")
@@ -114,34 +142,31 @@ struct TestNetworkMTUConfigSerial {
         }
     }
 
-    @Test func testConfigSetsMachineMTU() async throws {
+    /// Frames larger than vmnet's own default of 1500 must cross between containers whole,
+    /// which only works when the network's MTU is applied to vmnet as well as to the guests.
+    @available(macOS 26, *)
+    @Test func testNetworkMTUCarriesJumboFramesBetweenContainers() async throws {
         try await ContainerFixture.with { f in
-            try Self.useConfiguration("[network]\nmtu = 1400\n", in: f)
-            let name = "\(f.testID)-machine"
-            f.addCleanup { f.cleanupMachine(name) }
-            try f.doMachineCreate(name: name, image: "ghcr.io/linuxcontainers/alpine:3.20")
-            try f.doMachineBoot(name: name)
-            try await f.waitForMachineStatus(name, status: "running")
-            let output = try f.doMachineRun(name: name, root: true, command: ["ip", "link", "show", "eth0"])
-            #expect(output.contains("mtu 1400"), "expected mtu 1400 in ip link output: \(output)")
+            try Self.useConfiguration("[network]\nmtu = 9000\n", in: f)
+            let net = try Self.createNetwork(in: f)
+            let sender = try await Self.runContainer("sender", on: net, in: f)
+            let receiver = try await Self.runContainer("receiver", on: net, in: f)
+
+            let address = try f.doExec(receiver, cmd: ["sh", "-c", "ip -4 -o addr show eth0 | awk '{split($4, a, \"/\"); print a[1]}'"])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let script = """
+                set -e
+                ping -c 1 -W 5 -s 8000 "\(address)" >/dev/null
+                \(Self.fragmentCounters)
+                """
+            let output = try f.doExec(sender, cmd: ["sh", "-c", script])
+            #expect(output.contains("ReasmReqds 0"), "the reply was fragmented: \(output)")
+            #expect(output.contains("FragCreates 0"), "the request was fragmented: \(output)")
         }
     }
 
-    @Test func testConfigSetsClusterNodeMTU() async throws {
-        try await ContainerFixture.with { f in
-            try Self.useConfiguration("[network]\nmtu = 1500\n", in: f)
-            let name = "cluster-\(f.testID)"
-            f.addCleanup { _ = try? f.run(["cluster", "delete", "--name", name]) }
-
-            try f.restoreWarmupImage(.kindestNodeV1_35_5)
-            try f.run(["cluster", "create", "--name", name, "--workers", "1"]).check()
-
-            for node in [name, "\(name)-worker-1"] {
-                let interface = try f.doExec(node, cmd: ["sh", "-c", "ip route show default | awk '{print $5}'"])
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-                let output = try f.doExec(node, cmd: ["ip", "link", "show", interface])
-                #expect(output.contains("mtu 1500"), "expected mtu 1500 on \(node): \(output)")
-            }
-        }
-    }
+    /// Prints the guest's IP reassembly and fragmentation counters.
+    private static let fragmentCounters = """
+        awk '/^Ip:/ { if (!seen) { for (i = 1; i <= NF; i++) name[i] = $i; seen = 1 } else { for (i = 1; i <= NF; i++) if (name[i] == "ReasmReqds" || name[i] == "FragCreates") print name[i], $i } }' /proc/net/snmp
+        """
 }

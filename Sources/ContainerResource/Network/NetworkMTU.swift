@@ -16,14 +16,10 @@
 
 import ContainerizationError
 
-/// Validates and resolves the MTU of a network attachment.
+/// Validates and resolves the MTU of a network and its attachments.
 public enum NetworkMTU {
-    /// The MTU values an attachment accepts.
+    /// The MTU values a network or an attachment accepts.
     public static let validRange: ClosedRange<UInt32> = 1280...65535
-
-    /// The MTU used when nothing else sets one. Callers get it through ``resolve(config:)``.
-    // https://github.com/apple/containerization/pull/38
-    static let defaultValue = validRange.lowerBound
 
     /// Parses and validates an MTU.
     ///
@@ -42,11 +38,34 @@ public enum NetworkMTU {
         return mtu
     }
 
-    /// Picks the MTU for an attachment that does not set its own.
+    /// Picks the MTU for a new network.
     ///
-    /// - Parameter config: The `[network] mtu` value from `config.toml`, if any.
-    /// - Throws: `.invalidArgument` if `config` is not a valid MTU.
-    public static func resolve(config: Int?) throws -> UInt32 {
-        try config.map { try parse(String($0), source: "[network] mtu in config.toml") } ?? defaultValue
+    /// - Parameters:
+    ///   - network: The MTU the network was created with, if any.
+    ///   - config: The `[network] mtu` value from `config.toml`, if any.
+    /// - Returns: `network`, else `config`, else `nil` to leave the network at its plugin's default.
+    /// - Throws: `.invalidArgument` if `config` is used and is not a valid MTU.
+    public static func resolve(network: UInt32?, config: Int?) throws -> UInt32? {
+        if let network {
+            return network
+        }
+        return try config.map { try parse(String($0), source: "[network] mtu in config.toml") }
+    }
+
+    /// Checks that an attachment does not send frames larger than its network carries.
+    ///
+    /// - Parameters:
+    ///   - attachment: The MTU the attachment asks for, if any.
+    ///   - network: The MTU of the network, if it has one.
+    ///   - networkId: The network, for the error message.
+    /// - Throws: `.invalidArgument` if `attachment` is larger than `network`.
+    public static func check(attachment: UInt32?, network: UInt32?, networkId: String) throws {
+        guard let attachment, let network, attachment > network else {
+            return
+        }
+        throw ContainerizationError(
+            .invalidArgument,
+            message: "invalid mtu value '\(attachment)': must not exceed the MTU \(network) of network \(networkId)"
+        )
     }
 }

@@ -61,22 +61,52 @@ struct NetworkMTUTests {
     // MARK: - resolve
 
     @Test
-    func resolveFallsBackToTheDefault() throws {
-        #expect(try NetworkMTU.resolve(config: nil) == NetworkMTU.defaultValue)
+    func resolveLeavesTheNetworkAtItsPluginDefault() throws {
+        #expect(try NetworkMTU.resolve(network: nil, config: nil) == nil)
     }
 
     @Test
     func resolveUsesTheConfiguredValue() throws {
-        #expect(try NetworkMTU.resolve(config: 1400) == 1400)
+        #expect(try NetworkMTU.resolve(network: nil, config: 1400) == 1400)
+    }
+
+    @Test
+    func resolvePrefersTheNetworkValue() throws {
+        #expect(try NetworkMTU.resolve(network: 9000, config: 1400) == 9000)
+    }
+
+    @Test
+    func resolveIgnoresAnInvalidConfigWhenTheNetworkSetsItsOwn() throws {
+        #expect(try NetworkMTU.resolve(network: 9000, config: 100) == 9000)
     }
 
     @Test(arguments: [Int(lower) - 1, Int(upper) + 1, -1])
     func resolveRejectsAnInvalidConfig(config: Int) {
         #expect {
-            _ = try NetworkMTU.resolve(config: config)
+            _ = try NetworkMTU.resolve(network: nil, config: config)
         } throws: { error in
             let description = String(describing: error)
             return description.contains("invalid mtu value '\(config)'") && description.contains("[network] mtu")
+        }
+    }
+
+    // MARK: - check
+
+    @Test(arguments: [(UInt32?.none, UInt32?.none), (1400, nil), (nil, 1400), (1400, 1400), (1280, 9000)] as [(UInt32?, UInt32?)])
+    func checkAcceptsAnAttachmentWithinItsNetwork(attachment: UInt32?, network: UInt32?) throws {
+        try NetworkMTU.check(attachment: attachment, network: network, networkId: "foo")
+    }
+
+    @Test
+    func checkRejectsAnAttachmentAboveItsNetwork() {
+        #expect {
+            try NetworkMTU.check(attachment: 9000, network: 1500, networkId: "foo")
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            return error.isCode(.invalidArgument)
+                && error.description.contains("invalid mtu value '9000': must not exceed the MTU 1500 of network foo")
         }
     }
 }

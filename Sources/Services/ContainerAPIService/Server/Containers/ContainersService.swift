@@ -393,11 +393,6 @@ public actor ContainersService {
                 return
             }
 
-            // The runtime helper reads the configuration file when it starts, and launchd
-            // keeps restarting a helper that exits, so report a bad configuration here.
-            let currentConfig: ContainerSystemConfig = try await ConfigurationLoader.load()
-            _ = try NetworkMTU.resolve(config: currentConfig.network.mtu)
-
             let path = self.containerRoot.appendingPathComponent(id)
             let (config, _) = try Self.getContainerConfiguration(at: path)
             try AttachmentNameValidator.validateStored(id: id, networks: config.networks)

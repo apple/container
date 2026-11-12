@@ -274,14 +274,22 @@ Networks support both IPv4 and IPv6. When creating a network without explicit su
 
 ## Configure the network MTU
 
-Containers attach to their network with an MTU of 1280, which is also the minimum, unless you set another value of up to 65535. To change the default, set `mtu` in the `[network]` section of your runtime configuration file at `~/.config/container/config.toml`, or in `<installRoot>/etc/container/config.toml` for every user of the install. The user file overrides the system file:
+The MTU belongs to the network. Each network takes an MTU when it is created and keeps it. The MTU applies to the vmnet network and to every container interface attached to it. Containers on the same network then exchange frames up to that size without fragmentation.
+
+To set the MTU of new networks, set `mtu` in the `[network]` section of your runtime configuration file at `~/.config/container/config.toml`, or in `<installRoot>/etc/container/config.toml` for every user of the install. The user file overrides the system file. Valid values are 1280 to 65535:
 
 ```toml
 [network]
-mtu = 1500
+mtu = 9000
 ```
 
-The default applies to `container run`, `container create`, the builder, `container machine`, and the nodes of `container cluster create`. To override it for one attachment, use `container run --network default,mtu=1400 ...`. Containers and clusters created with an MTU keep it, and a builder that is already running keeps its MTU until it is recreated.
+A network created without an MTU keeps vmnet's default of 1500, and its container interfaces use 1280. This includes networks created before this setting existed. The `default` network is the exception: like `[network] subnet`, the setting applies to it each time the system starts. To change its MTU, run `container system stop` and `container system start`. Containers then pick up the new MTU when they next start.
+
+To use a smaller MTU on one attachment, use `container run --network <name>,mtu=1400 ...`. An attachment can't use an MTU larger than its network's.
+
+A large MTU speeds up traffic between containers on the same network. That traffic never leaves the host, so a larger MTU moves the same data in fewer packets, with less work per packet. Traffic that leaves the host is still limited by the MTU of the host's physical network.
+
+On macOS 15, vmnet can't set the network's MTU, so the setting applies only to container interfaces.
 
 ## Configure default network subnets
 

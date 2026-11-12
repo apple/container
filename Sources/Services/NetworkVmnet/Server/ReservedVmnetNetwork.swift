@@ -154,6 +154,18 @@ public final class ReservedVmnetNetwork: ContainerNetworkServer.Network {
             }
         }
 
+        // set the MTU so vmnet carries the frames the guest interfaces send
+        if let mtu = configuration.mtu {
+            log.info(
+                "configuring vmnet MTU",
+                metadata: ["mtu": "\(mtu)"]
+            )
+            let status = vmnet_network_configuration_set_mtu(vmnetConfiguration, mtu)
+            guard status == .VMNET_SUCCESS else {
+                throw ContainerizationError(.internalError, message: "failed to set MTU \(mtu) for network \(configuration.id), status \(status)")
+            }
+        }
+
         // reserve the network
         guard let network = vmnet_network_create(vmnetConfiguration, &status), status == .VMNET_SUCCESS else {
             throw ContainerizationError(.unsupported, message: "failed to create vmnet network with status \(status)")

@@ -53,7 +53,7 @@ Pass `--format json` for machine-readable output.
 [container]  # default per-container resources
 [dns]        # default DNS domain for DNS resolution on host
 [kernel]     # guest kernel binary path, download URL, and digest
-[network]    # default subnets for new networks, and default MTU
+[network]    # default subnets and MTU for new networks
 [registry]   # default registry domain
 [vminit]     # default vminitd image to use
 [plugin.<id>]  # zero or more plugin-scoped sections
@@ -122,13 +122,13 @@ Guest kernel used when launching container VMs. Defaults change per release as k
 
 ## `[network]`
 
-Default subnets used when creating networks without explicit `--subnet` / `--subnet-v6` flags, and the default MTU for network attachments.
+Default subnets used when creating networks without explicit `--subnet` / `--subnet-v6` flags, and the MTU of new networks.
 
 | Key        | Type       | Default | Description                                                                                       |
 |------------|------------|---------|---------------------------------------------------------------------------------------------------|
 | `subnet`   | [CIDRv4?](#cidrv4--cidrv6)  | unset   | IPv4 CIDR (e.g. `"192.168.100.0/24"`). When unset, the system auto-allocates a non-overlapping subnet. |
 | `subnetv6` | [CIDRv6?](#cidrv4--cidrv6)  | unset   | IPv6 CIDR (e.g. `"fd00:abcd::/64"`). When unset, the system auto-allocates.                       |
-| `mtu`      | Int?       | unset   | Default MTU for network attachments. See [Configure the network MTU](networking.md#configure-the-network-mtu). |
+| `mtu`      | Int?       | unset   | MTU of new networks. See [Configure the network MTU](networking.md#configure-the-network-mtu). |
 
 ## `[registry]`
 

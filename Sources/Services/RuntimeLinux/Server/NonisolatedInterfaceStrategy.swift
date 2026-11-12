@@ -26,12 +26,10 @@ import vmnet
 /// Interface strategy for containers that use macOS's custom network feature.
 @available(macOS 26, *)
 public struct NonisolatedInterfaceStrategy: InterfaceStrategy {
-    private let defaultMTU: UInt32
     private let log: Logger
 
-    public init(log: Logger, defaultMTU: UInt32) {
+    public init(log: Logger) {
         self.log = log
-        self.defaultMTU = defaultMTU
     }
 
     public func toInterface(attachment: Attachment, interfaceIndex: Int, additionalData: XPCMessage?) throws -> Interface {
@@ -51,7 +49,8 @@ public struct NonisolatedInterfaceStrategy: InterfaceStrategy {
             ipv4Gateway: ipv4Gateway,
             reference: networkRef,
             macAddress: attachment.macAddress,
-            mtu: attachment.mtu ?? defaultMTU
+            // https://github.com/apple/containerization/pull/38
+            mtu: attachment.mtu ?? 1280
         )
     }
 }
