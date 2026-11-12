@@ -107,6 +107,7 @@ extension ImagesHelper {
             let harness = ImagesServiceHarness(service: service, log: log)
 
             routes[ImagesServiceXPCRoute.imagePull.rawValue] = XPCServer.route(harness.pull)
+            routes[ImagesServiceXPCRoute.imagePlatforms.rawValue] = XPCServer.route(harness.platforms)
             routes[ImagesServiceXPCRoute.imageList.rawValue] = XPCServer.route(harness.list)
             routes[ImagesServiceXPCRoute.imageDelete.rawValue] = XPCServer.route(harness.delete)
             routes[ImagesServiceXPCRoute.imageTag.rawValue] = XPCServer.route(harness.tag)

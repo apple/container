@@ -496,6 +496,26 @@ struct TestCLIBuilder {
         }
     }
 
+    @Test func testRunWithTmpfsMount() async throws {
+        try await ContainerFixture.with { f in
+            let dir = try f.createTempDir()
+            try f.createContext(
+                dir: dir,
+                dockerfile: """
+                    FROM ghcr.io/linuxcontainers/alpine:3.20
+                    COPY a.txt b.txt /out/
+                    RUN --mount=type=tmpfs,dst=/scratch ls -l /out
+                    """,
+                context: [
+                    .file("a.txt", content: .data("one\n".data(using: .utf8)!)),
+                    .file("b.txt", content: .data("two\n".data(using: .utf8)!)),
+                ])
+            let image = "registry.local/tmpfs-mount-test:\(UUID().uuidString)"
+            try f.build(tag: image, contextDir: dir)
+            try f.assertImageBuilt(image)
+        }
+    }
+
     // MARK: - .dockerignore tests
 
     @Test func testBuildDockerIgnore() async throws {

@@ -43,7 +43,7 @@ container run [<options>] <image> [<arguments> ...]
 
 **Management Options**
 
-*   `-a, --arch <arch>`: Set arch if image can target multiple architectures (default: arm64)
+*   `-a, --arch <arch>`: Set arch if image can target multiple architectures (default: from image, else host architecture)
 *   `--cap-add <cap>`: Add a Linux capability (e.g. `CAP_NET_RAW`, `NET_RAW`, or `ALL`)
 *   `--cap-drop <cap>`: Drop a Linux capability (e.g. `CAP_NET_RAW`, `NET_RAW`, or `ALL`)
 *   `--cidfile <cidfile>`: Write the container ID to the path provided
@@ -63,15 +63,15 @@ container run [<options>] <image> [<arguments> ...]
 *   `--name <name>`: Use the specified name as the container ID
 *   `--network <network>`: Attach the container to a network (format: `<name>[,mac=XX:XX:XX:XX:XX:XX][,mtu=VALUE][,alias=NAME]...`). Use `alias` to give the container additional DNS names; see [Give a container additional DNS names](networking.md#give-a-container-additional-dns-names)
 *   `--no-dns`: Do not configure DNS in the container
-*   `--os <os>`: Set OS if image can target multiple operating systems (default: linux)
+*   `--os <os>`: Set OS if image can target multiple operating systems (default: from image, else linux)
 *   `-p, --publish <spec>`: Publish a port from container to host (format: [host-ip:]host-port:container-port[/protocol])
-*   `--platform <platform>`: Platform for the image if it's multi-platform. This takes precedence over --os and --arch
+*   `--platform <platform>`: Platform for the image if it's multi-platform. This takes precedence over --os and --arch; CONTAINER_DEFAULT_PLATFORM sets the default
 *   `--publish-socket <spec>`: Publish a socket from container to host (format: host_path:container_path)
 *   `--read-only`: Mount the container's root filesystem as read-only
 *   `--read-only-path <path>`: **Experimental.** Mark a path inside the container read-only, in addition to the runtime defaults (or `NONE` to clear prior values and the defaults)
 *   `--rm, --remove`: Remove the container after it stops
 *   `--rosetta`: Enable Rosetta in the container
-*   `--runtime`: Set the runtime handler for the container (default: container-runtime-linux)
+*   `--runtime`: Set the runtime handler for the container (default: container-runtime-<os>)
 *   `--ssh`: Forward SSH agent socket to container
 *   `--shm-size <shm-size>`: Size of `/dev/shm` (e.g. 64M, 1G)
 *   `--tmpfs <tmpfs>`: Add a tmpfs mount to the container at the given path
@@ -211,7 +211,7 @@ container create [<options>] <image> [<arguments> ...]
 
 **Management Options**
 
-*   `-a, --arch <arch>`: Set arch if image can target multiple architectures (default: arm64)
+*   `-a, --arch <arch>`: Set arch if image can target multiple architectures (default: from image, else host architecture)
 *   `--cap-add <cap>`: Add a Linux capability (e.g. `CAP_NET_RAW`, `NET_RAW`, or `ALL`)
 *   `--cap-drop <cap>`: Drop a Linux capability (e.g. `CAP_NET_RAW`, `NET_RAW`, or `ALL`)
 *   `--cidfile <cidfile>`: Write the container ID to the path provided
@@ -231,15 +231,15 @@ container create [<options>] <image> [<arguments> ...]
 *   `--name <name>`: Use the specified name as the container ID
 *   `--network <network>`: Attach the container to a network (format: `<name>[,mac=XX:XX:XX:XX:XX:XX][,mtu=VALUE][,alias=NAME]...`). Use `alias` to give the container additional DNS names; see [Give a container additional DNS names](networking.md#give-a-container-additional-dns-names)
 *   `--no-dns`: Do not configure DNS in the container
-*   `--os <os>`: Set OS if image can target multiple operating systems (default: linux)
+*   `--os <os>`: Set OS if image can target multiple operating systems (default: from image, else linux)
 *   `-p, --publish <spec>`: Publish a port from container to host (format: [host-ip:]host-port:container-port[/protocol])
-*   `--platform <platform>`: Platform for the image if it's multi-platform. This takes precedence over --os and --arch
+*   `--platform <platform>`: Platform for the image if it's multi-platform. This takes precedence over --os and --arch; CONTAINER_DEFAULT_PLATFORM sets the default
 *   `--publish-socket <spec>`: Publish a socket from container to host (format: host_path:container_path)
 *   `--read-only`: Mount the container's root filesystem as read-only
 *   `--read-only-path <path>`: **Experimental.** Mark a path inside the container read-only, in addition to the runtime defaults (or `NONE` to clear prior values and the defaults)
 *   `--rm, --remove`: Remove the container after it stops
 *   `--rosetta`: Enable Rosetta in the container
-*   `--runtime`: Set the runtime handler for the container (default: container-runtime-linux)  
+*   `--runtime`: Set the runtime handler for the container (default: container-runtime-<os>)  
 *   `--ssh`: Forward SSH agent socket to container
 *   `--shm-size <shm-size>`: Size of `/dev/shm` (e.g. 64M, 1G)
 *   `--tmpfs <tmpfs>`: Add a tmpfs mount to the container at the given path
@@ -1126,8 +1126,8 @@ container machine create [<options>] <image>
 **Management Options**
 
 *   `-a, --arch <arch>`: Set arch if image can target multiple architectures (default: host architecture)
-*   `--os <os>`: Set OS if image can target multiple operating systems (default: linux)
-*   `--platform <platform>`: Platform for the image if it's multi-platform. This takes precedence over --os and --arch
+*   `--os <os>`: Set OS if image can target multiple operating systems
+*   `--platform <platform>`: Platform for the image if it's multi-platform. This takes precedence over --os and --arch; CONTAINER_DEFAULT_PLATFORM sets the default
 
 **User Options**
 
@@ -1622,35 +1622,39 @@ container system property list
 container system property list --format json
 ```
 
-## Kubernetes Cluster Management
+## Container Cluster Management
 
-`container k8s` manages local Kubernetes clusters backed by container VMs. Each cluster runs a Kubernetes control-plane node inside a container using `kindest/node` and `kubeadm`, with optional additional worker nodes.
+`container cluster` manages local Kubernetes clusters backed by container VMs. Each cluster runs a Kubernetes control-plane node inside a container using `kindest/node` and `kubeadm`, with optional additional worker nodes.
 
 > [!IMPORTANT]
-> The `k8s` command is an experimental feature and its subcommands and options are subject to change.
+> The `cluster` command is an experimental feature and its subcommands and options are subject to change.
 
-### `container k8s create`
+### `container cluster create`
 
 Creates and starts a local Kubernetes cluster and optional worker nodes. Pulls the node image if needed, runs `kubeadm init`, installs a CNI (default: bundled kindnet), and merges the cluster credentials into `~/.kube/config`.
 
 **Usage**
 
 ```bash
-container k8s create [--name <name>] [--node-image <image>] [--cni <path>] [--workers <n>] [--rm] [<resource options>] [--debug]
+container cluster create [--name <name>] [--node-image <image>] [--cni <path>] [--workers <n | count=<n>,cpus=<n>,memory=<size>>]... [--shared-image-store] [--rm] [<resource options>] [--debug]
 ```
 
 **Options**
 
-*   `--name <name>`: Cluster name (default: `k8s-dev`)
+*   `--name <name>`: Cluster name (default: `cluster-dev`)
 *   `--node-image <image>`: Node image reference (default: `docker.io/kindest/node:v1.35.5`)
 *   `--cni <path>`: Optional path to a CNI manifest to apply, or `NONE` (case-insensitive) to skip installing a CNI. If not provided, the bundled kindnet CNI is used. With `NONE`, the command returns without waiting for nodes to become `Ready`, since that requires a CNI; apply your own afterward with `kubectl apply`.
 *   `--workers <n>`: Number of worker nodes to create (default: `0`, meaning the control-plane node also acts as a worker)
+*   `--workers count=<n>,cpus=<n>,memory=<size>`: A group of `count` identical workers (default `1`) with the given CPUs and memory. Repeat the option to create groups of differently sized workers. Any value left out gets the single-node default (1/4 of host CPUs and memory, minimum 2 CPUs and 2g). Workers are numbered across groups as `<name>-worker-<n>`.
+*   `--shared-image-store`: Let nodes pull images from the local image store (default: off). See [Container cluster](cluster.md).
 *   `--rm`: Remove the cluster container after it stops
 
 **Resource Options**
 
-*   `--cpus <cpus>`: Number of virtual CPUs (default: 1/4 of host CPUs, minimum 2)
-*   `--memory <memory>`: Memory allocation (default: 1/4 of host memory, minimum 2g)
+*   `--cpus <cpus>`: Number of virtual CPUs for the control-plane node (default: 1/4 of host CPUs, minimum 2)
+*   `--memory <memory>`: Memory allocation for the control-plane node (default: 1/4 of host memory, minimum 2g)
+
+With workers, `--cpus` and `--memory` apply to the control-plane node only. A worker value that is not given defaults to the same as a single node, however many workers there are. A value given in a `--workers` group applies to that group only.
 
 **Registry Options**
 
@@ -1663,127 +1667,107 @@ container k8s create [--name <name>] [--node-image <image>] [--cni <path>] [--wo
 **Examples**
 
 ```bash
-# create a cluster with the default name (k8s-dev)
-container k8s create
+# create a cluster with the default name (cluster-dev)
+container cluster create
 
 # create a cluster with a custom name and resource allocation
-container k8s create --name my-cluster --cpus 4 --memory 8g
+container cluster create --name my-cluster --cpus 4 --memory 8g
 
 # create a cluster that removes itself when stopped
-container k8s create --name temp-cluster --rm
+container cluster create --name temp-cluster --rm
 
 # create a cluster using a custom CNI manifest instead of the bundled kindnet
-container k8s create --cni ./my-cni.yaml
+container cluster create --cni ./my-cni.yaml
 
 # create a cluster with no CNI installed
-container k8s create --cni NONE
+container cluster create --cni NONE
 
 # create a cluster with a control plane and 3 worker nodes
-container k8s create --name my-cluster --workers 3
+container cluster create --name my-cluster --workers 3
+
+# create a cluster with a 2 CPU, 4g control plane and two groups of differently sized workers
+container cluster create --name my-cluster --cpus 2 --memory 4g \
+  --workers count=2,cpus=4,memory=8g --workers count=1,cpus=2,memory=4g
+
+# create a cluster whose nodes can pull images from the local image store
+container cluster create --shared-image-store
 ```
 
-### `container k8s delete (rm)`
+### `container cluster delete (rm)`
 
 Stops and deletes a Kubernetes cluster container, including any worker nodes, and removes its entry from `~/.kube/config`.
 
 **Usage**
 
 ```bash
-container k8s delete [--name <name>] [--debug]
+container cluster delete [--name <name>] [--debug]
 ```
 
 **Options**
 
-*   `--name <name>`: Cluster name (default: `k8s-dev`)
+*   `--name <name>`: Cluster name (default: `cluster-dev`)
 
 **Examples**
 
 ```bash
 # delete the default cluster
-container k8s delete
+container cluster delete
 
 # delete a named cluster
-container k8s delete --name my-cluster
-container k8s rm --name my-cluster
+container cluster delete --name my-cluster
+container cluster rm --name my-cluster
 ```
 
-### `container k8s list (ls)`
+### `container cluster list (ls)`
 
-Lists all Kubernetes clusters with their status and node image.
+Lists Kubernetes clusters created with this version of the plugin. By default the output has one row per cluster with its name, status, node count, and Kubernetes version. Use `--nodes` to show one row per node instead. Use `-q` to print only cluster names (node names with `--nodes`).
+
+With `--format json` (or `yaml`/`toml`), each cluster is reported with an `id`, its `configuration` (the settings it was created with), and its `status`. The `status` has a `state` (`running`, `degraded` or `stopped`, derived from the state of its node containers) and `nodes` (per-node state).
+
+Clusters created by earlier versions have no stored configuration and do not appear. Cluster records are kept by the `container-core-clusters` helper service, so the container system must be running (`container system start`).
 
 **Usage**
 
 ```bash
-container k8s list [--debug]
+container cluster list [--nodes] [--format json|table|yaml|toml] [-q] [--debug]
 ```
-
-**Examples**
-
-```bash
-container k8s list
-container k8s ls
-```
-
-### `container k8s load-image`
-
-Exports an image from the local `container` image store and imports it into every node's containerd (in the `k8s.io` namespace) so that Kubernetes can schedule pods that reference it on any node.
-
-**Usage**
-
-```bash
-container k8s load-image [--name <name>] [--platform <platform>] [--node <node> ...] <image> [--debug]
-```
-
-**Arguments**
-
-*   `<image>`: Image reference to load (e.g. `my-app:latest`)
 
 **Options**
 
-*   `--name <name>`: Cluster name (default: `k8s-dev`)
-*   `--platform <platform>`: Platform of the image variant to load from a multi-arch image (format: os/arch[/variant], default: `linux/<host-arch>`). Use this when the local store contains a multi-arch manifest list and you want to select a specific variant.
-*   `--node <node>`: Load into specific nodes instead of every node in the cluster. Repeat to target multiple nodes.
+*   `--nodes`: Show one row per node instead of one row per cluster.
+*   `--format <format>`: Format of the output (`json`, `table`, `yaml`, `toml`; default `table`).
+*   `-q, --quiet`: Only output the cluster name (the node name with `--nodes`).
 
 **Examples**
 
 ```bash
-# load an image into every node of the default cluster
-container k8s load-image my-app:latest
-
-# load an image into every node of a named cluster
-container k8s load-image --name my-cluster my-app:latest
-
-# load the amd64 variant of a multi-arch image
-container k8s load-image --platform linux/amd64 my-app:latest
-
-# load an image into a single worker node only
-container k8s load-image --node k8s-dev-worker-1 my-app:latest
-
-# load an image into specific worker nodes only
-container k8s load-image --node k8s-dev-worker-1 --node k8s-dev-worker-2 my-app:latest
+container cluster ls
+container cluster ls --nodes
+container cluster ls --format json
+container cluster ls -q
 ```
 
-### `container k8s write-config`
+### `container cluster write-config`
 
 Fetches the current kubeconfig from a running cluster and merges its context into a kubeconfig file. Use this to write to an alternate config file.
 
 **Usage**
 
 ```bash
-container k8s write-config [--name <name>] [--kubeconfig <path>] [--debug]
+container cluster write-config [--name <name>] [--kubeconfig <path>] [--debug]
 ```
 
 **Options**
 
-*   `--name <name>`: Cluster name (default: `k8s-dev`)
+*   `--name <name>`: Cluster name (default: `cluster-dev`)
 *   `--kubeconfig <path>`: Path to the kubeconfig file to write or append to (default: `~/.kube/config`)
 
 **Examples**
 
 ```bash
 # refresh credentials for the default cluster into ~/.kube/config
-container k8s write-config
+container cluster write-config
 
 # write the context for a named cluster to an alternate kubeconfig file
-container k8s write-config --name my-cluster --kubeconfig ~/.kube/my-cluster.kubeconfig
+container cluster write-config --name my-cluster --kubeconfig ~/.kube/my-cluster.kubeconfig
 ```

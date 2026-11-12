@@ -5,6 +5,7 @@ To build the `container` project, you need:
 - Mac with Apple silicon
 - macOS 15 minimum, macOS 26 recommended
 - Xcode 26, set as the [active developer directory](https://developer.apple.com/library/archive/technotes/tn2339/_index.html#//apple_ref/doc/uid/DTS40014588-CH1-HOW_DO_I_SELECT_THE_DEFAULT_VERSION_OF_XCODE_TO_USE_FOR_MY_COMMAND_LINE_TOOLS_)
+- A running `container` installation, to build the `cluster-shim` Linux binary in a container. Builds leave `cluster-shim` out with a warning when `container` is not running, and clusters from those builds cannot use `--shared-image-store`. To use a prebuilt binary instead, set `CLUSTER_SHIM_BINARY` to its path.
 
 > [!IMPORTANT]
 > There is a bug in the `vmnet` framework on macOS 26 that causes network creation to fail if the `container` helper applications are located under your `Documents` or `Desktop` directories. If you use `make install`, you can simply run the `container` binary in `/usr/local`. If you prefer to use the binaries that `make all` creates in your project `bin` and `libexec` directories, locate your project elsewhere, such as `~/projects/container`, until this issue is resolved.
@@ -31,7 +32,8 @@ This is the quickest way to verify your toolchain after cloning. `make verify` r
 | `make test` | Runs the unit tests. |
 | `make integration` | Runs the CLI and integration test suites. These start the `container` services, create containers, and boot virtual machines. |
 | `make install` | Builds an installer package and installs it to `/usr/local`. |
-| `make clean` | Runs `cleantest`, then `cleanbuild`. |
+| `make clean` | Runs `cleanclustershim`, `cleantest`, then `cleanbuild`. |
+| `make cleanclustershim` | Removes the cluster-shim binary, build image, and build volume. |
 | `make cleanbuild` | Removes `bin/`, `libexec/`, generated docs, and coverage output. |
 | `make cleantest` | Stops the `container` services and removes the `APP_ROOT` and `SCRATCH_ROOT` directories. |
 
@@ -89,9 +91,13 @@ BUILD_CONFIGURATION=release make verify
 BUILD_CONFIGURATION=release make install
 ```
 
+Release builds strip local symbols from the installed binaries and leave out `-enable-testing`, which keeps the installer package smaller. The goals that build or run tests still enable testing, so `BUILD_CONFIGURATION=release make verify` works as above. To change this, set `STRIP_BINARIES=false` to keep the symbols, `STRIP_OPTS=` to use a plain `strip`, or `ENABLE_TESTING=true` to build a testable release.
+
+Use `make dsym` after building to archive the debug symbols for every installed executable in `bin/<configuration>/bundle/container-dSYM.zip`. Keep this archive with each release, because the stripped binaries rely on it to symbolicate crash reports. The target generates a dSYM when the build did not produce one, and fails if a dSYM does not match its binary.
+
 ### Clean up
 
-Stop the services, remove the build outputs, and delete the test directories:
+Remove the cluster-shim build files, stop the services, remove the build outputs, and delete the test directories:
 
 ```bash
 make clean
@@ -235,6 +241,7 @@ Attach debugger to the XPC helpers using their launchd service labels:
    % launchctl list | grep container
    27068   0       com.apple.container.container-network-vmnet.default
    27072   0       com.apple.container.container-core-images
+   27073   0       com.apple.container.container-core-clusters
    26980   0       com.apple.container.apiserver
    27331   0       com.apple.container.container-runtime-linux.test
    ```

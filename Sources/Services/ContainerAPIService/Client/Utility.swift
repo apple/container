@@ -32,6 +32,7 @@ import TerminalProgress
 
 public struct Utility {
     static let publishedPortCountLimit = 64
+    private static let runtimePrefix = "container-runtime-"
 
     public static func createContainerID(name: String?) -> String {
         guard let name else {
@@ -78,13 +79,18 @@ public struct Utility {
         progressUpdate: @escaping ProgressUpdateHandler,
         log: Logger
     ) async throws -> (ContainerConfiguration, Kernel, String?) {
-        let requestedPlatform = try DefaultPlatform.resolveWithDefaults(
-            platform: management.platform,
+        let scheme = try RequestScheme(registry.scheme)
+        let candidates = try await ClientImage.platforms(reference: image, scheme: scheme, containerSystemConfig: containerSystemConfig)
+        let platform = try management.platform.map(Parser.platform(from:))
+
+        let requestedPlatform = try PlatformResolver.resolve(
+            platform: platform,
             os: management.os,
             arch: management.arch,
+            candidates: candidates,
+            reference: image,
             log: log
         )
-        let scheme = try RequestScheme(registry.scheme)
 
         await progressUpdate([
             .setDescription("Fetching image"),
@@ -220,12 +226,10 @@ public struct Utility {
         if management.dnsDisabled {
             config.dns = nil
         } else {
-            let domain = management.dns.domain ?? containerSystemConfig.dns.domain
-            config.dns = .init(
-                nameservers: management.dns.nameservers,
-                domain: domain,
-                searchDomains: management.dns.searchDomains,
-                options: management.dns.options
+            config.dns = dnsConfiguration(
+                from: management.dns,
+                defaults: containerSystemConfig.container.dns,
+                hostDomainFallback: containerSystemConfig.dns.domain
             )
         }
 
@@ -260,9 +264,7 @@ public struct Utility {
         config.readonlyPaths = try Parser.readonlyPaths(management.readonlyPaths)
         config.stopSignal = imageConfig?.stopSignal
 
-        if let runtime = management.runtime {
-            config.runtimeHandler = runtime
-        }
+        config.runtimeHandler = management.runtime ?? "\(runtimePrefix)\(requestedPlatform.os)"
 
         return (config, kernel, management.initImage)
     }
@@ -363,6 +365,38 @@ public struct Utility {
         }
     }
 
+    /// Resolves the DNS configuration for a container from CLI flags, falling back
+    /// to the defaults configured in `~/.config/container/config.toml`.
+    ///
+    /// Precedence: CLI flags > `[container.dns]` defaults > host domain fallback.
+    /// `hostDomainFallback` is the API server's own DNS domain (the `[dns]` section),
+    /// used so a container's default domain still matches the host domain when no
+    /// `--dns-domain` flag and no `[container.dns]` domain are configured.
+    public static func dnsConfiguration(
+        from flags: Flags.DNS,
+        defaults: ContainerDNSConfig?,
+        hostDomainFallback: String? = nil
+    ) -> ContainerConfiguration.DNSConfiguration {
+        let nameservers =
+            flags.nameservers.isEmpty
+            ? (defaults?.nameservers ?? [])
+            : flags.nameservers
+        let domain = flags.domain ?? defaults?.domain ?? hostDomainFallback
+        let searchDomains =
+            flags.searchDomains.isEmpty
+            ? (defaults?.searchDomains ?? [])
+            : flags.searchDomains
+        let options =
+            flags.options.isEmpty
+            ? (defaults?.options ?? [])
+            : flags.options
+        return .init(
+            nameservers: nameservers,
+            domain: domain,
+            searchDomains: searchDomains,
+            options: options
+        )
+    }
     private static func getKernel(management: Flags.Management) async throws -> Kernel {
         // For the image itself we'll take the user input and try with it as we can do userspace
         // emulation for x86, but for the kernel we need it to match the hosts architecture.

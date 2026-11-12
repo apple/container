@@ -9,7 +9,7 @@ The tool consumes and produces [OCI-compatible container images](https://github.
 
 `container` uses the [Containerization](https://github.com/apple/containerization) Swift package for low-level container, image, and process management.
 
-![introductory movie showing some basic commands](./docs/assets/landing-movie.gif)
+<img src="./docs/assets/landing-movie.gif" width="830" alt="Introductory movie: running a web server in a container, then opening an Ubuntu container machine that shares your home directory">
 
 ## Get started
 
@@ -88,6 +88,7 @@ To retain your user data so that it is available should you reinstall later, run
 
 - Take [a guided tour of `container`](./docs/tutorials/start-here.md) by building, running, and publishing a simple web server image.
 - Learn how to [use various `container` features](./docs/how-to.md).
+- Explore the [container-examples repo](https://github.com/apple/container-examples/) that contains examples that show you how to work with `container`, such as [developing Linux apps in a container machine with Visual Studio Code](https://github.com/apple/container-examples/tree/main/container-machine-vscode) and [running a three-tier app on a container cluster behind a gateway](https://github.com/apple/container-examples/tree/main/container-cluster-gateway).
 - Read a brief description and [technical overview](./docs/technical-overview.md) of `container`.
 - Browse the [full command reference](./docs/command-reference.md).
 - [Build and run](./BUILDING.md) `container` on your own development system.
@@ -101,7 +102,7 @@ Contributions to `container` are welcome and encouraged. Please see our [main co
 
 The container project is under active development. Its release versions are product versions, not semantic versions.
 
-The `container` CLI compatibility generally preserves backward compatibility within a major release (not breaking existing scripts), however, there may be the odd case where breaking compatibility may be necessary. **Note:** Features marked *experimental* (for example, the `k8s` subcommand) may change and do not guarantee backward compatibility.
+The `container` CLI compatibility generally preserves backward compatibility within a major release (not breaking existing scripts), however, there may be the odd case where breaking compatibility may be necessary. **Note:** Features marked *experimental* (for example, the `cluster` subcommand) may change and do not guarantee backward compatibility.
 
 The `container-apiserver` XPC API compatibility preserves forward and backward compatibility within a major version. 
 Other non-public XPC helpers do not guarantee CLI or API compatibility across different versions.

@@ -114,6 +114,24 @@ public actor ImagesService {
         return img.description.fromCZ
     }
 
+    public func platforms(reference: String, insecure: Bool) async throws -> [Platform] {
+        self.log.debug(
+            "ImagesService: enter",
+            metadata: [
+                "func": "\(#function)",
+                "ref": "\(reference)",
+            ]
+        )
+
+        let platforms = try await Self.withAuthentication(ref: reference) { auth in
+            try await self.imageStore.platforms(reference: reference, insecure: insecure, auth: auth)
+        }
+        guard let platforms else {
+            throw ContainerizationError(.internalError, message: "failed to read platforms of image \(reference)")
+        }
+        return platforms
+    }
+
     public func push(reference: String, platform: Platform?, insecure: Bool, progressUpdate: ProgressUpdateHandler?) async throws {
         self.log.debug(
             "ImagesService: enter",

@@ -118,16 +118,23 @@ final public class ContainerConfig: Codable, Sendable {
 
     public let cpus: Int
     public let memory: MemorySize
+    public let dns: ContainerDNSConfig?
 
-    public init(cpus: Int = defaultCPUs, memory: MemorySize = defaultMemory) {
+    public init(
+        cpus: Int = defaultCPUs,
+        memory: MemorySize = defaultMemory,
+        dns: ContainerDNSConfig? = nil
+    ) {
         self.cpus = cpus
         self.memory = memory
+        self.dns = dns
     }
 
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.cpus = try container.decodeIfPresent(Int.self, forKey: .cpus) ?? Self.defaultCPUs
         self.memory = try container.decodeIfPresent(MemorySize.self, forKey: .memory) ?? Self.defaultMemory
+        self.dns = try container.decodeIfPresent(ContainerDNSConfig.self, forKey: .dns)
     }
 }
 
@@ -141,6 +148,33 @@ final public class DNSConfig: Codable, Sendable {
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.domain = try container.decodeIfPresent(String.self, forKey: .domain)
+    }
+}
+
+final public class ContainerDNSConfig: Codable, Sendable {
+    public let domain: String?
+    public let nameservers: [String]?
+    public let searchDomains: [String]?
+    public let options: [String]?
+
+    public init(
+        domain: String? = nil,
+        nameservers: [String]? = nil,
+        searchDomains: [String]? = nil,
+        options: [String]? = nil
+    ) {
+        self.domain = domain
+        self.nameservers = nameservers
+        self.searchDomains = searchDomains
+        self.options = options
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.domain = try container.decodeIfPresent(String.self, forKey: .domain)
+        self.nameservers = try container.decodeIfPresent([String].self, forKey: .nameservers)
+        self.searchDomains = try container.decodeIfPresent([String].self, forKey: .searchDomains)
+        self.options = try container.decodeIfPresent([String].self, forKey: .options)
     }
 }
 
@@ -165,10 +199,10 @@ final public class VminitConfig: Codable, Sendable {
 }
 
 final public class KernelConfig: Codable, Sendable {
-    public static let defaultBinaryPath = "opt/kata/share/kata-containers/vmlinux-6.18.35-197-debug"
+    public static let defaultBinaryPath = "opt/kata/share/kata-containers/vmlinux-6.18.56-208-debug"
     public static let defaultURL: URL =
-        URL(string: "https://github.com/kata-containers/kata-containers/releases/download/3.32.0/kata-static-3.32.0-arm64.tar.zst")!
-    public static let defaultDigest = "sha256:8736c054d9223974735394f822000823baef509e1c33405ec798240fa9b6e4b5"
+        URL(string: "https://github.com/kata-containers/kata-containers/releases/download/4.3.1/kata-static-4.3.1-arm64.tar.zst")!
+    public static let defaultDigest = "sha256:2c5bf7cde334ad5307d482f45cceda496f91c9b6b96f5278c47f4f4eac1bbae6"
 
     private enum CodingKeys: String, CodingKey {
         case binaryPath

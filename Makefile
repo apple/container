@@ -18,7 +18,18 @@ WARNINGS_AS_ERRORS ?= true
 # Extra swift build flags, appended last so callers can add to (rather than
 # replace) the configuration above.
 SWIFT_CONFIGURATION_EXTRA ?=
-SWIFT_CONFIGURATION := $(if $(filter-out false,$(WARNINGS_AS_ERRORS)),-Xswiftc -warnings-as-errors) -Xswiftc -enable-testing $(SWIFT_CONFIGURATION_EXTRA)
+# Testability lets the unit tests `@testable import` internal symbols. SwiftPM
+# already enables it for debug builds. In a release build it keeps every internal
+# symbol exported and out of reach of dead-stripping, which makes the shipped
+# binaries larger, so release builds leave it off unless a goal needs it (the
+# test goals below turn it back on). Set ENABLE_TESTING=true or false to force it.
+ENABLE_TESTING ?= $(if $(filter release,$(BUILD_CONFIGURATION)),false,true)
+SWIFT_TESTING_FLAGS = $(if $(filter true,$(ENABLE_TESTING)),-Xswiftc -enable-testing)
+# Recursively expanded so the release goal's BUILD_CONFIGURATION and the test
+# goals' ENABLE_TESTING, both target-specific, take effect.
+SWIFT_CONFIGURATION = $(if $(filter-out false,$(WARNINGS_AS_ERRORS)),-Xswiftc -warnings-as-errors) $(SWIFT_TESTING_FLAGS) $(SWIFT_CONFIGURATION_EXTRA)
+# Goals that build or run tests need testability in every configuration.
+build-tests test integration integration-only coverage coverage-all coverage-unit coverage-integration: ENABLE_TESTING = true
 # Code-coverage instrumentation, layered onto the shared build stages. Empty for
 # ordinary builds; the coverage-* targets opt in via a target-specific value so
 # only those goals compile instrumented binaries.
@@ -38,6 +49,39 @@ PKG_PATH := bin/$(BUILD_CONFIGURATION)/container-installer-unsigned.pkg
 DSYM_DIR := bin/$(BUILD_CONFIGURATION)/bundle/container-dSYM
 DSYM_PATH := bin/$(BUILD_CONFIGURATION)/bundle/container-dSYM.zip
 CODESIGN_OPTS ?= --force --sign - --timestamp=none
+
+# Strip the staged copies of the executables, never the build products, so the
+# .dSYM bundles that `dsym` collects still match the stripped binaries (strip
+# keeps the UUID). Releases strip by default; debug installs keep their symbols
+# so lldb and backtraces stay useful during development. `-x` removes local
+# symbols only. Plain `strip` (STRIP_OPTS=) shrinks the binaries further but
+# also drops global symbols that dynamic linking does not need.
+STRIP_BINARIES ?= $(if $(filter release,$(BUILD_CONFIGURATION)),true,false)
+STRIP_OPTS ?= -x
+# Executables the installer ships, relative to the staging directory.
+STAGED_EXECUTABLES := \
+	bin/container \
+	bin/container-apiserver \
+	libexec/container/plugins/container-runtime-linux/bin/container-runtime-linux \
+	libexec/container/plugins/container-network-vmnet/bin/container-network-vmnet \
+	libexec/container/plugins/container-core-images/bin/container-core-images \
+	libexec/container/plugins/machine-apiserver/bin/machine-apiserver \
+	libexec/container/plugins/cluster/bin/cluster \
+	libexec/container/plugins/build/bin/build \
+	libexec/container/plugins/builder/bin/builder
+# The build products those executables are installed from, by product name.
+# Keep in sync with the install steps in $(STAGING_DIR): `dsym` archives a dSYM
+# for each one.
+DSYM_PRODUCTS := \
+	container \
+	container-apiserver \
+	container-runtime-linux \
+	container-network-vmnet \
+	container-core-images \
+	machine-apiserver \
+	cluster \
+	container-build \
+	container-builder
 
 # Default isolated application data root under the project directory so test runs do not touch your
 # own installation. Override with APP_ROOT=/your/path, or APP_ROOT= (empty) to run against
@@ -77,11 +121,26 @@ verify: all test integration
 all: container
 all: init-block
 
+# A prebuilt cluster-shim Linux binary, as CI provides. When empty, `build`
+# builds it with `make -C cluster-shim build` if container services are
+# running, and leaves it out otherwise.
+CLUSTER_SHIM_BINARY ?=
+CLUSTER_SHIM := $(if $(strip $(CLUSTER_SHIM_BINARY)),$(CLUSTER_SHIM_BINARY),cluster-shim/bin/cluster-shim)
+CLUSTER_SHIM_MISSING := cluster-shim needs running container services; run 'container system start' or set CLUSTER_SHIM_BINARY
+
 .PHONY: build
 build:
 	@echo Building container binaries...
 	@$(SWIFT) --version
 	@$(SWIFT_BUILD)
+ifeq ($(strip $(CLUSTER_SHIM_BINARY)),)
+	@if container system status > /dev/null 2>&1; then \
+		echo Building cluster-shim...; \
+		"$(MAKE)" -C cluster-shim build; \
+	else \
+		echo "Warning: skipping cluster-shim, so clusters from this build cannot use --shared-image-store. $(CLUSTER_SHIM_MISSING)." >&2; \
+	fi
+endif
 
 .PHONY: build-tests
 # Shared build stage for every test target: builds the test bundle (and the
@@ -141,10 +200,12 @@ $(STAGING_DIR):
 	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/container-runtime-linux/bin)"
 	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/container-network-vmnet/bin)"
 	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/container-core-images/bin)"
+	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/container-core-clusters/bin)"
 	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/machine-apiserver/bin)"
 	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/machine-apiserver/resources)"
-	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/k8s/bin)"
-	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/k8s/resources)"
+	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/cluster/bin)"
+	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/cluster/resources)"
+	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/cluster-hoststore/bin)"
 	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/build/bin)"
 	@mkdir -p "$(join $(STAGING_DIR), libexec/container/plugins/builder/bin)"
 
@@ -155,13 +216,22 @@ $(STAGING_DIR):
 	@install "$(BUILD_BIN_DIR)/container-network-vmnet" "$(join $(STAGING_DIR), libexec/container/plugins/container-network-vmnet/bin/container-network-vmnet)"
 	@install Sources/Plugins/NetworkVmnet/config.toml "$(join $(STAGING_DIR), libexec/container/plugins/container-network-vmnet/config.toml)"
 	@install "$(BUILD_BIN_DIR)/container-core-images" "$(join $(STAGING_DIR), libexec/container/plugins/container-core-images/bin/container-core-images)"
+	@install "$(BUILD_BIN_DIR)/container-core-clusters" "$(join $(STAGING_DIR), libexec/container/plugins/container-core-clusters/bin/container-core-clusters)"
 	@install Sources/Plugins/CoreImages/config.toml "$(join $(STAGING_DIR), libexec/container/plugins/container-core-images/config.toml)"
+	@install Sources/Plugins/CoreClusters/config.toml "$(join $(STAGING_DIR), libexec/container/plugins/container-core-clusters/config.toml)"
 	@install "$(BUILD_BIN_DIR)/machine-apiserver" "$(join $(STAGING_DIR), libexec/container/plugins/machine-apiserver/bin/machine-apiserver)"
 	@install Sources/Plugins/MachineAPIServer/config.toml "$(join $(STAGING_DIR), libexec/container/plugins/machine-apiserver/config.toml)"
 	@install Sources/Plugins/MachineAPIServer/Resources/init "$(join $(STAGING_DIR), libexec/container/plugins/machine-apiserver/resources/init)"
-	@install "$(BUILD_BIN_DIR)/k8s" "$(join $(STAGING_DIR), libexec/container/plugins/k8s/bin/k8s)"
-	@install Sources/Plugins/K8s/config.toml "$(join $(STAGING_DIR), libexec/container/plugins/k8s/config.toml)"
-	@install Sources/Plugins/K8s/Resources/kindnet.yaml "$(join $(STAGING_DIR), libexec/container/plugins/k8s/resources/kindnet.yaml)"
+	@install "$(BUILD_BIN_DIR)/cluster" "$(join $(STAGING_DIR), libexec/container/plugins/cluster/bin/cluster)"
+	@install Sources/Plugins/Cluster/config.toml "$(join $(STAGING_DIR), libexec/container/plugins/cluster/config.toml)"
+	@install Sources/Plugins/Cluster/Resources/kindnet.yaml "$(join $(STAGING_DIR), libexec/container/plugins/cluster/resources/kindnet.yaml)"
+	@if [ -f "$(CLUSTER_SHIM)" ]; then \
+		install -m 0755 "$(CLUSTER_SHIM)" "$(join $(STAGING_DIR), libexec/container/plugins/cluster/resources/cluster-shim)"; \
+	else \
+		echo "Warning: packaging without cluster-shim; $(CLUSTER_SHIM) does not exist." >&2; \
+	fi
+	@install "$(BUILD_BIN_DIR)/cluster-hoststore" "$(join $(STAGING_DIR), libexec/container/plugins/cluster-hoststore/bin/cluster-hoststore)"
+	@install Sources/Plugins/ClusterHostStore/config.toml "$(join $(STAGING_DIR), libexec/container/plugins/cluster-hoststore/config.toml)"
 	@install "$(BUILD_BIN_DIR)/container-build" "$(join $(STAGING_DIR), libexec/container/plugins/build/bin/build)"
 	@install Sources/Plugins/ContainerBuild/config.toml "$(join $(STAGING_DIR), libexec/container/plugins/build/config.toml)"
 	@install "$(BUILD_BIN_DIR)/container-builder" "$(join $(STAGING_DIR), libexec/container/plugins/builder/bin/builder)"
@@ -174,14 +244,22 @@ $(STAGING_DIR):
 
 .PHONY: installer-pkg
 installer-pkg: $(STAGING_DIR)
+	@if [ "$(STRIP_BINARIES)" = "true" ]; then \
+		echo Stripping container binaries...; \
+		for bin in $(STAGED_EXECUTABLES); do \
+			strip $(STRIP_OPTS) "$(STAGING_DIR)$$bin" || exit 1; \
+		done; \
+	fi
 	@echo Signing container binaries...
 	@codesign $(CODESIGN_OPTS) --identifier com.apple.container.cli "$(join $(STAGING_DIR), bin/container)"
 	@codesign $(CODESIGN_OPTS) --identifier com.apple.container.apiserver "$(join $(STAGING_DIR), bin/container-apiserver)"
 	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. "$(join $(STAGING_DIR), libexec/container/plugins/container-core-images/bin/container-core-images)"
+	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. "$(join $(STAGING_DIR), libexec/container/plugins/container-core-clusters/bin/container-core-clusters)"
 	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. --entitlements=signing/container-runtime-linux.entitlements "$(join $(STAGING_DIR), libexec/container/plugins/container-runtime-linux/bin/container-runtime-linux)"
 	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. --entitlements=signing/container-network-vmnet.entitlements "$(join $(STAGING_DIR), libexec/container/plugins/container-network-vmnet/bin/container-network-vmnet)"
 	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. "$(join $(STAGING_DIR), libexec/container/plugins/machine-apiserver/bin/machine-apiserver)"
-	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. "$(join $(STAGING_DIR), libexec/container/plugins/k8s/bin/k8s)"
+	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. "$(join $(STAGING_DIR), libexec/container/plugins/cluster/bin/cluster)"
+	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. "$(join $(STAGING_DIR), libexec/container/plugins/cluster-hoststore/bin/cluster-hoststore)"
 	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. "$(join $(STAGING_DIR), libexec/container/plugins/build/bin/build)"
 	@codesign $(CODESIGN_OPTS) --prefix=com.apple.container. "$(join $(STAGING_DIR), libexec/container/plugins/builder/bin/builder)"
 
@@ -191,21 +269,31 @@ installer-pkg: $(STAGING_DIR)
 
 .PHONY: dsym
 dsym:
-	@echo Copying debug symbols...
+	@echo Collecting debug symbols...
 	@rm -rf "$(DSYM_DIR)"
 	@mkdir -p "$(DSYM_DIR)"
-	@cp -a "$(BUILD_BIN_DIR)/container-runtime-linux.dSYM" "$(DSYM_DIR)"
-	@cp -a "$(BUILD_BIN_DIR)/container-network-vmnet.dSYM" "$(DSYM_DIR)"
-	@cp -a "$(BUILD_BIN_DIR)/container-core-images.dSYM" "$(DSYM_DIR)"
-	@cp -a "$(BUILD_BIN_DIR)/container-apiserver.dSYM" "$(DSYM_DIR)"
-	@cp -a "$(BUILD_BIN_DIR)/container.dSYM" "$(DSYM_DIR)"
+	@bin_dir="$(BUILD_BIN_DIR)"; \
+	for product in $(DSYM_PRODUCTS); do \
+		if [ -d "$$bin_dir/$$product.dSYM" ]; then \
+			cp -a "$$bin_dir/$$product.dSYM" "$(DSYM_DIR)" || exit 1; \
+		else \
+			echo "The build produced no dSYM for $$product, generating one..."; \
+			dsymutil "$$bin_dir/$$product" -o "$(DSYM_DIR)/$$product.dSYM" || exit 1; \
+		fi; \
+		built=$$(dwarfdump --uuid "$$bin_dir/$$product" | awk '{print $$2}' | sort); \
+		archived=$$(dwarfdump --uuid "$(DSYM_DIR)/$$product.dSYM" | awk '{print $$2}' | sort); \
+		if [ -z "$$built" ] || [ "$$built" != "$$archived" ]; then \
+			echo "error: the dSYM for $$product does not match the built binary"; \
+			exit 1; \
+		fi; \
+	done
 
 	@echo Packaging the debug symbols...
 	@(cd "$(dir $(DSYM_DIR))" ; zip -r $(notdir $(DSYM_PATH)) $(notdir $(DSYM_DIR)))
 
 .PHONY: test
 test: build-tests
-	@$(SWIFT) test --skip-build -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --skip TestCLI --skip IntegrationTests
+	@$(SWIFT) test --skip-build -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --skip TestCLI --skip IntegrationTests $(if $(strip $(FILTER)),--filter '$(strip $(FILTER))')
 
 .PHONY: install-kernel
 install-kernel:
@@ -230,6 +318,7 @@ COV_BINARIES := \
 	$(BUILD_BIN_DIR)/container-runtime-linux \
 	$(BUILD_BIN_DIR)/container-network-vmnet \
 	$(BUILD_BIN_DIR)/container-core-images \
+	$(BUILD_BIN_DIR)/container-core-clusters \
 	$(BUILD_BIN_DIR)/machine-apiserver \
 	$(BUILD_BIN_DIR)/container-build \
 	$(BUILD_BIN_DIR)/container-builder
@@ -321,9 +410,9 @@ define RUN_INTEGRATION
 		echo "==> Starting warmup tests" && \
 		$(SWIFT) test $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) --filter "$(WARMUP_FILTER)" && \
 		echo "==> Starting $(words $(CONCURRENT_TEST_SUITES)) test suites concurrently (width=$(PARALLEL_WIDTH))" && \
-		$(SWIFT) test $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) $(CONCURRENT_EVENT_STREAM_OPTS) --experimental-maximum-parallelization-width $(PARALLEL_WIDTH) --filter "$(CONCURRENT_FILTER)" && \
+		$(SWIFT) test --skip-build $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) $(CONCURRENT_EVENT_STREAM_OPTS) --experimental-maximum-parallelization-width $(PARALLEL_WIDTH) --filter "$(CONCURRENT_FILTER)" && \
 		echo "==> Starting $(words $(SERIAL_TEST_SUITES)) test suites serially" && \
-		$(SWIFT) test $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) $(GLOBAL_EVENT_STREAM_OPTS) --experimental-maximum-parallelization-width 1 --filter "$(SERIAL_FILTER)" ; \
+		$(SWIFT) test --skip-build $(INTEGRATION_SWIFT_EXTRA) -c $(BUILD_CONFIGURATION) $(SWIFT_CONFIGURATION) $(GLOBAL_EVENT_STREAM_OPTS) --experimental-maximum-parallelization-width 1 --filter "$(SERIAL_FILTER)" ; \
 		exit_code=$$? ; \
 		$(INTEGRATION_POST_TEST) \
 		echo Ensuring apiserver stopped after the CLI integration tests ; \
@@ -442,6 +531,11 @@ docs:
 	@rm -rf _site
 	@scripts/make-docs.sh _site container
 
+.PHONY: demo-gif
+demo-gif:
+	@echo Recording the README demo...
+	@scripts/record-demo.sh
+
 .PHONY: cleancontent
 cleancontent:
 	@bin/container system stop || true
@@ -449,7 +543,12 @@ cleancontent:
 	@rm -rf ~/Library/Application\ Support/com.apple.container
 
 .PHONY: clean
-clean: cleantest cleanbuild
+clean: cleanclustershim cleantest cleanbuild
+
+.PHONY: cleanclustershim
+cleanclustershim:
+	@echo Cleaning cluster-shim build files...
+	@"$(MAKE)" -C cluster-shim clean
 
 .PHONY: cleanbuild
 cleanbuild:
