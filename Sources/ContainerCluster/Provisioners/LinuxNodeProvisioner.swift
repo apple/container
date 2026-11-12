@@ -371,12 +371,20 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
         iptablesPath: String = "/usr/sbin/iptables"
     ) -> String {
         """
-        if ! \(nftPath) -t mangle -S >/dev/null 2>&1; then
-          \(updateAlternativesPath) --set iptables \(legacyPath)
-          \(updateAlternativesPath) --set ip6tables \(ip6LegacyPath)
+        if ! \(shellQuote(nftPath)) -t mangle -S >/dev/null 2>&1; then
+          \(shellQuote(updateAlternativesPath)) --set iptables \(shellQuote(legacyPath))
+          \(shellQuote(updateAlternativesPath)) --set ip6tables \(shellQuote(ip6LegacyPath))
         fi
-        \(iptablesPath) -t mangle -A OUTPUT  -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1220
-        \(iptablesPath) -t mangle -A FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1220
+        \(shellQuote(iptablesPath)) -t mangle -C OUTPUT -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1220 2>/dev/null || \\
+          \(shellQuote(iptablesPath)) -t mangle -A OUTPUT -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1220
+        \(shellQuote(iptablesPath)) -t mangle -C FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1220 2>/dev/null || \\
+          \(shellQuote(iptablesPath)) -t mangle -A FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1220
         """
     }
+
+    /// Quotes a value as one shell word, including any embedded single quotes.
+    private static func shellQuote(_ value: String) -> String {
+        "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    }
+
 }
