@@ -27,7 +27,7 @@ import Testing
 
 struct ContainerLoadAtBootTests {
     @Test
-    func malformedConfigurationFilesRemainOnDisk() throws {
+    func malformedConfigurationFilesRemainOnDisk() async throws {
         let fixture = try Fixture()
         defer { fixture.remove() }
 
@@ -36,7 +36,7 @@ struct ContainerLoadAtBootTests {
         try Data("{".utf8).write(to: bundlePath.appendingPathComponent("config.json"))
         try Data("{".utf8).write(to: bundlePath.appendingPathComponent("runtime-configuration.json"))
 
-        let states = try ContainersService.loadAtBoot(
+        let states = try await ContainersService.loadAtBoot(
             root: fixture.containers,
             loader: fixture.loader,
             log: fixture.log
@@ -56,7 +56,7 @@ struct ContainerLoadAtBootTests {
         let bundle = ContainerResource.Bundle(path: bundlePath)
         try bundle.set(configuration: testConfiguration(id: "missing-runtime"))
 
-        let states = try ContainersService.loadAtBoot(
+        let states = try await ContainersService.loadAtBoot(
             root: fixture.containers,
             loader: fixture.loader,
             log: fixture.log
@@ -69,11 +69,32 @@ struct ContainerLoadAtBootTests {
         let recovered: ContainerConfiguration = try bundle.load(filename: "config.json")
         #expect(recovered.id == "missing-runtime")
 
-        let service = try fixture.makeService()
+        let service = try await fixture.makeService()
         let error = await #expect(throws: ContainerizationError.self) {
             try await service.bootstrap(id: "missing-runtime", stdio: [], dynamicEnv: [:])
         }
         #expect(error?.code == .internalError)
+    }
+
+    @Test(arguments: [false, true])
+    func mismatchedDirectoryIsSkippedAndPreserved(autoRemove: Bool) async throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+
+        let bundlePath = fixture.containers.appendingPathComponent("directory-id")
+        try FileManager.default.createDirectory(at: bundlePath, withIntermediateDirectories: true)
+        let bundle = ContainerResource.Bundle(path: bundlePath)
+        try bundle.set(configuration: testConfiguration(id: "configured-id"))
+        try bundle.write(filename: "options.json", value: ContainerCreateOptions(autoRemove: autoRemove))
+
+        let states = try await ContainersService.loadAtBoot(
+            root: fixture.containers, loader: fixture.loader, log: fixture.log
+        )
+
+        #expect(states.isEmpty)
+        #expect(FileManager.default.fileExists(atPath: bundlePath.path))
+        let recovered: ContainerConfiguration = try bundle.load(filename: "config.json")
+        #expect(recovered.id == "configured-id")
     }
 
     private func testConfiguration(id: String) -> ContainerConfiguration {
@@ -122,8 +143,8 @@ private struct Fixture {
         try? FileManager.default.removeItem(at: root)
     }
 
-    func makeService() throws -> ContainersService {
-        try ContainersService(
+    func makeService() async throws -> ContainersService {
+        try await ContainersService(
             appRoot: root,
             pluginLoader: loader,
             containerSystemConfig: ContainerSystemConfig(),
