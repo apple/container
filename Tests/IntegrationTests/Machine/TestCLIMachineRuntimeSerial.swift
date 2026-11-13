@@ -813,6 +813,69 @@ struct TestCLIMachineRuntimeSerial {
         }
     }
 
+    @Test func testUserMountsReadWriteAndReadOnly() async throws {
+        try await ContainerFixture.with { f in
+            let name = "\(f.testID)-machine"
+            f.addCleanup { f.cleanupMachine(name) }
+
+            let readWriteSource = f.testDir.appending("read-write")
+            let readOnlySource = f.testDir.appending("read-only")
+            try FileManager.default.createDirectory(
+                atPath: readWriteSource.string, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(
+                atPath: readOnlySource.string, withIntermediateDirectories: true)
+
+            try f.doMachineCreate(
+                name: name,
+                image: machineImage,
+                extraArgs: [
+                    "--home-mount", "none",
+                    "--mount", "\(readWriteSource.string):/mnt/read-write:rw",
+                    "--mount", "\(readOnlySource.string):/mnt/read-only:ro",
+                ])
+            try f.doMachineBoot(name: name)
+            try await f.waitForMachineStatus(name, status: "running")
+
+            try f.doMachineRun(
+                name: name, root: true,
+                command: ["touch", "/mnt/read-write/from-guest"])
+            #expect(FileManager.default.fileExists(atPath: readWriteSource.appending("from-guest").string))
+
+            let readOnlyWrite = try f.runMachine([
+                "run", "--root", "-n", name, "touch", "/mnt/read-only/blocked",
+            ])
+            #expect(readOnlyWrite.status != 0)
+            #expect(!FileManager.default.fileExists(atPath: readOnlySource.appending("blocked").string))
+        }
+    }
+
+    @Test func testUserMountAsHomePreservesHostContents() async throws {
+        try await ContainerFixture.with { f in
+            let name = "\(f.testID)-machine"
+            f.addCleanup { f.cleanupMachine(name) }
+
+            let source = f.testDir.appending("machine-home")
+            try FileManager.default.createDirectory(atPath: source.string, withIntermediateDirectories: true)
+            let sentinel = source.appending("sentinel")
+            try "existing".write(toFile: sentinel.string, atomically: true, encoding: .utf8)
+            let guestHome = "/home/\(NSUserName())"
+
+            try f.doMachineCreate(
+                name: name,
+                image: machineImage,
+                extraArgs: ["--home-mount", "none", "--mount", "\(source.string):\(guestHome):rw"])
+            try f.doMachineBoot(name: name)
+            try await f.waitForMachineStatus(name, status: "running")
+
+            let content = try f.doMachineRun(name: name, command: ["cat", "\(guestHome)/sentinel"])
+            #expect(content.trimmingCharacters(in: .whitespacesAndNewlines) == "existing")
+            #expect(try String(contentsOfFile: sentinel.string, encoding: .utf8) == "existing")
+
+            try f.doMachineRun(name: name, command: ["touch", "\(guestHome)/from-guest"])
+            #expect(FileManager.default.fileExists(atPath: source.appending("from-guest").string))
+        }
+    }
+
     @Test func testCreateAutoBoots() async throws {
         try await ContainerFixture.with { f in
             let name = "\(f.testID)-machine"
