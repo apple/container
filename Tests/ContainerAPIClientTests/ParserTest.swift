@@ -460,6 +460,33 @@ struct ParserTest {
     }
 
     @Test
+    func testMountReadonlyValue() throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("test-bind-ro-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.removeItem(at: tempDir)
+        }
+
+        let cases: [(String, Bool)] = [
+            ("readonly", true), ("ro", true),
+            ("readonly=true", true), ("ro=1", true),
+            ("readonly=false", false), ("ro=0", false),
+        ]
+        for (directive, expectReadonly) in cases {
+            let result = try Parser.mount("type=bind,src=\(tempDir.path),dst=/foo,\(directive)")
+            guard case .filesystem(let fs) = result else {
+                Issue.record("Expected filesystem mount for \(directive)")
+                continue
+            }
+            #expect(fs.options.contains("ro") == expectReadonly, "\(directive)")
+        }
+
+        #expect(throws: (any Error).self) {
+            _ = try Parser.mount("type=bind,src=\(tempDir.path),dst=/foo,readonly=maybe")
+        }
+    }
+
+    @Test
     func testMountTmpfsWithMode() throws {
         let result = try Parser.mount("type=tmpfs,dst=/foo,size=64m,mode=1777")
 
