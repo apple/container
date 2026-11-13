@@ -1377,7 +1377,7 @@ container system start [--app-root <app-root>] [--install-root <install-root>] [
 *   `-a, --app-root <app-root>`: Path to the root directory for application data
 *   `--install-root <install-root>`: Path to the root directory for application executables and plugins
 *   `--log-root <log-root>`: Path to the root directory for log data, using macOS log facility if not set
-*   `--enable-kernel-install/--disable-kernel-install`: Specify whether the default kernel should be installed or not (default: prompt user)
+*   `--enable-kernel-install/--disable-kernel-install`: Specify whether the default kernel should be installed or not (default: prompt user, or skip if no answer can be read from standard input)
 *   `--timeout <timeout>`: Number of seconds to wait for API service to become responsive
 
 > [!NOTE]
