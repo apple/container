@@ -41,9 +41,6 @@ actor BuildStdio: BuildPipelineHandler {
     }
 
     func handle(_ sender: AsyncStream<ClientStream>.Continuation, _ packet: ServerStream) async throws {
-        guard !quiet else {
-            return
-        }
         guard let io = packet.getIO() else {
             throw Error.ioMissing
         }
@@ -54,6 +51,9 @@ actor BuildStdio: BuildPipelineHandler {
             response.command.id = packet.buildID
             response.command.command = cmdString
             sender.yield(response)
+        }
+        guard !quiet else {
+            return
         }
         handle.write(io.data)
     }
