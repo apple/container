@@ -25,7 +25,7 @@ public struct Attachment: Codable, Sendable {
     /// The CIDR address describing the interface IPv4 address, with the prefix length of the subnet.
     public let ipv4Address: CIDRv4
     /// The IPv4 gateway address.
-    public let ipv4Gateway: IPv4Address
+    public let ipv4Gateway: IPv4Address?
     /// The CIDR address describing the interface IPv6 address, with the prefix length of the subnet.
     /// The address is nil if the IPv6 subnet could not be determined at network creation time.
     public let ipv6Address: CIDRv6?
@@ -40,7 +40,7 @@ public struct Attachment: Codable, Sendable {
         network: String,
         hostname: String,
         ipv4Address: CIDRv4,
-        ipv4Gateway: IPv4Address,
+        ipv4Gateway: IPv4Address?,
         ipv6Address: CIDRv6?,
         macAddress: MACAddress?,
         mtu: UInt32? = nil,
@@ -82,10 +82,10 @@ public struct Attachment: Codable, Sendable {
         } else {
             ipv4Address = try container.decode(CIDRv4.self, forKey: .address)
         }
-        if let gateway = try? container.decode(IPv4Address.self, forKey: .ipv4Gateway) {
+        if let gateway = try container.decodeIfPresent(IPv4Address.self, forKey: .ipv4Gateway) {
             ipv4Gateway = gateway
         } else {
-            ipv4Gateway = try container.decode(IPv4Address.self, forKey: .gateway)
+            ipv4Gateway = try container.decodeIfPresent(IPv4Address.self, forKey: .gateway)
         }
         ipv6Address = try container.decodeIfPresent(CIDRv6.self, forKey: .ipv6Address)
         macAddress = try container.decodeIfPresent(MACAddress.self, forKey: .macAddress)
@@ -100,7 +100,7 @@ public struct Attachment: Codable, Sendable {
         try container.encode(network, forKey: .network)
         try container.encode(hostname, forKey: .hostname)
         try container.encode(ipv4Address, forKey: .ipv4Address)
-        try container.encode(ipv4Gateway, forKey: .ipv4Gateway)
+        try container.encodeIfPresent(ipv4Gateway, forKey: .ipv4Gateway)
         try container.encodeIfPresent(ipv6Address, forKey: .ipv6Address)
         try container.encodeIfPresent(macAddress, forKey: .macAddress)
         try container.encodeIfPresent(mtu, forKey: .mtu)

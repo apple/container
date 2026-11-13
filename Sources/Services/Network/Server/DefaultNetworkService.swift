@@ -97,7 +97,7 @@ public actor DefaultNetworkService: NetworkService {
             metadata: [
                 "hostname": "\(hostname)",
                 "ipv4Address": "\(attachment.ipv4Address)",
-                "ipv4Gateway": "\(attachment.ipv4Gateway)",
+                "ipv4Gateway": "\(attachment.ipv4Gateway?.description ?? "unavailable")",
                 "ipv6Address": "\(attachment.ipv6Address?.description ?? "unavailable")",
                 "macAddress": "\(attachment.macAddress?.description ?? "unspecified")",
             ])
