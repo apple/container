@@ -360,6 +360,45 @@ struct ConfigurationLoaderTests {
         }
     }
 
+    @Test func copyConfigRemovesStaleCopyWhenSourceMissing() async throws {
+        try await TemporaryStorage.withTempDir { tempDir in
+            let source = tempDir.appending("config.toml")
+            try Self.writeToml("[build]\ncpus = 8", to: source)
+            let destBase = tempDir.appending("dest")
+            let destFile = destBase.appending("config").appending("config.toml")
+
+            try ConfigurationLoader.copyConfigurationToReadOnly(from: source, to: destBase)
+            #expect(FileManager.default.fileExists(atPath: destFile.string))
+
+            try FileManager.default.removeItem(atPath: source.string)
+            try ConfigurationLoader.copyConfigurationToReadOnly(from: source, to: destBase)
+            #expect(!FileManager.default.fileExists(atPath: destFile.string))
+        }
+    }
+
+    @Test func copyConfigRemovesDestinationSymlinkNotTargetWhenSourceMissing() async throws {
+        try await TemporaryStorage.withTempDir { tempDir in
+            let source = tempDir.appending("nonexistent.toml")
+
+            let outsideFile = tempDir.appending("do-not-touch")
+            try Self.writeToml("untouched", to: outsideFile)
+
+            let destBase = tempDir.appending("dest")
+            let destFile = destBase.appending("config").appending("config.toml")
+            try FileManager.default.createDirectory(
+                atPath: destFile.removingLastComponent().string,
+                withIntermediateDirectories: true)
+            try FileManager.default.createSymbolicLink(
+                atPath: destFile.string, withDestinationPath: outsideFile.string)
+
+            try ConfigurationLoader.copyConfigurationToReadOnly(from: source, to: destBase)
+
+            #expect((try? FileManager.default.destinationOfSymbolicLink(atPath: destFile.string)) == nil)
+            let outsideContents = try String(contentsOf: URL(filePath: outsideFile.string), encoding: .utf8)
+            #expect(outsideContents == "untouched")
+        }
+    }
+
     @Test func copyConfigDoesNotFollowDestinationSymlink() async throws {
         try await TemporaryStorage.withTempDir { tempDir in
             let source = tempDir.appending("config.toml")

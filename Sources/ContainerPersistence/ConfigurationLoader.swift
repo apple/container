@@ -182,8 +182,10 @@ public enum ConfigurationLoader {
 
     /// Copies the user's runtime configuration into the app-root as a read-only snapshot.
     ///
-    /// If `source` does not exist, this is a no-op. Otherwise, the source is written to a
-    /// temporary file alongside the destination and then moved into place with `rename(2)`.
+    /// If `source` does not exist, any snapshot left at the destination by an earlier copy is
+    /// removed so that a deleted user configuration stops applying. Otherwise, the source is
+    /// written to a temporary file alongside the destination and then moved into place with
+    /// `rename(2)`.
     ///
     /// - Parameters:
     ///   - source: File to copy from. Defaults to `<home>/container/config.toml`.
@@ -198,7 +200,18 @@ public enum ConfigurationLoader {
         let destPath = configurationFile(in: destBase)
 
         let fm = FileManager.default
-        guard fm.fileExists(atPath: sourcePath.string) else { return }
+        guard fm.fileExists(atPath: sourcePath.string) else {
+            // `unlink` removes a symlink at `destination` rather than its target, and works
+            // regardless of `destination`'s file permissions.
+            guard unlink(destPath.string) == 0 || errno == ENOENT else {
+                let err = errno
+                throw ContainerizationError(
+                    .internalError,
+                    message: "failed to remove '\(destPath)': \(String(cString: strerror(err)))"
+                )
+            }
+            return
+        }
 
         let destDir = destPath.removingLastComponent()
         try fm.createDirectory(atPath: destDir.string, withIntermediateDirectories: true)
