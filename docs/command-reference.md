@@ -473,7 +473,7 @@ container logs [--boot] [--follow] [-n <n>] [--debug] <container-id>
 **Options**
 
 *   `--boot`: Display the boot log for the container instead of stdio
-*   `-f, --follow`: Follow log output
+*   `-f, --follow`: Follow log output. If the log is empty, waits for output instead of exiting
 *   `-n <n>`: Number of lines to show from the end of the logs. If not provided this will print all of the logs
 
 ### `container inspect`
@@ -1319,7 +1319,7 @@ container machine logs [--boot] [--follow] [-n <n>] [--debug] [<id>]
 **Options**
 
 *   `--boot`: Display the boot log for the container machine instead of stdio
-*   `-f, --follow`: Follow log output
+*   `-f, --follow`: Follow log output. If the log is empty, waits for output instead of exiting
 *   `-n <n>`: Number of lines to show from the end of the logs. If not provided this will print all of the logs
 
 ### `container machine stop`
