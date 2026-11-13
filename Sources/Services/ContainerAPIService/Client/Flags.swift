@@ -134,13 +134,19 @@ public struct Flags {
 
         @Option(
             name: .customLong("dns-domain"),
-            help: .init("Default DNS domain", valueName: "domain")
+            help: .init(
+                "Set guest /etc/resolv.conf domain; does not register host or guest DNS records. Use 'container system dns create' and config.toml [dns] for local DNS domains",
+                valueName: "domain"
+            )
         )
         public var domain: String? = nil
 
         @Option(
             name: .customLong("dns-option"),
-            help: .init("DNS options", valueName: "option")
+            help: .init(
+                "Set guest /etc/resolv.conf options (debug, ndots:0); does not register DNS records. Use 'container system dns create' and config.toml [dns] for local domains",
+                valueName: "option"
+            )
         )
         public var options: [String] = []
 
