@@ -71,6 +71,10 @@ extension BuildOptions {
             return URL(fileURLWithPath: filepath, relativeTo: .currentDirectory()).path
         case .none:
             guard let defaultDockerfile = try BuildFile.resolvePath(contextDir: contextDir) else {
+                let candidate = URL(fileURLWithPath: contextDir).appendingPathComponent("Dockerfile").path
+                if Self.isPermissionDenied(candidate) {
+                    throw ValidationError("cannot read context dir \(contextDir): permission denied")
+                }
                 throw ValidationError("dockerfile not found in context dir")
             }
 
