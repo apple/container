@@ -18,40 +18,40 @@ import ContainerizationError
 
 /// The policy applied when a container's init process exits.
 ///
-/// The raw values are the persisted (serialized) form and must remain stable.
-/// The command-line spelling is Docker-compatible and handled by ``init(parsing:)``
-/// and ``cliValue``.
-public enum RestartPolicy: String, Sendable, Codable {
+/// The command-line spelling is Docker-compatible: `no`, `always`, `on-failure` and
+/// `on-failure:<max-retries>`. Swift spellings such as `onFailure` are rejected.
+public enum RestartPolicy: Sendable, Equatable, Codable {
     /// Never restart the container.
     case no
-    /// Restart only when the container exits with a non-zero exit code.
-    /// Retries are unlimited, matching Docker's `on-failure:0` (Moby treats
-    /// `MaximumRetryCount == 0` as unlimited).
-    case onFailure
+    /// Restart only when the container exits with a non-zero exit code, at most
+    /// `maximumRetryCount` times. 0 means unlimited retries, matching Docker/Moby
+    /// (`MaximumRetryCount == 0`).
+    case onFailure(maximumRetryCount: Int)
     /// Always restart the container, unless it was manually stopped.
     case always
 
-    /// Parses the Docker-compatible `--restart` value: `no`, `always`,
-    /// `on-failure` or `on-failure:0`.
-    ///
-    /// `on-failure:<max-retries>` with a non-zero count is not supported yet.
-    /// Swift enum spellings such as `onFailure` are rejected.
     public init(parsing value: String) throws {
         switch value {
         case "no": self = .no
         case "always": self = .always
-        case "on-failure", "on-failure:0": self = .onFailure
+        case "on-failure": self = .onFailure(maximumRetryCount: 0)
         default:
-            if value.hasPrefix("on-failure:") {
+            let prefix = "on-failure:"
+            guard value.hasPrefix(prefix) else {
                 throw ContainerizationError(
                     .invalidArgument,
-                    message: "unsupported restart policy '\(value)': only 'on-failure' and 'on-failure:0' (unlimited retries) are supported"
+                    message: "invalid restart policy '\(value)': expected one of no, always, on-failure, on-failure:<max-retries>"
                 )
             }
-            throw ContainerizationError(
-                .invalidArgument,
-                message: "invalid restart policy '\(value)': expected one of no, always, on-failure, on-failure:0"
-            )
+            let count = value.dropFirst(prefix.count)
+            // Only plain decimal digits: reject signs, whitespace, and empty strings.
+            guard !count.isEmpty, count.allSatisfy({ $0 >= "0" && $0 <= "9" }), let max = Int(count) else {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "invalid restart policy '\(value)': max-retries must be a non-negative integer"
+                )
+            }
+            self = .onFailure(maximumRetryCount: max)
         }
     }
 
@@ -60,7 +60,7 @@ public enum RestartPolicy: String, Sendable, Codable {
         switch self {
         case .no: "no"
         case .always: "always"
-        case .onFailure: "on-failure"
+        case .onFailure(let max): max > 0 ? "on-failure:\(max)" : "on-failure"
         }
     }
 }
@@ -80,6 +80,12 @@ public struct ContainerCreateOptions: Codable, Sendable {
 
     /// Validates option combinations that must be rejected before a container is created.
     public func validate() throws {
+        if case .onFailure(let max) = restartPolicy, max < 0 {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "invalid restart policy: max-retries must be non-negative"
+            )
+        }
         if autoRemove && restartPolicy != .no {
             throw ContainerizationError(
                 .invalidArgument,
