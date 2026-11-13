@@ -26,6 +26,8 @@ public struct Bundle: Sendable {
     private static let containerRootFsFilename = "rootfs.json"
 
     static let containerConfigFilename = "config.json"
+    /// Why the container last stopped, kept next to its configuration so it survives an apiserver restart.
+    public static let exitStatusFilename = "exit.json"
 
     /// The path to the bundle.
     public let path: URL
@@ -152,6 +154,16 @@ extension Bundle {
     /// Delete the bundle and all of the resources contained inside.
     public func delete() throws {
         try FileManager.default.removeItem(at: self.path)
+    }
+
+    /// The recorded exit of the container's initial process, if it has stopped at least
+    /// once. Absent for one that has never run.
+    public var exitStatus: ExitRecord? {
+        try? load(filename: Self.exitStatusFilename)
+    }
+
+    public func setExitStatus(_ record: ExitRecord) throws {
+        try write(filename: Self.exitStatusFilename, value: record)
     }
 
     public func write(filename: String, value: Encodable) throws {

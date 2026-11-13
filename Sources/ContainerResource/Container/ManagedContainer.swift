@@ -62,7 +62,9 @@ public struct ManagedContainer: ManagedResource {
         self.status = ContainerStatus(
             state: snapshot.status,
             networks: snapshot.networks,
-            startedDate: snapshot.startedDate
+            startedDate: snapshot.startedDate,
+            exitCode: snapshot.exitCode,
+            exitedAt: snapshot.exitedAt
         )
     }
 }
