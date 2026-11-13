@@ -21,6 +21,9 @@ import SystemPackage
 public class Globber {
     let input: URL
     var results: Set<URL> = .init()
+    /// `**` expansions already walked, keyed by path and remaining components;
+    /// a directory symlink cycle names the same paths on every lap.
+    private var expanded: Set<[String]> = []
 
     public init(_ input: URL) {
         self.input = input
@@ -56,6 +59,7 @@ public class Globber {
         let tail = components.tail
 
         if head == "**" {
+            guard self.expanded.insert([input.path] + components).inserted else { return }
             var tail: [String] = tail
             while tail.first == "**" {
                 tail = tail.tail
