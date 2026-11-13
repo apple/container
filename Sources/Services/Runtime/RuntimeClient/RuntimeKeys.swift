@@ -48,6 +48,8 @@ public enum RuntimeKeys: String {
     case destinationPath
     case fileMode
     case createParents
+    /// FD carrying a tar stream for `cp -`. Replaces the host side of the copy.
+    case archiveFd
     /// Image path for snapshot operations
     case imagePath
 
