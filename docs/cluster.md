@@ -170,7 +170,15 @@ An image name without a registry, such as `my-app:dev`, is looked up in the loca
 
 ## Kubernetes node image
 
-By default, clusters use `kindest/node:v1.37.0`, a Kubernetes-in-Docker image optimized for local development. You can use a different node image when creating a cluster:
+By default, clusters use `kindest/node:v1.37.0`, a Kubernetes-in-Docker image optimized for local development. These Kubernetes versions are supported, each with a node image pinned by digest:
+
+| Kubernetes | Node image |
+| --- | --- |
+| 1.37 (default) | `docker.io/kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5` |
+| 1.36 | `docker.io/kindest/node:v1.36.4@sha256:099e049362a1526b2db71494e1947aae99bd16290d7c895f2b7ea312e3cbfaed` |
+| 1.35 | `docker.io/kindest/node:v1.35.8@sha256:07b2536e30b803ed61d1677a79df6115f798ce64c80f9e22f6ed45afd09323c0` |
+
+You can use a different node image when creating a cluster:
 
 ```bash
 container cluster create --node-image docker.io/kindest/node:v1.36.4
