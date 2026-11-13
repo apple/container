@@ -48,6 +48,8 @@ public actor ContainersService {
         var stoppedState: StoppedState?
         var manualStopped: Bool = false
         var backOff: Duration?
+        /// Number of automatic restarts since the container was last started by the user.
+        var restartCount: Int = 0
 
         func getClient() throws -> RuntimeClient {
             guard let client else {
@@ -238,7 +240,9 @@ public actor ContainersService {
                         let manualStopped = state.manualStopped
 
                         switch options.restartPolicy {
-                        case .onFailure where !startFailed && !manualStopped && exitedWithError:
+                        case .onFailure(let maxRetries)
+                        where !startFailed && !manualStopped && exitedWithError
+                            && (maxRetries == 0 || state.restartCount < maxRetries):
                             break
                         case .always where !startFailed && !manualStopped:
                             break
@@ -524,6 +528,10 @@ public actor ContainersService {
             // A new start (by the user or the restart scheduler) clears any previous manual stop,
             // so the restart policy applies again to this run.
             state.manualStopped = false
+            // A start that does not come from the restart scheduler begins a fresh retry budget.
+            if state.snapshot.status != .restarting {
+                state.restartCount = 0
+            }
 
             let path = self.containerRoot.appendingPathComponent(id)
             let (config, _) = try Self.getContainerConfiguration(at: path)
@@ -1208,6 +1216,7 @@ public actor ContainersService {
             }
 
             state.snapshot.status = .restarting
+            state.restartCount += 1
             await self.setContainerState(id, state, context: context)
         }
     }

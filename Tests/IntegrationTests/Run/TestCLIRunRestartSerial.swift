@@ -79,6 +79,44 @@ struct TestCLIRunRestartSerial {
         }
     }
 
+    @Test func testRestartOnFailureMaxRetries() async throws {
+        try await ContainerFixture.with { f in
+            let name = "\(f.testID)-c"
+            let countFile = URL(fileURLWithPath: f.testDir.string).appendingPathComponent("count")
+
+            // Every run appends a line to the host-visible count file, then fails.
+            try await f.doLongRun(
+                name: name,
+                args: ["--restart", "on-failure:2", "--volume", "\(f.testDir.string):/out"],
+                containerArgs: ["sh", "-c", "echo x >> /out/count; exit 1"],
+                autoRemove: false
+            )
+            f.addCleanup { try? f.doRemove(name, force: true) }
+
+            func runCount() -> Int {
+                ((try? String(contentsOf: countFile, encoding: .utf8)) ?? "")
+                    .split(separator: "\n").count
+            }
+
+            // Initial run + 2 retries (backoff 100ms, 200ms), then it must stay stopped.
+            try await Task.sleep(for: .seconds(8))
+            var status = try f.getContainerStatus(name)
+            #expect(status == "stopped", "expected container to stay stopped after exhausting 'on-failure:2', got '\(status)'")
+            #expect(runCount() == 3, "expected 1 initial run + 2 retries, got \(runCount()) runs")
+
+            // Still stopped, no further retries.
+            try await Task.sleep(for: .seconds(3))
+            #expect(runCount() == 3, "expected no more retries once the limit is reached, got \(runCount()) runs")
+
+            // A user start gets a fresh retry budget: 1 run + 2 retries again.
+            try f.run(["start", name]).check()
+            try await Task.sleep(for: .seconds(8))
+            status = try f.getContainerStatus(name)
+            #expect(status == "stopped", "expected container to stop again after exhausting retries, got '\(status)'")
+            #expect(runCount() == 6, "expected a manual start to reset the retry count (6 total runs), got \(runCount()) runs")
+        }
+    }
+
     @Test func testRestartAlways() async throws {
         try await ContainerFixture.with { f in
             let name = "\(f.testID)-c"

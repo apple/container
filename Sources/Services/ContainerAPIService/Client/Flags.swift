@@ -29,7 +29,7 @@ extension RestartPolicy: ExpressibleByArgument {
 
     public var defaultValueDescription: String { cliValue }
 
-    public static var allValueStrings: [String] { ["no", "always", "on-failure", "on-failure:0"] }
+    public static var allValueStrings: [String] { ["no", "always", "on-failure", "on-failure:<max-retries>"] }
 }
 
 public struct Flags {
@@ -371,7 +371,7 @@ public struct Flags {
         @Flag(name: [.customLong("rm"), .long], help: "Remove the container after it stops")
         public var remove = false
 
-        @Option(name: .long, help: "Restart policy when the container exits (no, always, on-failure[:0])")
+        @Option(name: .long, help: "Restart policy when the container exits (no, always, on-failure[:max-retries])")
         public var restart: RestartPolicy = .no
 
         @Flag(name: .long, help: "Enable Rosetta in the container")
