@@ -113,7 +113,7 @@ struct TestClusterMultiNodeSerial {
             let name = "cluster-\(f.testID)"
             f.addCleanup { _ = try? f.run(["cluster", "delete", "--name", name]) }
 
-            try f.restoreWarmupImage(.kindestNodeV1_35_5)
+            try f.restoreWarmupImage(.kindestNodeV1_37_0)
             let result = try f.run([
                 "cluster", "create", "--name", name,
                 "--cpus", "2", "--memory", "2g",
@@ -148,7 +148,7 @@ struct TestClusterMultiNodeSerial {
             let workerName = "\(name)-worker-1"
             f.addCleanup { _ = try? f.run(["cluster", "delete", "--name", name]) }
 
-            try f.restoreWarmupImage(.kindestNodeV1_35_5)
+            try f.restoreWarmupImage(.kindestNodeV1_37_0)
             let result = try f.run(["cluster", "create", "--name", name, "--workers", "1"])
             if result.status != 0 {
                 print("[cluster-multi] cluster create stderr: \(result.error)")

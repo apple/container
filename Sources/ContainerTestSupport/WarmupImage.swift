@@ -23,7 +23,7 @@ public enum WarmupImage: String, CaseIterable, Sendable {
     case alpine320 = "ghcr.io/linuxcontainers/alpine:3.20"
     case alpine318 = "ghcr.io/linuxcontainers/alpine:3.18"
     case busybox136 = "ghcr.io/containerd/busybox:1.36"
-    case kindestNodeV1_35_5 = "docker.io/kindest/node:v1.35.5@sha256:ce977ae6d65918d0b58a5f8b5e940429c2ce42fa3a5619ec2bbc60b949c0ac95"
+    case kindestNodeV1_37_0 = "docker.io/kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5"
 
     /// Directory under app-root holding OCI tar archives of each warmup image.
     ///

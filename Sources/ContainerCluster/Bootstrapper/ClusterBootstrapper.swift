@@ -36,7 +36,7 @@ public struct ClusterBootstrapper: Sendable {
 
     /// - Parameters:
     ///   - name: Cluster name, also the control-plane node's name.
-    ///   - kubernetesVersion: Exact Kubernetes version for kubeadm, e.g. `v1.35.5`. It must match the version installed on the nodes.
+    ///   - kubernetesVersion: Exact Kubernetes version for kubeadm, e.g. `v1.37.0`. It must match the version installed on the nodes.
     ///   - cni: Path to a CNI manifest, `"NONE"` to skip installing one, or nil for the default.
     ///   - fqdn: DNS name for the API server, added to its certificate SANs.
     ///   - sharedImageStore: Points the kubelet at cluster-shim's image service. The provisioners

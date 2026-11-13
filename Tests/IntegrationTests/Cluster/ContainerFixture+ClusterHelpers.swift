@@ -37,7 +37,7 @@ extension ContainerFixture {
     func createCluster(name: String, args: [String] = []) throws -> CommandResult {
         addCleanup { _ = try? self.run(["cluster", "delete", "--name", name]) }
 
-        try restoreWarmupImage(.kindestNodeV1_35_5)
+        try restoreWarmupImage(.kindestNodeV1_37_0)
         let command = ["cluster", "create", "--name", name] + args
         print("[cluster] \(command.joined(separator: " "))")
         let result = try run(command)
