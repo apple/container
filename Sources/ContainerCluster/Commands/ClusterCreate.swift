@@ -54,8 +54,23 @@ public struct ClusterCreate: AsyncParsableCommand {
     @OptionGroup(title: "Image fetch options")
     var imageFetchFlags: Flags.ImageFetch
 
-    @Option(help: "Node image reference")
-    var nodeImage: String = ClusterHelper.nodeImage
+    @Option(
+        help:
+            "Kubernetes version to run, as a minor version such as 1.36 (supported: \(ClusterHelper.supportedVersionList); default: \(ClusterHelper.supportedVersions[0].kubernetesVersion))"
+    )
+    var kubernetesVersion: String?
+
+    @Option(help: "Node image reference, for a version or image not in the supported list (default: the supported image for --kubernetes-version)")
+    var nodeImage: String?
+
+    /// The node image to use: `--node-image` if given, else the image for `--kubernetes-version`, else the default.
+    var resolvedNodeImage: String {
+        if let nodeImage { return nodeImage }
+        if let kubernetesVersion, let supported = ClusterHelper.supportedVersion(kubernetesVersion) {
+            return supported.nodeImage
+        }
+        return ClusterHelper.nodeImage
+    }
 
     @Option(name: .long, help: "Optional path to a CNI manifest to apply, or \"NONE\" to skip installing a CNI.")
     var cni: String?
@@ -78,6 +93,14 @@ public struct ClusterCreate: AsyncParsableCommand {
             throw ValidationError(wrapping: error)
         }
 
+        if kubernetesVersion != nil && nodeImage != nil {
+            throw ValidationError("--kubernetes-version and --node-image can't be used together")
+        }
+        if let kubernetesVersion, ClusterHelper.supportedVersion(kubernetesVersion) == nil {
+            throw ValidationError(
+                "Kubernetes \(kubernetesVersion) isn't supported; supported versions are \(ClusterHelper.supportedVersionList). Use --node-image for another image")
+        }
+
         var total: UInt = 0
         for group in workers {
             // Compare against the remaining room so the running total can't overflow.
@@ -97,6 +120,13 @@ public struct ClusterCreate: AsyncParsableCommand {
             guard FileManager.default.fileExists(atPath: cni) else {
                 throw ContainerizationError(.invalidArgument, message: "CNI manifest not found at \(cni)")
             }
+        }
+
+        let nodeImage = resolvedNodeImage
+        if self.nodeImage != nil, !ClusterHelper.isSupported(nodeImage: nodeImage) {
+            log.warning(
+                "node image is not a supported Kubernetes version; it may not work with this release",
+                metadata: ["image": "\(nodeImage)", "supported": "\(ClusterHelper.supportedVersionList)"])
         }
 
         let containerSystemConfig: ContainerSystemConfig = try await ClientHealthCheck.loadContainerSystemConfig()

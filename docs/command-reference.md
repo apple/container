@@ -1636,13 +1636,14 @@ Creates and starts a local Kubernetes cluster and optional worker nodes. Pulls t
 **Usage**
 
 ```bash
-container cluster create [--name <name>] [--node-image <image>] [--cni <path>] [--workers <n | count=<n>,cpus=<n>,memory=<size>>]... [--shared-image-store] [--rm] [<resource options>] [--debug]
+container cluster create [--name <name>] [--kubernetes-version <kubernetes-version>] [--node-image <image>] [--cni <path>] [--workers <n | count=<n>,cpus=<n>,memory=<size>>]... [--shared-image-store] [--rm] [<resource options>] [--debug]
 ```
 
 **Options**
 
 *   `--name <name>`: Cluster name (default: `cluster-dev`)
-*   `--node-image <image>`: Node image reference (default: `docker.io/kindest/node:v1.35.5`)
+*   `--kubernetes-version <kubernetes-version>`: Kubernetes version to run, as a minor version such as 1.36 (supported: 1.37, 1.36, 1.35; default: 1.37)
+*   `--node-image <image>`: Node image reference, for a version or image not in the supported list (default: the supported image for --kubernetes-version)
 *   `--cni <path>`: Optional path to a CNI manifest to apply, or `NONE` (case-insensitive) to skip installing a CNI. If not provided, the bundled kindnet CNI is used. With `NONE`, the command returns without waiting for nodes to become `Ready`, since that requires a CNI; apply your own afterward with `kubectl apply`.
 *   `--workers <n>`: Number of worker nodes to create (default: `0`, meaning the control-plane node also acts as a worker)
 *   `--workers count=<n>,cpus=<n>,memory=<size>`: A group of `count` identical workers (default `1`) with the given CPUs and memory. Repeat the option to create groups of differently sized workers. Any value left out gets the single-node default (1/4 of host CPUs and memory, minimum 2 CPUs and 2g). Workers are numbered across groups as `<name>-worker-<n>`.

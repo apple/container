@@ -39,7 +39,47 @@ public struct ClusterHelper {
         return "\(max(gb, 2))g"
     }
 
-    public static let nodeImage = "docker.io/kindest/node:v1.35.5@sha256:ce977ae6d65918d0b58a5f8b5e940429c2ce42fa3a5619ec2bbc60b949c0ac95"
+    /// A Kubernetes minor version that `container cluster` supports, and the node image it uses.
+    public struct SupportedVersion: Sendable, Equatable {
+        /// The Kubernetes minor version, e.g. `1.37`.
+        public let kubernetesVersion: String
+        /// The kind node image for that version, pinned by digest.
+        public let nodeImage: String
+    }
+
+    /// The Kubernetes versions `container cluster` supports, newest first; the first is the default.
+    /// Images come from one kind release and are pinned by digest. Each entry needs the bootstrapper
+    /// to handle that version, so add one only after testing it.
+    public static let supportedVersions: [SupportedVersion] = [
+        SupportedVersion(
+            kubernetesVersion: "1.37",
+            nodeImage: "docker.io/kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5"),
+        SupportedVersion(
+            kubernetesVersion: "1.36",
+            nodeImage: "docker.io/kindest/node:v1.36.4@sha256:099e049362a1526b2db71494e1947aae99bd16290d7c895f2b7ea312e3cbfaed"),
+        SupportedVersion(
+            kubernetesVersion: "1.35",
+            nodeImage: "docker.io/kindest/node:v1.35.8@sha256:07b2536e30b803ed61d1677a79df6115f798ce64c80f9e22f6ed45afd09323c0"),
+    ]
+
+    public static let nodeImage = supportedVersions[0].nodeImage
+
+    /// The supported version matching `version` (`1.36` or `v1.36`), or nil.
+    public static func supportedVersion(_ version: String) -> SupportedVersion? {
+        let minor = version.hasPrefix("v") ? String(version.dropFirst()) : version
+        return supportedVersions.first { $0.kubernetesVersion == minor }
+    }
+
+    /// The supported versions as a list for messages, e.g. `1.37, 1.36, 1.35`.
+    public static var supportedVersionList: String {
+        supportedVersions.map(\.kubernetesVersion).joined(separator: ", ")
+    }
+
+    /// Whether a node image carries a supported Kubernetes minor version.
+    static func isSupported(nodeImage: String) -> Bool {
+        guard let tag = try? ClusterConfiguration.kubernetesVersion(nodeImage: nodeImage) else { return false }
+        return supportedVersions.contains { tag.hasPrefix("v\($0.kubernetesVersion).") }
+    }
     static let kubeconfigPath = "/etc/kubernetes/admin.conf"
     static let kubeconfigEnv = "KUBECONFIG=/etc/kubernetes/admin.conf"
     static let kubectlPath = "/bin/kubectl"
