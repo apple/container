@@ -359,8 +359,32 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
         sysctl -w net.bridge.bridge-nf-call-ip6tables=1 2>/dev/null || true
         systemctl restart containerd
         ctr -n k8s.io images tag registry.k8s.io/pause:3.10 registry.k8s.io/pause:3.10.1 2>/dev/null || true
-        /usr/sbin/iptables -t mangle -A OUTPUT  -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1220
-        /usr/sbin/iptables -t mangle -A FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1220
+        \(iptablesSetupScript())
         """
     }
+
+    static func iptablesSetupScript(
+        nftPath: String = "/usr/sbin/iptables-nft",
+        legacyPath: String = "/usr/sbin/iptables-legacy",
+        ip6LegacyPath: String = "/usr/sbin/ip6tables-legacy",
+        updateAlternativesPath: String = "/usr/bin/update-alternatives",
+        iptablesPath: String = "/usr/sbin/iptables"
+    ) -> String {
+        """
+        if ! \(shellQuote(nftPath)) -t mangle -S >/dev/null 2>&1; then
+          \(shellQuote(updateAlternativesPath)) --set iptables \(shellQuote(legacyPath))
+          \(shellQuote(updateAlternativesPath)) --set ip6tables \(shellQuote(ip6LegacyPath))
+        fi
+        \(shellQuote(iptablesPath)) -t mangle -C OUTPUT -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1220 2>/dev/null || \\
+          \(shellQuote(iptablesPath)) -t mangle -A OUTPUT -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1220
+        \(shellQuote(iptablesPath)) -t mangle -C FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1220 2>/dev/null || \\
+          \(shellQuote(iptablesPath)) -t mangle -A FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1220
+        """
+    }
+
+    /// Quotes a value as one shell word, including any embedded single quotes.
+    private static func shellQuote(_ value: String) -> String {
+        "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    }
+
 }
