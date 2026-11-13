@@ -14,10 +14,55 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerizationError
+
+/// The policy applied when a container's init process exits.
+///
+/// The raw values are the persisted (serialized) form and must remain stable.
+/// The command-line spelling is Docker-compatible and handled by ``init(parsing:)``
+/// and ``cliValue``.
 public enum RestartPolicy: String, Sendable, Codable {
+    /// Never restart the container.
     case no
+    /// Restart only when the container exits with a non-zero exit code.
+    /// Retries are unlimited, matching Docker's `on-failure:0` (Moby treats
+    /// `MaximumRetryCount == 0` as unlimited).
     case onFailure
+    /// Always restart the container, unless it was manually stopped.
     case always
+
+    /// Parses the Docker-compatible `--restart` value: `no`, `always`,
+    /// `on-failure` or `on-failure:0`.
+    ///
+    /// `on-failure:<max-retries>` with a non-zero count is not supported yet.
+    /// Swift enum spellings such as `onFailure` are rejected.
+    public init(parsing value: String) throws {
+        switch value {
+        case "no": self = .no
+        case "always": self = .always
+        case "on-failure", "on-failure:0": self = .onFailure
+        default:
+            if value.hasPrefix("on-failure:") {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "unsupported restart policy '\(value)': only 'on-failure' and 'on-failure:0' (unlimited retries) are supported"
+                )
+            }
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "invalid restart policy '\(value)': expected one of no, always, on-failure, on-failure:0"
+            )
+        }
+    }
+
+    /// The Docker-compatible command-line spelling.
+    public var cliValue: String {
+        switch self {
+        case .no: "no"
+        case .always: "always"
+        case .onFailure: "on-failure"
+        }
+    }
 }
 
 public struct ContainerCreateOptions: Codable, Sendable {
@@ -31,6 +76,16 @@ public struct ContainerCreateOptions: Codable, Sendable {
         self.autoRemove = autoRemove
         self.restartPolicy = restartPolicy
         self.rootFsOverride = rootFsOverride
+    }
+
+    /// Validates option combinations that must be rejected before a container is created.
+    public func validate() throws {
+        if autoRemove && restartPolicy != .no {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "conflicting options: --rm cannot be used with --restart \(restartPolicy.cliValue)"
+            )
+        }
     }
 
     public static let `default` = ContainerCreateOptions(autoRemove: false, restartPolicy: .no)
