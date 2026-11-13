@@ -104,14 +104,20 @@ public actor ContainersService {
             do {
                 let (config, options) = try Self.getContainerConfiguration(at: dir)
 
-                guard let plugin = runtimePlugins.first(where: { $0.name == config.runtimeHandler }) else {
+                guard dir.lastPathComponent == config.id else {
                     throw ContainerizationError(
-                        .internalError,
-                        message: "failed to find runtime plugin \(config.runtimeHandler)"
+                        .invalidState,
+                        message: "container directory name \(dir.lastPathComponent) does not match configured ID \(config.id)"
                     )
                 }
 
                 if options?.autoRemove ?? false {
+                    guard let plugin = runtimePlugins.first(where: { $0.name == config.runtimeHandler }) else {
+                        throw ContainerizationError(
+                            .internalError,
+                            message: "failed to find runtime plugin \(config.runtimeHandler)"
+                        )
+                    }
                     log.info(
                         "reap auto-remove container",
                         metadata: [
@@ -151,10 +157,15 @@ public actor ContainersService {
                     ),
                 )
                 results[config.id] = state
+                guard runtimePlugins.contains(where: { $0.name == config.runtimeHandler }) else {
+                    throw ContainerizationError(
+                        .internalError,
+                        message: "failed to find runtime plugin \(config.runtimeHandler)"
+                    )
+                }
             } catch {
-                try? FileManager.default.removeItem(at: dir)
                 log.warning(
-                    "failed to load container",
+                    "failed to load container; leaving bundle on disk",
                     metadata: [
                         "path": "\(dir.path)",
                         "error": "\(error)",
@@ -406,8 +417,14 @@ public actor ContainersService {
             }
 
             do {
+                guard let runtimePlugin = self.runtimePlugins.first(where: { $0.name == config.runtimeHandler }) else {
+                    throw ContainerizationError(
+                        .internalError,
+                        message: "failed to find runtime plugin \(config.runtimeHandler)"
+                    )
+                }
                 try Self.registerService(
-                    plugin: self.runtimePlugins.first { $0.name == config.runtimeHandler }!,
+                    plugin: runtimePlugin,
                     loader: self.pluginLoader,
                     configuration: config,
                     path: path,
