@@ -36,7 +36,7 @@ public final class ReservedVmnetNetwork: ContainerNetworkServer.Network {
     private struct NetworkInfo {
         let network: vmnet_network_ref
         let ipv4Subnet: CIDRv4
-        let ipv4Gateway: IPv4Address
+        let ipv4Gateway: IPv4Address?
         let ipv6Subnet: CIDRv6
     }
 
@@ -168,7 +168,7 @@ public final class ReservedVmnetNetwork: ContainerNetworkServer.Network {
         let lower = IPv4Address(subnetValue & maskValue)
         let upper = IPv4Address(lower.value + ~maskValue)
         let runningSubnet = try CIDRv4(lower: lower, upper: upper)
-        let runningGateway = IPv4Address(runningSubnet.lower.value + 1)
+        let runningGateway: IPv4Address? = configuration.mode == .hostOnly ? nil : IPv4Address(runningSubnet.lower.value + 1)
 
         var prefixAddr = in6_addr()
         var prefixLength = UInt8(0)
