@@ -63,6 +63,23 @@ public struct ClusterHelper {
     ]
 
     public static let nodeImage = supportedVersions[0].nodeImage
+
+    /// The supported version matching `version` (`1.36` or `v1.36`), or nil.
+    public static func supportedVersion(_ version: String) -> SupportedVersion? {
+        let minor = version.hasPrefix("v") ? String(version.dropFirst()) : version
+        return supportedVersions.first { $0.kubernetesVersion == minor }
+    }
+
+    /// The supported versions as a list for messages, e.g. `1.37, 1.36, 1.35`.
+    public static var supportedVersionList: String {
+        supportedVersions.map(\.kubernetesVersion).joined(separator: ", ")
+    }
+
+    /// Whether a node image carries a supported Kubernetes minor version.
+    static func isSupported(nodeImage: String) -> Bool {
+        guard let tag = try? ClusterConfiguration.kubernetesVersion(nodeImage: nodeImage) else { return false }
+        return supportedVersions.contains { tag.hasPrefix("v\($0.kubernetesVersion).") }
+    }
     static let kubeconfigPath = "/etc/kubernetes/admin.conf"
     static let kubeconfigEnv = "KUBECONFIG=/etc/kubernetes/admin.conf"
     static let kubectlPath = "/bin/kubectl"

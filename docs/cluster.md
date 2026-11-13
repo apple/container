@@ -178,10 +178,16 @@ By default, clusters use `kindest/node:v1.37.0`, a Kubernetes-in-Docker image op
 | 1.36 | `docker.io/kindest/node:v1.36.4@sha256:099e049362a1526b2db71494e1947aae99bd16290d7c895f2b7ea312e3cbfaed` |
 | 1.35 | `docker.io/kindest/node:v1.35.8@sha256:07b2536e30b803ed61d1677a79df6115f798ce64c80f9e22f6ed45afd09323c0` |
 
-You can use a different node image when creating a cluster:
+Choose a supported version with `--kubernetes-version`:
 
 ```bash
-container cluster create --node-image docker.io/kindest/node:v1.36.4
+container cluster create --kubernetes-version 1.36
+```
+
+For a version or image not in the table, use `--node-image` instead. `container cluster create` warns that the image isn't a supported version, since the bootstrapper is only tested against the versions above:
+
+```bash
+container cluster create --node-image docker.io/kindest/node:v1.34.11
 ```
 
 ## Custom CNI
