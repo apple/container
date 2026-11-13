@@ -53,7 +53,7 @@ extension Application {
         @Flag(
             name: .long,
             inversion: .prefixedEnableDisable,
-            help: "Specify whether the default kernel should be installed or not (default: prompt user)")
+            help: "Specify whether the default kernel should be installed or not (default: prompt user, or skip if no answer can be read from standard input)")
         var kernelInstall: Bool?
 
         @Option(
@@ -174,23 +174,50 @@ extension Application {
             }
         }
 
+        enum KernelInstallDecision {
+            case install
+            case skip
+            case decline
+            case failWithoutAnswer
+            case skipWithoutAnswer
+        }
+
+        static func kernelInstallDecision(
+            kernelInstall: Bool?,
+            isTerminal: Bool,
+            readAnswer: () -> String?
+        ) -> KernelInstallDecision {
+            if let kernelInstall {
+                return kernelInstall ? .install : .skip
+            }
+            guard let read = readAnswer() else {
+                // Outside a terminal (e.g. under launchd), skip rather than fail so the services stay up.
+                return isTerminal ? .failWithoutAnswer : .skipWithoutAnswer
+            }
+            return read.lowercased() == "y" || read.count == 0 ? .install : .decline
+        }
+
         private func installDefaultKernel(kernelURL: URL, kernelBinaryPath: String, kernelDigest: String) async throws {
-            var shouldInstallKernel = false
-            if kernelInstall == nil {
+            let isTerminal = isatty(FileHandle.standardInput.fileDescriptor) == 1
+            let decision = Self.kernelInstallDecision(kernelInstall: kernelInstall, isTerminal: isTerminal) {
                 log.warning("No default kernel configured.")
                 print("Install the recommended default kernel from [\(kernelURL)]? [Y/n]: ", terminator: "")
-                guard let read = readLine(strippingNewline: true) else {
-                    throw ContainerizationError(.internalError, message: "failed to read user input")
-                }
-                guard read.lowercased() == "y" || read.count == 0 else {
-                    log.info("Please use the `container system kernel set --recommended` command to configure the default kernel")
-                    return
-                }
-                shouldInstallKernel = true
-            } else {
-                shouldInstallKernel = kernelInstall ?? false
+                return readLine(strippingNewline: true)
             }
-            guard shouldInstallKernel else {
+            switch decision {
+            case .install:
+                break
+            case .skip:
+                return
+            case .decline:
+                log.info("Please use the `container system kernel set --recommended` command to configure the default kernel")
+                return
+            case .failWithoutAnswer:
+                throw ContainerizationError(.internalError, message: "failed to read user input")
+            case .skipWithoutAnswer:
+                log.warning(
+                    "Services started, but no default kernel is configured and none was installed because no answer could be read from standard input. Containers cannot start until a default kernel is set. Run `container system kernel set --recommended`, or start with `--enable-kernel-install`."
+                )
                 return
             }
             log.info("Installing kernel...")
