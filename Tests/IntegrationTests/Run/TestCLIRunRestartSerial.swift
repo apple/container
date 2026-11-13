@@ -55,7 +55,7 @@ struct TestCLIRunRestartSerial {
             let failing = "\(f.testID)-exit-fail"
 
             // Non-zero exit: should restart
-            try await runWithRestartOnce(f, name: failing, policy: "onFailure", exitCode: 1)
+            try await runWithRestartOnce(f, name: failing, policy: "on-failure", exitCode: 1)
 
             // Give time for container to restart
             try await Task.sleep(for: .seconds(3))
@@ -71,7 +71,7 @@ struct TestCLIRunRestartSerial {
             #expect(status == "stopped", "expected container with 'onFailure' policy to not restart after manual stop, got '\(status)'")
 
             let succeeding = "\(f.testID)-exit-succeed"
-            try await runWithRestartOnce(f, name: succeeding, policy: "onFailure", exitCode: 0)
+            try await runWithRestartOnce(f, name: succeeding, policy: "on-failure", exitCode: 0)
 
             try await Task.sleep(for: .seconds(3))
             status = try f.getContainerStatus(succeeding)

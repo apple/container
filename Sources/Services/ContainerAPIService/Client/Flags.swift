@@ -19,7 +19,18 @@ import ContainerResource
 import ContainerizationError
 import Foundation
 
-extension RestartPolicy: ExpressibleByArgument {}
+extension RestartPolicy: ExpressibleByArgument {
+    public init?(argument: String) {
+        guard let policy = try? RestartPolicy(parsing: argument) else {
+            return nil
+        }
+        self = policy
+    }
+
+    public var defaultValueDescription: String { cliValue }
+
+    public static var allValueStrings: [String] { ["no", "always", "on-failure", "on-failure:0"] }
+}
 
 public struct Flags {
     public struct Logging: ParsableArguments {
@@ -360,7 +371,7 @@ public struct Flags {
         @Flag(name: [.customLong("rm"), .long], help: "Remove the container after it stops")
         public var remove = false
 
-        @Option(name: .long, help: "Restart policy when the container exits")
+        @Option(name: .long, help: "Restart policy when the container exits (no, always, on-failure[:0])")
         public var restart: RestartPolicy = .no
 
         @Flag(name: .long, help: "Enable Rosetta in the container")
@@ -389,6 +400,9 @@ public struct Flags {
         public var volumes: [String] = []
 
         public func validate() throws {
+            if remove && restart != .no {
+                throw ValidationError("`--rm` cannot be used with `--restart \(restart.cliValue)`")
+            }
             if dnsDisabled {
                 let hasDNSConfig =
                     !dns.nameservers.isEmpty
