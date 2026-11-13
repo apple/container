@@ -89,7 +89,7 @@ extension Application {
                 log: log
             )
 
-            let options = ContainerCreateOptions(autoRemove: managementFlags.remove)
+            let options = ContainerCreateOptions(autoRemove: managementFlags.remove, restartPolicy: managementFlags.restart)
             let client = ContainerClient()
             try await client.create(configuration: ck.0, options: options, kernel: ck.1, initImage: ck.2)
 

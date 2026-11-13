@@ -309,6 +309,8 @@ extension APIServer {
             routes[XPCRoute.containerExport] = XPCServer.route(harness.export)
             routes[XPCRoute.containerClean] = XPCServer.route(harness.clean)
 
+            async let _ = try service.runRestartScheduler()
+
             return service
         }
 
