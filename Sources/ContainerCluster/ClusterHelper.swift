@@ -49,6 +49,8 @@ public struct ClusterHelper {
     static let podSubnet = "10.244.0.0/16"
     /// Sentinel value for `--cni` (compared case-insensitively) that skips installing a CNI entirely.
     static let noCNIName = "NONE"
+    /// Seconds a node gets to stop before it is killed.
+    static let nodeStopTimeoutSeconds: Int32 = 30
     // kubeadm default service subnet; must stay in sync if ClusterConfiguration.serviceSubnet is ever set.
     static let serviceSubnet = "10.96.0.0/12"
 
@@ -56,6 +58,16 @@ public struct ClusterHelper {
     static let proxyEnvVars = ["HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy"]
 
     public static let clusterContainerPort: UInt16 = 6443
+
+    /// Returns true when `cni` is the sentinel that skips installing a CNI.
+    static func skipsCNI(cni: String?) -> Bool {
+        cni?.uppercased() == noCNIName
+    }
+
+    /// Returns true when `cni` is unset, which installs the default CNI.
+    static func usesDefaultCNI(cni: String?) -> Bool {
+        cni == nil
+    }
 
     /// Host socket served by the cluster-hoststore plugin and relayed into each node.
     public static let hostStoreSocketPath = ApplicationRoot.path.appending("cluster-hoststore.sock")

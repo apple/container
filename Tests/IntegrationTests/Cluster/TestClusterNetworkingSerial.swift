@@ -21,55 +21,13 @@ import Testing
 @Suite(.serialized)
 struct TestClusterNetworkingSerial {
 
-    private static let testImage = WarmupImage.alpine320
-    /// A name only the host image store has, so pods can start only through cluster-shim.
-    private static let hostOnlyImage = "cluster-test/alpine:host-only"
-
-    /// Shares the local image store with the cluster when the build includes cluster-shim.
-    private static var sharedImageStoreArgs: [String] {
-        guard ContainerFixture.clusterShimInstalled else {
-            print("[cluster-net] no cluster-shim in this build; testing without the shared image store")
-            return []
-        }
-        return ["--shared-image-store"]
-    }
-
-    /// Makes the test image available to pods and returns the reference and pull
-    /// policy to use. With cluster-shim, pods use a name only the host has.
-    private static func preparePodImage(_ f: ContainerFixture) throws -> (reference: String, pullPolicy: String) {
-        print("[cluster-net] pulling \(testImage.rawValue)")
-        try f.restoreWarmupImage(testImage)
-        guard ContainerFixture.clusterShimInstalled else {
-            return (testImage.rawValue, "IfNotPresent")
-        }
-        try f.run(["image", "tag", testImage.rawValue, hostOnlyImage]).check()
-        return (hostOnlyImage, "Never")
-    }
-
-    private func waitForPod(_ f: ContainerFixture, node: String, podName: String, timeoutSeconds: Int) throws {
-        print("[cluster-net] waitForPod \(podName) on \(node) (timeout=\(timeoutSeconds)s)")
-        let (_, status) = try f.kubectl(
-            node: node,
-            args: [
-                "wait", "--for=condition=Ready", "pod/\(podName)", "--timeout=\(timeoutSeconds)s",
-            ])
-        guard status == 0 else {
-            let (podStatus, _) = try f.kubectl(node: node, args: ["get", "pod", podName, "--no-headers"])
-            print("[cluster-net] pod \(podName) status: \(podStatus.trimmingCharacters(in: .whitespacesAndNewlines))")
-            let (podDesc, _) = try f.kubectl(node: node, args: ["describe", "pod", podName])
-            print("[cluster-net] pod \(podName) describe:\n\(podDesc.prefix(1000))")
-            throw CommandError.executionFailed("pod \(podName) did not become ready within \(timeoutSeconds)s")
-        }
-        print("[cluster-net] pod \(podName) is Ready")
-    }
-
     // Verify that a pod schedules, reaches Running, and can be exec'd into.
     @Test func testPodsScheduleAndRun() async throws {
         try await ContainerFixture.with { f in
             let name = "cluster-\(f.testID)"
-            try f.createCluster(name: name, args: Self.sharedImageStoreArgs)
+            try f.createCluster(name: name, args: ContainerFixture.sharedImageStoreArgs)
 
-            let podImage = try Self.preparePodImage(f)
+            let podImage = try f.preparePodImage()
 
             let (_, createStatus) = try f.kubectl(
                 node: name,
@@ -82,7 +40,7 @@ struct TestClusterNetworkingSerial {
                 ])
             #expect(createStatus == 0)
 
-            try waitForPod(f, node: name, podName: "test-pod", timeoutSeconds: 300)
+            try f.waitForPod(node: name, podName: "test-pod", timeoutSeconds: 300)
 
             let (output, execStatus) = try f.kubectl(
                 node: name,
@@ -98,9 +56,9 @@ struct TestClusterNetworkingSerial {
     @Test func testPodToServiceCommunication() async throws {
         try await ContainerFixture.with { f in
             let name = "cluster-\(f.testID)"
-            try f.createCluster(name: name, args: Self.sharedImageStoreArgs)
+            try f.createCluster(name: name, args: ContainerFixture.sharedImageStoreArgs)
 
-            let podImage = try Self.preparePodImage(f)
+            let podImage = try f.preparePodImage()
 
             // Server: alpine busybox httpd serving a static response.
             let (_, serverStatus) = try f.kubectl(
@@ -115,7 +73,7 @@ struct TestClusterNetworkingSerial {
                     "while true; do printf 'HTTP/1.1 200 OK\\r\\nContent-Length: 2\\r\\nConnection: close\\r\\n\\r\\nok' | nc -l -p 8080; done",
                 ])
             #expect(serverStatus == 0)
-            try waitForPod(f, node: name, podName: "server", timeoutSeconds: 300)
+            try f.waitForPod(node: name, podName: "server", timeoutSeconds: 300)
 
             // Expose server as a ClusterIP service.
             let (_, exposeStatus) = try f.kubectl(
@@ -136,7 +94,7 @@ struct TestClusterNetworkingSerial {
                     "--", "sleep", "300",
                 ])
             #expect(clientStatus == 0)
-            try waitForPod(f, node: name, podName: "client", timeoutSeconds: 300)
+            try f.waitForPod(node: name, podName: "client", timeoutSeconds: 300)
 
             // Reach server via the service DNS name — exercises CoreDNS + kube-proxy.
             print("[cluster-net] wget from client to server-svc:8080")

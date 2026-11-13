@@ -41,7 +41,11 @@ public struct ClusterCommand: AsyncParsableCommand {
                 $ container build -t my-hello:dev .
                 $ kubectl run hello --image=my-hello:dev --restart=Never --attach --rm -i
 
-              Stop and delete the cluster:
+              Stop and start the cluster, keeping its disks and kubeconfig entry:
+                $ container cluster stop --name my-cluster
+                $ container cluster start --name my-cluster
+
+              Delete the cluster:
                 $ container cluster delete --name my-cluster
             """,
         version: ReleaseVersion.singleLine(appName: "cluster"),
@@ -49,6 +53,8 @@ public struct ClusterCommand: AsyncParsableCommand {
             ClusterCreate.self,
             ClusterDelete.self,
             ClusterList.self,
+            ClusterStart.self,
+            ClusterStop.self,
             ClusterWriteConfig.self,
         ]
     )

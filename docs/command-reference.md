@@ -1747,6 +1747,56 @@ container cluster ls --format json
 container cluster ls -q
 ```
 
+### `container cluster start`
+
+Starts a stopped Kubernetes cluster and its nodes, waits until the cluster is ready, and refreshes the kubeconfig entry. See [Container cluster](cluster.md) for details.
+
+**Usage**
+
+```bash
+container cluster start [--name <name>] [--debug]
+```
+
+**Options**
+
+*   `--name <name>`: Cluster name (default: `cluster-dev`)
+
+**Examples**
+
+```bash
+# start the default cluster
+container cluster start
+
+# start a named cluster
+container cluster start --name my-cluster
+```
+
+### `container cluster stop`
+
+Stops a Kubernetes cluster and its nodes. The Kubernetes API server is unreachable until the cluster is started again. Node disks, the stored cluster configuration and the kubeconfig entry are kept.
+
+**Usage**
+
+```bash
+container cluster stop [--name <name>] [--signal <signal>] [--time <time>] [--debug]
+```
+
+**Options**
+
+*   `--name <name>`: Cluster name (default: `cluster-dev`)
+*   `-s, --signal <signal>`: Signal to send to a node (default: the node image's stop signal)
+*   `-t, --time <time>`: Seconds to wait before killing a node (default: 30)
+
+**Examples**
+
+```bash
+# stop the default cluster
+container cluster stop
+
+# stop a named cluster, waiting up to 60 seconds for each node
+container cluster stop --name my-cluster --time 60
+```
+
 ### `container cluster write-config`
 
 Fetches the current kubeconfig from a running cluster and merges its context into a kubeconfig file. Use this to write to an alternate config file.

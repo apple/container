@@ -86,12 +86,8 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
         var volumes: [String] = []
         if sharedImageStore {
             _ = try await ClusterHelper.clusterShimURL(log: log)
-            let hostStoreSocket = ClusterHelper.hostStoreSocketPath.string
-            guard FileManager.default.fileExists(atPath: hostStoreSocket) else {
-                throw ContainerizationError(
-                    .notFound, message: "host store socket \(hostStoreSocket) not found; is the cluster-hoststore plugin installed and running?")
-            }
-            volumes.append("\(hostStoreSocket):\(ClusterHelper.nodeHostStoreSocketPath)")
+            try ClusterHelper.checkHostStoreSocket(path: ClusterHelper.hostStoreSocketPath)
+            volumes.append("\(ClusterHelper.hostStoreSocketPath.string):\(ClusterHelper.nodeHostStoreSocketPath)")
         }
         try await ClusterHelper.ensureImage(nodeImage: resolvedImage, log: log, containerSystemConfig: containerSystemConfig)
 
@@ -140,10 +136,13 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
             volumes: volumes
         )
 
+        let controlPlaneHost = ClusterHelper.controlPlaneEndpointHost(clusterName: clusterName, fqdn: fqdn)
+        let proxyEnv = ClusterHelper.nodeProxyEnv(
+            hostEnvironment: ProcessInfo.processInfo.environment, controlPlaneHost: controlPlaneHost)
         let updatedResource = ClusterHelper.defaultedResourceFlags(Flags.Resource(cpus: cpus, memory: memory))
         let processFlags = Flags.Process(
             cwd: nil,
-            env: ClusterHelper.nodeProxyEnv(),
+            env: proxyEnv,
             envFile: [],
             gid: nil,
             interactive: false,
@@ -228,6 +227,17 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
         }
     }
 
+    public func setControlPlaneHost(host: String, address: String, log: Logger) async throws {
+        log.info("Setting control-plane host", metadata: ["node": "\(name)", "host": "\(host)", "address": "\(address)"])
+        let result = try await ClusterHelper.execCapture(
+            containerId: name, executable: "/bin/sh",
+            arguments: ["-c", ClusterHelper.hostsFileScript(host: host, address: address)],
+            client: ContainerClient())
+        guard result.code == 0 else {
+            throw ContainerizationError(.internalError, message: "failed to update /etc/hosts on \(name): \(result.output)")
+        }
+    }
+
     public func waitForReady(log: Logger) async throws {
         let timeout = 180
         let client = ContainerClient()
@@ -304,6 +314,17 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
         }
     }
 
+    /// Re-applies the settings that a VM restart clears.
+    public func reapplyNetworkSettings(log: Logger) async throws {
+        log.info("Re-applying network settings", metadata: ["node": "\(name)"])
+        let result = try await ClusterHelper.execCapture(
+            containerId: name, executable: "/bin/sh",
+            arguments: ["-c", "set -e\n" + Self.nodeNetworkScript], client: ContainerClient())
+        guard result.code == 0 else {
+            throw ContainerizationError(.internalError, message: "network setup failed on \(name): \(result.output)")
+        }
+    }
+
     /// Configures the node. With `sharedImageStore`, it also installs cluster-shim
     /// so the node can use images from the host image store.
     private func prepareNode(nodeID: String, client: ContainerClient, log: Logger) async throws {
@@ -354,13 +375,20 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
         [plugins.'io.containerd.cri.v1.images']
           snapshotter = "native"
         EOF
+        systemctl restart containerd
+        ctr -n k8s.io images tag registry.k8s.io/pause:3.10 registry.k8s.io/pause:3.10.1 2>/dev/null || true
+        \(nodeNetworkScript)
+        """
+    }
+
+    /// Kernel settings and iptables rules that do not survive a VM restart.
+    private static var nodeNetworkScript: String {
+        """
         sysctl -w net.ipv4.ip_forward=1                 2>/dev/null || true
         sysctl -w net.bridge.bridge-nf-call-iptables=1  2>/dev/null || true
         sysctl -w net.bridge.bridge-nf-call-ip6tables=1 2>/dev/null || true
-        systemctl restart containerd
-        ctr -n k8s.io images tag registry.k8s.io/pause:3.10 registry.k8s.io/pause:3.10.1 2>/dev/null || true
-        /usr/sbin/iptables -t mangle -A OUTPUT  -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1220
-        /usr/sbin/iptables -t mangle -A FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1220
+        /usr/sbin/iptables -w -t mangle -A OUTPUT  -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1220
+        /usr/sbin/iptables -w -t mangle -A FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1220
         """
     }
 }

@@ -42,6 +42,39 @@ struct ClusterCreateCNIFlagTests {
     }
 }
 
+// MARK: - CNI selection
+
+@Suite("ClusterHelper.skipsCNI")
+struct SkipsCNITests {
+    @Test(arguments: ["NONE", "none", "None"])
+    func noneSkipsCNI(value: String) {
+        #expect(ClusterHelper.skipsCNI(cni: value))
+    }
+
+    @Test func unsetDoesNotSkipCNI() {
+        #expect(!ClusterHelper.skipsCNI(cni: nil))
+    }
+
+    @Test func manifestPathDoesNotSkipCNI() {
+        #expect(!ClusterHelper.skipsCNI(cni: "/tmp/my-cni.yaml"))
+    }
+}
+
+@Suite("ClusterHelper.usesDefaultCNI")
+struct UsesDefaultCNITests {
+    @Test func unsetUsesDefaultCNI() {
+        #expect(ClusterHelper.usesDefaultCNI(cni: nil))
+    }
+
+    @Test func noneDoesNotUseDefaultCNI() {
+        #expect(!ClusterHelper.usesDefaultCNI(cni: "NONE"))
+    }
+
+    @Test func manifestPathDoesNotUseDefaultCNI() {
+        #expect(!ClusterHelper.usesDefaultCNI(cni: "/tmp/my-cni.yaml"))
+    }
+}
+
 // MARK: - ClusterBootstrapper.loadCNIManifest
 
 @Suite("ClusterBootstrapper.loadCNIManifest")

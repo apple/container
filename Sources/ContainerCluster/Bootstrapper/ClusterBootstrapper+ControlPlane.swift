@@ -22,11 +22,12 @@ import Logging
 
 extension ClusterBootstrapper {
     func bootstrapControlPlane(
-        nodeID: String, apiServerSANs: [String], advertiseAddress: String,
+        nodeID: String, apiServerSANs: [String], advertiseAddress: String, controlPlaneEndpoint: String,
         schedulable: Bool, client: ContainerClient, log: Logger
     ) async throws {
         let configYAML = Self.initConfigYAML(
-            kubernetesVersion: kubernetesVersion, advertiseAddress: advertiseAddress, certSANs: apiServerSANs,
+            kubernetesVersion: kubernetesVersion, advertiseAddress: advertiseAddress,
+            controlPlaneEndpoint: controlPlaneEndpoint, certSANs: apiServerSANs,
             sharedImageStore: sharedImageStore)
         var r = try await ClusterHelper.execCapture(
             containerId: nodeID, executable: "/bin/sh",
@@ -118,7 +119,8 @@ extension ClusterBootstrapper {
     }
 
     static func initConfigYAML(
-        kubernetesVersion: String, advertiseAddress: String, certSANs: [String], sharedImageStore: Bool
+        kubernetesVersion: String, advertiseAddress: String, controlPlaneEndpoint: String, certSANs: [String],
+        sharedImageStore: Bool
     ) -> String {
         let sans = certSANs.map { "  - \($0)" }.joined(separator: "\n")
         var kubelet = """
@@ -135,13 +137,14 @@ extension ClusterBootstrapper {
             kind: InitConfiguration
             localAPIEndpoint:
               advertiseAddress: \(advertiseAddress)
-              bindPort: 6443
+              bindPort: \(ClusterHelper.clusterContainerPort)
             nodeRegistration:
               criSocket: unix:///run/containerd/containerd.sock
             ---
             apiVersion: kubeadm.k8s.io/v1beta4
             kind: ClusterConfiguration
             kubernetesVersion: \(kubernetesVersion)
+            controlPlaneEndpoint: \(controlPlaneEndpoint):\(ClusterHelper.clusterContainerPort)
             networking:
               podSubnet: \(ClusterHelper.podSubnet)
             apiServer:

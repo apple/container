@@ -59,10 +59,16 @@ public protocol NodeProvisioner: Sendable {
     /// Join a worker node to the cluster using the supplied kubeadm credentials.
     ///
     /// - Parameters:
-    ///   - controlPlaneEndpoint: `<ip>:<port>` of the control-plane API server.
+    ///   - controlPlaneEndpoint: `<host>:<port>` of the control-plane API server.
     ///   - token: kubeadm bootstrap token (format `<id>.<secret>`).
     ///   - caCertHash: Discovery token CA cert hash including the `sha256:` prefix.
     func join(controlPlaneEndpoint: String, token: String, caCertHash: String, log: Logger) async throws
+
+    /// Maps `host` to `address` in the node's /etc/hosts.
+    func setControlPlaneHost(host: String, address: String, log: Logger) async throws
+
+    /// Re-applies the node settings that a restart clears.
+    func reapplyNetworkSettings(log: Logger) async throws
 
     /// Poll until the node is registered and Ready in the cluster.
     func waitForReady(log: Logger) async throws
