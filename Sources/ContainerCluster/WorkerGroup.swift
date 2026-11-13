@@ -23,23 +23,27 @@ import Foundation
 /// A set of identical worker nodes described by one `--workers` value.
 ///
 /// A value is either a bare number (`3`) or a comma-separated list of `key=value` pairs
-/// (`count=2,cpus=4,memory=8g`). Omitted `cpus` and `memory` are left unset, so those workers get the single-node default
-/// (1/4 of host CPUs and memory, minimum 2 CPUs and 2g).
+/// (`count=2,cpus=4,memory=8g,virtualization=true,kernel=/path/to/vmlinux`). Omitted `cpus` and `memory` are left unset,
+/// so those workers get the single-node default (1/4 of host CPUs and memory, minimum 2 CPUs and 2g). Omitted `virtualization`
+/// is `false`, and omitted `kernel` uses the default kernel, as for `container run`.
 struct WorkerGroup: Equatable {
     let count: UInt
     let cpus: Int64?
     let memory: String?
+    let virtualization: Bool
+    /// Absolute path of the kernel the workers boot, or `nil` for the default kernel.
+    let kernel: String?
 
     /// Creates a group, validating every field.
     ///
-    /// - Throws: `ValidationError` if `count` exceeds the most workers a cluster may have, if the group sizes
+    /// - Throws: `ValidationError` if `count` exceeds the most workers a cluster may have, if the group configures
     ///   workers but has `count == 0`, or if `cpus` or `memory` is outside what a container may be created with.
-    init(count: UInt, cpus: Int64? = nil, memory: String? = nil) throws {
+    init(count: UInt, cpus: Int64? = nil, memory: String? = nil, virtualization: Bool = false, kernel: String? = nil) throws {
         guard count <= ClusterConfiguration.maxWorkers else {
             throw ValidationError("worker count \(count) is more than the \(ClusterConfiguration.maxWorkers) workers a cluster may have")
         }
-        guard count > 0 || (cpus == nil && memory == nil) else {
-            throw ValidationError("a worker group that sets cpus or memory must have a count of at least 1")
+        guard count > 0 || (cpus == nil && memory == nil && !virtualization && kernel == nil) else {
+            throw ValidationError("a worker group that sets cpus, memory, virtualization or kernel must have a count of at least 1")
         }
         if let cpus {
             do { _ = try Parser.cpus(cpus) } catch { throw ValidationError(wrapping: error) }
@@ -50,6 +54,13 @@ struct WorkerGroup: Equatable {
         self.count = count
         self.cpus = cpus
         self.memory = memory
+        self.virtualization = virtualization
+        self.kernel = kernel.map(Self.absoluteKernelPath)
+    }
+
+    /// Resolves `path` against the current directory, as `container run --kernel` does.
+    static func absoluteKernelPath(_ path: String) -> String {
+        URL(fileURLWithPath: path, relativeTo: .currentDirectory()).absoluteURL.path(percentEncoded: false)
     }
 
     /// Parses one `--workers` value. Suitable as an `@Option` transform.
@@ -66,11 +77,13 @@ struct WorkerGroup: Equatable {
         var count: UInt = 1
         var cpus: Int64?
         var memory: String?
+        var virtualization = false
+        var kernel: String?
         var seen = Set<String>()
         for pair in value.split(separator: ",", omittingEmptySubsequences: false) {
             let parts = pair.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
             guard parts.count == 2, !parts[0].isEmpty, !parts[1].isEmpty else {
-                throw ValidationError("invalid worker option '\(pair)' in '\(value)': expected a number or key=value pairs (count, cpus, memory)")
+                throw ValidationError("invalid worker option '\(pair)' in '\(value)': expected a number or key=value pairs (count, cpus, memory, virtualization, kernel)")
             }
             let (key, val) = (String(parts[0]), String(parts[1]))
             guard seen.insert(key).inserted else {
@@ -89,12 +102,19 @@ struct WorkerGroup: Equatable {
                 cpus = parsed
             case "memory":
                 memory = val
+            case "virtualization":
+                guard let parsed = Parser.parseBool(string: val) else {
+                    throw ValidationError("invalid worker virtualization '\(val)' in '\(value)': expected true or false")
+                }
+                virtualization = parsed
+            case "kernel":
+                kernel = val
             default:
-                throw ValidationError("unknown worker option '\(key)' in '\(value)'. Available options: count, cpus, memory")
+                throw ValidationError("unknown worker option '\(key)' in '\(value)'. Available options: count, cpus, memory, virtualization, kernel")
             }
         }
         do {
-            try self.init(count: count, cpus: cpus, memory: memory)
+            try self.init(count: count, cpus: cpus, memory: memory, virtualization: virtualization, kernel: kernel)
         } catch let error as ValidationError {
             throw ValidationError("\(error.message) in '\(value)'")
         }

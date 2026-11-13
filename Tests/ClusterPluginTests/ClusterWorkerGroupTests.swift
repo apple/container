@@ -16,6 +16,7 @@
 
 import ArgumentParser
 import ContainerResource
+import Foundation
 import Testing
 
 @testable import ContainerCluster
@@ -37,11 +38,37 @@ struct ClusterWorkerGroupTests {
         #expect(try WorkerGroup(parsing: "cpus=2") == WorkerGroup(count: 1, cpus: 2, memory: nil))
     }
 
+    @Test func virtualizationAndKernel() throws {
+        let group = try WorkerGroup(parsing: "count=2,cpus=4,memory=8g,virtualization=true,kernel=/opt/vmlinux-kvm")
+        #expect(group == (try WorkerGroup(count: 2, cpus: 4, memory: "8g", virtualization: true, kernel: "/opt/vmlinux-kvm")))
+    }
+
+    @Test func virtualizationDefaultsToFalse() throws {
+        let group = try WorkerGroup(parsing: "count=2")
+        #expect(!group.virtualization)
+        #expect(group.kernel == nil)
+        #expect(!(try WorkerGroup(parsing: "virtualization=false")).virtualization)
+    }
+
+    /// Matches `container machine set virtualization=<bool>`, which also takes any case and `t`/`f`.
+    @Test(arguments: ["true", "TRUE", "True", "t"])
+    func virtualizationAcceptsMachineBoolSpellings(_ value: String) throws {
+        #expect(try WorkerGroup(parsing: "virtualization=\(value)").virtualization)
+    }
+
+    @Test func relativeKernelIsResolvedAgainstCurrentDirectory() throws {
+        let group = try WorkerGroup(parsing: "kernel=bin/vmlinux-arm64")
+        let expected = FileManager.default.currentDirectoryPath + "/bin/vmlinux-arm64"
+        #expect(group.kernel.map { URL(fileURLWithPath: $0).standardizedFileURL.path } == URL(fileURLWithPath: expected).standardizedFileURL.path)
+    }
+
     @Test(arguments: [
         "", "abc", "-1", "count", "count=", "count=x", "count=-1",
         "cpus=0", "cpus=-2", "cpus=x", "memory=0", "memory=x", "memory=9999999999999999999999p",
         "color=red", "count=1,count=2", "count=1,,cpus=2", "count=0,cpus=2", "count=0,memory=4g",
         "memory=199m", "cpus=99999", "count=1025", "count=99999999999999999999",
+        "virtualization", "virtualization=", "virtualization=yes", "virtualization=1", "kernel=",
+        "virtualization=true,virtualization=false", "count=0,virtualization=true", "count=0,kernel=/opt/vmlinux",
     ])
     func invalidValuesAreRejected(_ value: String) {
         #expect(throws: ValidationError.self) {
@@ -51,6 +78,7 @@ struct ClusterWorkerGroupTests {
 
     @Test func zeroCountWithoutSizingIsAllowed() throws {
         #expect(try WorkerGroup(parsing: "count=0") == WorkerGroup(count: 0))
+        #expect(try WorkerGroup(parsing: "count=0,virtualization=false") == WorkerGroup(count: 0))
     }
 
     @Test func initRejectsInvalidFields() {
@@ -59,6 +87,8 @@ struct ClusterWorkerGroupTests {
         #expect(throws: ValidationError.self) { try WorkerGroup(count: 1, cpus: 0) }
         #expect(throws: ValidationError.self) { try WorkerGroup(count: 1, cpus: Int64(ContainerConfiguration.Resources.maximumCPUs) + 1) }
         #expect(throws: ValidationError.self) { try WorkerGroup(count: 1, memory: "1m") }
+        #expect(throws: ValidationError.self) { try WorkerGroup(count: 0, virtualization: true) }
+        #expect(throws: ValidationError.self) { try WorkerGroup(count: 0, kernel: "/opt/vmlinux") }
     }
 
     @Test func initAcceptsLimits() throws {

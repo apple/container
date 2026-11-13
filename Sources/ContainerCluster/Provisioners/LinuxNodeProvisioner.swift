@@ -32,6 +32,8 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
     private let nodeImage: String?
     private let cpus: Int64?
     private let memory: String?
+    private let virtualization: Bool
+    private let kernel: String?
     private let registryScheme: String
     private let maxConcurrentDownloads: Int
     private let remove: Bool
@@ -43,6 +45,8 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
     ///   - name: Name of this node. The control plane is named after the cluster;
     ///     workers use `ClusterHelper.workerName(cluster:index:)`.
     ///   - clusterName: The cluster this node belongs to.
+    ///   - virtualization: Whether to expose virtualization capabilities to the node, as `container run --virtualization` does.
+    ///   - kernel: Path of the kernel the node boots, or `nil` for the default kernel.
     public init(
         name: String,
         clusterName: String,
@@ -50,6 +54,8 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
         nodeImage: String? = nil,
         cpus: Int64? = nil,
         memory: String? = nil,
+        virtualization: Bool = false,
+        kernel: String? = nil,
         registryScheme: String = "https",
         maxConcurrentDownloads: Int = 3,
         remove: Bool = false,
@@ -73,6 +79,8 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
         self.nodeImage = nodeImage
         self.cpus = cpus
         self.memory = memory
+        self.virtualization = virtualization
+        self.kernel = kernel
         self.registryScheme = registryScheme
         self.maxConcurrentDownloads = maxConcurrentDownloads
         self.remove = remove
@@ -113,7 +121,7 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
             dnsDisabled: false,
             entrypoint: "/bin/sh",
             initImage: nil,
-            kernel: nil,
+            kernel: kernel,
             kernelArgs: [],
             labels: [
                 "\(ResourceLabelKeys.plugin)=\(ClusterHelper.pluginName)",
@@ -136,7 +144,7 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
             shmSize: nil,
             tmpFs: [],
             useInit: false,
-            virtualization: false,
+            virtualization: virtualization,
             volumes: volumes
         )
 

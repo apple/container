@@ -122,6 +122,23 @@ container cluster create --name my-cluster --cpus 2 --memory 4g \
   --workers count=1,cpus=2,memory=4g
 ```
 
+### Run virtual machines on cluster nodes
+
+Cluster nodes can expose `/dev/kvm`, so workloads such as micro-VM runtimes can run virtual machines inside pods. As with `container run --virtualization`, this needs an M3 or newer Apple silicon Mac and a kernel built with virtualization support; see [Expose virtualization capabilities to a container](runtime-configuration.md#expose-virtualization-capabilities-to-a-container) for the kernel configuration.
+
+`--virtualization` and `--kernel` apply to the control-plane node, or the single node if no workers are specified. To give them to workers, add `virtualization=true` and `kernel=<path>` to a `--workers` group, so only the nodes that run virtual machines need the custom kernel:
+
+```bash
+# A single node that can run virtual machines
+container cluster create --name lab --virtualization --kernel /path/to/vmlinux-kvm
+
+# A default control plane and 2 workers that can run virtual machines
+container cluster create --name my-cluster \
+  --workers count=2,cpus=4,memory=8g,virtualization=true,kernel=/path/to/vmlinux-kvm
+```
+
+A relative `kernel` path is resolved against the current directory. Nodes without `kernel` boot the default kernel.
+
 ### Access clusters with kubectl
 
 Once a cluster is created, `kubectl` works normally:
