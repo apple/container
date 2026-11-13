@@ -68,6 +68,12 @@ public struct PluginConfig: Sendable, Codable {
         public let type: DaemonPluginType
         /// Optional description of this service.
         public let description: String?
+        /// For a `network` service, the interface strategy each variant it offers
+        /// needs, keyed by variant name (for example `"allocationOnly": "isolated"`).
+        /// The runtime reads this to build its strategy table from the network
+        /// plugins present, rather than hardcoding which plugins and variants it
+        /// supports.
+        public let interfaces: [String: String]?
     }
 
     /// Descriptor for the services that the plugin offers.

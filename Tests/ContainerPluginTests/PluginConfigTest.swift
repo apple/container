@@ -79,7 +79,44 @@ struct PluginConfigTest {
         #expect(servicesConfig.services.count == 1)
         #expect(servicesConfig.services[0].type == .network)
         #expect(servicesConfig.services[0].description == "foo")
+        #expect(servicesConfig.services[0].interfaces == nil)
         #expect(servicesConfig.defaultArguments == ["start"])
+    }
+
+    @Test
+    func testNetworkServiceInterfacesLoad() async throws {
+        let tempURL = try FileManager.default.url(
+            for: .itemReplacementDirectory,
+            in: .userDomainMask,
+            appropriateFor: .temporaryDirectory,
+            create: true
+        )
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+        let configURL = tempURL.appending(path: "config.toml")
+        let configToml = """
+            abstract = "vmnet network management plugin"
+            author = "Apple"
+            version = 0.1
+
+            [servicesConfig]
+            loadAtBoot = false
+            runAtLoad = true
+            defaultArguments = []
+
+            [[servicesConfig.services]]
+            type = "network"
+            interfaces = { allocationOnly = "isolated", reserved = "nonisolated" }
+            """
+        try configToml.write(to: configURL, atomically: true, encoding: .utf8)
+        let config = try #require(try PluginConfig(configURL: configURL))
+
+        let servicesConfig = try #require(config.servicesConfig)
+        #expect(servicesConfig.services.count == 1)
+        #expect(
+            servicesConfig.services[0].interfaces == [
+                "allocationOnly": "isolated",
+                "reserved": "nonisolated",
+            ])
     }
 
     @Test
