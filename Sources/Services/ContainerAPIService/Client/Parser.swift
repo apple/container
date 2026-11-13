@@ -460,7 +460,6 @@ public struct Parser {
         for part in parts {
             let keyVal = part.split(separator: "=", maxSplits: 2)
             var key = String(keyVal[0])
-            var skipValue = false
             switch key {
             case "type", "size", "mode":
                 break
@@ -469,19 +468,23 @@ public struct Parser {
             case "destination", "dst", "target":
                 key = "destination"
             case "readonly", "ro":
-                key = "ro"
-                skipValue = true
+                // A bare key means true; an explicit value must be a boolean, as with `docker --mount`.
+                switch keyVal.count == 2 ? String(keyVal[1]) : "true" {
+                case "true", "1":
+                    directives["ro"] = ""
+                case "false", "0":
+                    directives["ro"] = nil
+                default:
+                    throw ContainerizationError(.invalidArgument, message: "invalid value for \(key) in mount \(mount): must be true, false, 1 or 0")
+                }
+                continue
             default:
                 throw ContainerizationError(.invalidArgument, message: "unknown directive \(key) when parsing mount \(mount)")
             }
-            var value = ""
-            if !skipValue {
-                if keyVal.count != 2 {
-                    throw ContainerizationError(.invalidArgument, message: "invalid directive format missing value \(part) in \(mount)")
-                }
-                value = String(keyVal[1])
+            if keyVal.count != 2 {
+                throw ContainerizationError(.invalidArgument, message: "invalid directive format missing value \(part) in \(mount)")
             }
-            directives[key] = value
+            directives[key] = String(keyVal[1])
         }
 
         var fs = Filesystem()

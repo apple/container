@@ -214,7 +214,7 @@ Mount-time options go on `container run` or `container create`, using `--mount`,
 | `type` | `bind` (alias `virtiofs`), `volume`, `tmpfs` | — | The kind of mount to create. Defaults to a bind mount. |
 | `source`, `src` | host path, or volume name | bind mounts, named volumes | The host directory to share, or the name of the volume to mount. Omit it for a tmpfs mount, or to get an [anonymous volume](#anonymous-volumes). |
 | `destination`, `dst`, `target` | absolute container path | all | Where the mount appears inside the container. |
-| `readonly`, `ro` | key only, no value | all | Mount read-only. |
+| `readonly`, `ro` | key only, or `true`, `false`, `1`, `0` | all | Mount read-only. The key alone means `true`. |
 | `size` | for example `512M`, `1G` | tmpfs only | Upper bound on the guest memory the mount can consume. |
 | `mode` | octal, for example `1777` | tmpfs only | Permission bits for the mount point, the same as `chmod`. |
 
