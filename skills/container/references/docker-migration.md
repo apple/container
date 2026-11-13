@@ -70,7 +70,7 @@ Two differences worth knowing:
 |---|---|
 | `docker login` / `logout` | `container registry login` / `logout` |
 | — | `container registry list` — shows current logins |
-| `docker volume create` / `ls` / `rm` / `inspect` / `prune` | `container volume create` / `list` / `delete` / `inspect` / `prune` |
+| `docker volume create` / `ls` / `rm` / `inspect` / `prune` | `container volume create` / `list` / `delete` / `inspect` / `prune` (also deletes named volumes; see below) |
 | `docker network create` / `ls` / `rm` / `inspect` / `prune` | `container network create` / `list` / `delete` / `inspect` / `prune` |
 | `docker network connect` / `disconnect` | — set `--network` when you run the container |
 
@@ -84,14 +84,17 @@ Two differences worth knowing:
 | daemon logs | `container system logs` |
 | `docker events` | — no equivalent |
 
-`docker system prune` has no single equivalent. Run the four prunes:
+`docker system prune` has no single equivalent. Run the three prunes:
 
 ```bash
 container prune                 # stopped containers
 container image prune
-container volume prune
 container network prune
 ```
+
+`docker system prune --volumes` and `docker volume prune` remove only anonymous volumes.
+`container volume prune` deletes every volume no container references, named volumes included,
+like `docker volume prune --all`. Run it only when the user asks; see `references/storage.md`.
 
 ## Replacing a compose file
 
