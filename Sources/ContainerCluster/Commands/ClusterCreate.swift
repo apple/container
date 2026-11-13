@@ -35,7 +35,9 @@ public struct ClusterCreate: AsyncParsableCommand {
         discussion: """
             --cpus and --memory size the control-plane node, or the single node if no workers are specified \
             (default 1/4 of host CPUs and memory, minimum 2 CPUs and 2g). \
-            Size workers with --workers count=<n>,cpus=<n>,memory=<size>; a group's count defaults to 1, and cpus and memory left out default to the single-node sizes: 1/4 of host CPUs and memory (minimum 2 CPUs and 2g).
+            Size workers with --workers count=<n>,cpus=<n>,memory=<size>; a group's count defaults to 1, and cpus and memory left out default to the single-node sizes: 1/4 of host CPUs and memory (minimum 2 CPUs and 2g). \
+            --virtualization and --kernel apply to the control-plane node, or the single node if no workers are specified. \
+            Set them for workers with --workers virtualization=true,kernel=<path>.
             """
     )
 
@@ -60,9 +62,19 @@ public struct ClusterCreate: AsyncParsableCommand {
     @Option(name: .long, help: "Optional path to a CNI manifest to apply, or \"NONE\" to skip installing a CNI.")
     var cni: String?
 
+    @Flag(name: .long, help: "Expose virtualization capabilities to the control-plane node (requires host and guest support)")
+    var virtualization = false
+
     @Option(
         name: .long,
-        help: "Worker nodes to create: a number, or count=<n>,cpus=<n>,memory=<size> (repeat for groups of differently sized workers)",
+        help: .init("Set a custom kernel path for the control-plane node", valueName: "path"),
+        completion: .file(),
+        transform: { WorkerGroup.absoluteKernelPath($0) })
+    var kernel: String?
+
+    @Option(
+        name: .long,
+        help: "Worker nodes to create: a number, or count=<n>,cpus=<n>,memory=<size>,virtualization=<bool>,kernel=<path> (repeat for groups of different workers)",
         transform: { try WorkerGroup(parsing: $0) })
     var workers: [WorkerGroup] = []
 
@@ -96,6 +108,12 @@ public struct ClusterCreate: AsyncParsableCommand {
         if let cni, !skipCNI {
             guard FileManager.default.fileExists(atPath: cni) else {
                 throw ContainerizationError(.invalidArgument, message: "CNI manifest not found at \(cni)")
+            }
+        }
+        // Check every kernel before the first node is created, so a bad worker path doesn't fail after the control plane is up.
+        for path in ([kernel] + workers.map(\.kernel)).compactMap({ $0 }) {
+            guard FileManager.default.fileExists(atPath: path) else {
+                throw ContainerizationError(.notFound, message: "kernel file not found at path \(path)")
             }
         }
 
@@ -140,6 +158,8 @@ public struct ClusterCreate: AsyncParsableCommand {
             nodeImage: nodeImage,
             cpus: resourceFlags.cpus,
             memory: resourceFlags.memory,
+            virtualization: virtualization,
+            kernel: kernel,
             registryScheme: registryFlags.scheme,
             maxConcurrentDownloads: imageFetchFlags.maxConcurrentDownloads,
             remove: remove,
@@ -159,6 +179,8 @@ public struct ClusterCreate: AsyncParsableCommand {
                         nodeImage: nodeImage,
                         cpus: group.cpus,
                         memory: group.memory,
+                        virtualization: group.virtualization,
+                        kernel: group.kernel,
                         registryScheme: registryFlags.scheme,
                         maxConcurrentDownloads: imageFetchFlags.maxConcurrentDownloads,
                         remove: remove,

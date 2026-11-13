@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerResource
+import Foundation
 import Testing
 
 @testable import ContainerCluster
@@ -39,6 +40,38 @@ struct ClusterCreateWorkersFlagTests {
         #expect(command.resourceFlags.cpus == 4)
         #expect(command.resourceFlags.memory == "8g")
         #expect(command.workers == [try WorkerGroup(count: 1, cpus: 2, memory: nil)])
+    }
+
+    @Test func virtualizationAndKernelDefaultOff() throws {
+        let command = try ClusterCreate.parse([])
+        #expect(!command.virtualization)
+        #expect(command.kernel == nil)
+    }
+
+    @Test func virtualizationAndKernelApplyToControlPlaneOnly() throws {
+        let command = try ClusterCreate.parse(["--virtualization", "--kernel", "/opt/vmlinux-kvm", "--workers", "2"])
+        #expect(command.virtualization)
+        #expect(command.kernel == "/opt/vmlinux-kvm")
+        #expect(command.workers == [try WorkerGroup(count: 2)])
+    }
+
+    @Test func relativeKernelIsResolvedAgainstCurrentDirectory() throws {
+        let command = try ClusterCreate.parse(["--kernel", "bin/vmlinux-arm64"])
+        let expected = FileManager.default.currentDirectoryPath + "/bin/vmlinux-arm64"
+        #expect(command.kernel.map { URL(fileURLWithPath: $0).standardizedFileURL.path } == URL(fileURLWithPath: expected).standardizedFileURL.path)
+    }
+
+    @Test func workerGroupsTakeVirtualizationAndKernel() throws {
+        let command = try ClusterCreate.parse([
+            "--workers", "count=2,cpus=4,memory=8g,virtualization=true,kernel=/opt/vmlinux-kvm",
+            "--workers", "1",
+        ])
+        #expect(!command.virtualization)
+        #expect(
+            command.workers == [
+                try WorkerGroup(count: 2, cpus: 4, memory: "8g", virtualization: true, kernel: "/opt/vmlinux-kvm"),
+                try WorkerGroup(count: 1),
+            ])
     }
 
     @Test func totalAtLimitIsAccepted() throws {

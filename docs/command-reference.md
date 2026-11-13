@@ -1636,7 +1636,7 @@ Creates and starts a local Kubernetes cluster and optional worker nodes. Pulls t
 **Usage**
 
 ```bash
-container cluster create [--name <name>] [--node-image <image>] [--cni <path>] [--workers <n | count=<n>,cpus=<n>,memory=<size>>]... [--shared-image-store] [--rm] [<resource options>] [--debug]
+container cluster create [--name <name>] [--node-image <image>] [--cni <path>] [--virtualization] [--kernel <path>] [--workers <n | count=<n>,cpus=<n>,memory=<size>,virtualization=<bool>,kernel=<path>>]... [--shared-image-store] [--rm] [<resource options>] [--debug]
 ```
 
 **Options**
@@ -1644,8 +1644,11 @@ container cluster create [--name <name>] [--node-image <image>] [--cni <path>] [
 *   `--name <name>`: Cluster name (default: `cluster-dev`)
 *   `--node-image <image>`: Node image reference (default: `docker.io/kindest/node:v1.35.5`)
 *   `--cni <path>`: Optional path to a CNI manifest to apply, or `NONE` (case-insensitive) to skip installing a CNI. If not provided, the bundled kindnet CNI is used. With `NONE`, the command returns without waiting for nodes to become `Ready`, since that requires a CNI; apply your own afterward with `kubectl apply`.
+*   `--virtualization`: Expose virtualization capabilities to the control-plane node, or the single node if no workers are specified (requires host and guest support). See [Container cluster](cluster.md#run-virtual-machines-on-cluster-nodes).
+*   `--kernel <path>`: Set a custom kernel path for the control-plane node, or the single node if no workers are specified
 *   `--workers <n>`: Number of worker nodes to create (default: `0`, meaning the control-plane node also acts as a worker)
 *   `--workers count=<n>,cpus=<n>,memory=<size>`: A group of `count` identical workers (default `1`) with the given CPUs and memory. Repeat the option to create groups of differently sized workers. Any value left out gets the single-node default (1/4 of host CPUs and memory, minimum 2 CPUs and 2g). Workers are numbered across groups as `<name>-worker-<n>`.
+*   `--workers ...,virtualization=<bool>,kernel=<path>`: Expose virtualization capabilities to the group's workers (default `false`) and boot them with the kernel at `path` (default: the default kernel). A relative `path` is resolved against the current directory.
 *   `--shared-image-store`: Let nodes pull images from the local image store (default: off). See [Container cluster](cluster.md).
 *   `--rm`: Remove the cluster container after it stops
 
@@ -1691,6 +1694,10 @@ container cluster create --name my-cluster --cpus 2 --memory 4g \
 
 # create a cluster whose nodes can pull images from the local image store
 container cluster create --shared-image-store
+
+# create a cluster with 2 workers that can run virtual machines
+container cluster create --name my-cluster \
+  --workers count=2,virtualization=true,kernel=/path/to/vmlinux-kvm
 ```
 
 ### `container cluster delete (rm)`
