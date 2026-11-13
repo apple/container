@@ -138,6 +138,16 @@ extension ClusterHelper {
         return FilePath(paths[paths.count - 1])
     }
 
+    /// Loads the kubeconfig at `path`, treating a missing or blank file as an
+    /// empty configuration instead of failing with a confusing decoding error
+    /// (e.g. `KUBECONFIG=$(mktemp)`).
+    static func loadKubeConfig(at path: FilePath) throws -> KubeConfig {
+        guard FileManager.default.fileExists(atPath: path.string) else { return .empty }
+        let yaml = try String(contentsOfFile: path.string, encoding: .utf8)
+        if yaml.allSatisfy(\.isWhitespace) { return .empty }
+        return try YAMLDecoder().decode(KubeConfig.self, from: yaml)
+    }
+
     static func mergeConfig(_ config: KubeConfig, containerId: String, targetPath: FilePath? = nil, setCurrentContext: Bool = false, log: Logger) throws {
         let path = targetPath ?? resolveKubeconfigMergePath()
         log.info("Writing kubeconfig", metadata: ["cluster": "\(containerId)", "path": "\(path)"])
@@ -146,18 +156,13 @@ extension ClusterHelper {
         try FileManager.default.createDirectory(atPath: targetDir.string, withIntermediateDirectories: true)
 
         var existing: KubeConfig
-        if FileManager.default.fileExists(atPath: path.string) {
-            do {
-                let yaml = try String(contentsOfFile: path.string, encoding: .utf8)
-                existing = try YAMLDecoder().decode(KubeConfig.self, from: yaml)
-            } catch {
-                throw ContainerizationError(
-                    .internalError,
-                    message: "kubeconfig at \(path) could not be parsed: \(error)"
-                )
-            }
-        } else {
-            existing = .empty
+        do {
+            existing = try loadKubeConfig(at: path)
+        } catch {
+            throw ContainerizationError(
+                .internalError,
+                message: "kubeconfig at \(path) could not be parsed: \(error)"
+            )
         }
 
         existing.clusters.removeAll { $0.name == containerId }
@@ -183,10 +188,15 @@ extension ClusterHelper {
 
         let existing: KubeConfig
         do {
-            let yaml = try String(contentsOfFile: path.string, encoding: .utf8)
-            existing = try YAMLDecoder().decode(KubeConfig.self, from: yaml)
+            existing = try loadKubeConfig(at: path)
         } catch {
             log.warning("kubeconfig exists but could not be parsed, skipping removal", metadata: ["path": "\(path)", "error": "\(error)"])
+            return
+        }
+
+        // Nothing to remove from an empty or blank file; leave it untouched
+        // instead of rewriting it as an unpopulated skeleton.
+        if existing.clusters.isEmpty, existing.contexts.isEmpty, existing.users.isEmpty {
             return
         }
 
