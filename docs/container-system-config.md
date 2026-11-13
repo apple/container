@@ -80,7 +80,8 @@ silicon, set `rosetta = false`:
 rosetta = false
 ```
 
-This ensures builds only produce native arm64 images, with no x86_64 emulation.
+For newly created builders using the default builder image, this selects QEMU
+instead of Rosetta for x86_64 (amd64) emulation.
 
 ## `[container]`
 
