@@ -378,8 +378,10 @@ struct PluginLoaderTest {
         )
 
         let plugin = loader.findPlugin(name: "service")!
+        let instanceId = UUID().uuidString
+        defer { try? loader.deregisterWithLaunchd(plugin: plugin, instanceId: instanceId) }
         let stateRoot = tempURL.appendingPathComponent("test-state")
-        try loader.registerWithLaunchd(plugin: plugin, pluginStateRoot: stateRoot, debug: true)
+        try loader.registerWithLaunchd(plugin: plugin, pluginStateRoot: stateRoot, instanceId: instanceId, debug: true)
 
         let plistURL = stateRoot.appendingPathComponent("service.plist")
         #expect(FileManager.default.fileExists(atPath: plistURL.path))
@@ -405,8 +407,10 @@ struct PluginLoaderTest {
         )
 
         let plugin = loader.findPlugin(name: "service")!
+        let instanceId = UUID().uuidString
+        defer { try? loader.deregisterWithLaunchd(plugin: plugin, instanceId: instanceId) }
         let stateRoot = tempURL.appendingPathComponent("test-state")
-        try loader.registerWithLaunchd(plugin: plugin, pluginStateRoot: stateRoot, debug: false)
+        try loader.registerWithLaunchd(plugin: plugin, pluginStateRoot: stateRoot, instanceId: instanceId, debug: false)
 
         let plistURL = stateRoot.appendingPathComponent("service.plist")
         #expect(FileManager.default.fileExists(atPath: plistURL.path))
@@ -432,8 +436,10 @@ struct PluginLoaderTest {
         )
 
         let plugin = loader.findPlugin(name: "service")!
+        let instanceId = UUID().uuidString
+        defer { try? loader.deregisterWithLaunchd(plugin: plugin, instanceId: instanceId) }
         let stateRoot = tempURL.appendingPathComponent("test-state")
-        try loader.registerWithLaunchd(plugin: plugin, pluginStateRoot: stateRoot)
+        try loader.registerWithLaunchd(plugin: plugin, pluginStateRoot: stateRoot, instanceId: instanceId)
 
         let plistURL = stateRoot.appendingPathComponent("service.plist")
         #expect(FileManager.default.fileExists(atPath: plistURL.path))
@@ -443,6 +449,33 @@ struct PluginLoaderTest {
         let programArguments = plist["ProgramArguments"] as! [String]
 
         #expect(!programArguments.contains("--debug"))
+    }
+
+    @Test
+    func testDeregisterWithLaunchd() async throws {
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+        let factory = try setupMock(tempURL: tempURL)
+        let loader = try PluginLoader(
+            appRoot: tempURL,
+            installRoot: URL(filePath: "/usr/local/"),
+            logRoot: nil,
+            pluginDirectories: [tempURL],
+            pluginFactories: [factory]
+        )
+
+        let plugin = loader.findPlugin(name: "service")!
+        let instanceId = UUID().uuidString
+        defer { try? loader.deregisterWithLaunchd(plugin: plugin, instanceId: instanceId) }
+        let stateRoot = tempURL.appendingPathComponent("test-state")
+        try loader.registerWithLaunchd(plugin: plugin, pluginStateRoot: stateRoot, instanceId: instanceId)
+
+        let domain = try ServiceManager.getDomainString()
+        let label = "\(domain)/\(plugin.getLaunchdLabel(instanceId: instanceId))"
+        #expect(try ServiceManager.isRegistered(fullServiceLabel: label))
+
+        try loader.deregisterWithLaunchd(plugin: plugin, instanceId: instanceId)
+        #expect(try !ServiceManager.isRegistered(fullServiceLabel: label))
     }
 
     private func setupMock(tempURL: URL) throws -> MockPluginFactory {
