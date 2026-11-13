@@ -60,11 +60,10 @@ extension Application {
             var didDeleteAnyImage = false
             for image in found {
                 guard
-                    !Utility.isInfraImage(
+                    !(try Utility.isInfraImage(
                         name: image.reference,
-                        builderImage: containerSystemConfig.build.image,
-                        initImage: containerSystemConfig.vminit.image
-                    )
+                        containerSystemConfig: containerSystemConfig
+                    ))
                 else {
                     continue
                 }
