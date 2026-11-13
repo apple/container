@@ -169,13 +169,13 @@ public struct ClusterConfiguration: Codable, Sendable, Equatable, Identifiable {
         "\(cluster)-worker-"
     }
 
-    /// The Kubernetes version carried by the node image's tag, e.g. `v1.35.5`.
+    /// The Kubernetes version carried by the node image's tag, e.g. `v1.37.0`.
     public static func kubernetesVersion(nodeImage: String) throws -> String {
         let nameAndTag = nodeImage.split(separator: "@").first.map(String.init) ?? nodeImage
         guard let ref = try? Reference.parse(nameAndTag), let tag = ref.tag else {
             throw ContainerizationError(
                 .invalidArgument,
-                message: "node image \(nodeImage) has no tag; use a tagged image such as docker.io/kindest/node:v1.34.11")
+                message: "node image \(nodeImage) has no tag; use a tagged image such as docker.io/kindest/node:v1.37.0")
         }
         return tag
     }

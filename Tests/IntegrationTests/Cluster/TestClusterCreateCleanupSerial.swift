@@ -34,7 +34,7 @@ struct TestClusterCreateCleanupSerial {
             }
             let preExistingId = try f.getContainerId(name)
 
-            try f.restoreWarmupImage(.kindestNodeV1_35_5)
+            try f.restoreWarmupImage(.kindestNodeV1_37_0)
             let result = try f.run(["cluster", "create", "--name", name])
             print("[cluster-create-cleanup] cluster create stderr: \(result.error)")
             #expect(result.status != 0)
@@ -60,7 +60,7 @@ struct TestClusterCreateCleanupSerial {
             }
             let preExistingId = try f.getContainerId(workerName)
 
-            try f.restoreWarmupImage(.kindestNodeV1_35_5)
+            try f.restoreWarmupImage(.kindestNodeV1_37_0)
             let result = try f.run(["cluster", "create", "--name", name, "--workers", "1"])
             print("[cluster-create-cleanup] cluster create stderr: \(result.error)")
             #expect(result.status != 0)

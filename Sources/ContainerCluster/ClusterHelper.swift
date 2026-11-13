@@ -39,7 +39,7 @@ public struct ClusterHelper {
         return "\(max(gb, 2))g"
     }
 
-    public static let nodeImage = "docker.io/kindest/node:v1.35.5@sha256:ce977ae6d65918d0b58a5f8b5e940429c2ce42fa3a5619ec2bbc60b949c0ac95"
+    public static let nodeImage = "docker.io/kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5"
     static let kubeconfigPath = "/etc/kubernetes/admin.conf"
     static let kubeconfigEnv = "KUBECONFIG=/etc/kubernetes/admin.conf"
     static let kubectlPath = "/bin/kubectl"

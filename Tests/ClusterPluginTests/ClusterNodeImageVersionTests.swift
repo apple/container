@@ -33,7 +33,7 @@ struct ClusterNodeImageVersionTests {
 
     @Test
     func defaultImageStillResolves() throws {
-        #expect(try ClusterConfiguration.kubernetesVersion(nodeImage: ClusterHelper.nodeImage) == "v1.35.5")
+        #expect(try ClusterConfiguration.kubernetesVersion(nodeImage: ClusterHelper.nodeImage) == "v1.37.0")
     }
 
     @Test
