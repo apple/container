@@ -33,6 +33,8 @@ public enum Arch: String {
         return .arm64
         #elseif arch(x86_64)
         return .amd64
+        #else
+        #error("unsupported host architecture")
         #endif
     }
 }
