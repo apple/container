@@ -55,9 +55,29 @@ extension XPCMessage {
         xpc_equal(lhs.underlying, rhs)
     }
 
+    /// Whether this message carries reply context.
+    ///
+    /// `xpc_dictionary_create_reply` returns `NULL` for messages sent
+    /// fire-and-forget via `xpc_connection_send_message`. Check this before
+    /// replying to untrusted input; see `XPCServer.handleMessage`.
+    public var canReply: Bool {
+        lock.withLock {
+            xpc_dictionary_create_reply(object) != nil
+        }
+    }
+
+    /// Build a reply dictionary for this message without trapping.
+    ///
+    /// Falls back to a fresh empty dictionary when the message carries no
+    /// reply context (fire-and-forget sender). Callers handling untrusted
+    /// input should check `canReply` first and drop such messages instead
+    /// of answering them.
     public func reply() -> XPCMessage {
         lock.withLock {
-            XPCMessage(object: xpc_dictionary_create_reply(object)!)
+            if let reply = xpc_dictionary_create_reply(object) {
+                return XPCMessage(object: reply)
+            }
+            return XPCMessage(object: xpc_dictionary_create_empty())
         }
     }
 
