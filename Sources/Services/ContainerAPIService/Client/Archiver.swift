@@ -116,7 +116,7 @@ public final class Archiver: Sendable {
         defer { readBuffer.deallocate() }
         try writer.writeHeader(entry: entry)
         if entry.fileType == .regular {
-            // We need to write the data into the archive only if its a regular file
+            // We need to write the data into the archive only if it's a regular file
             // Symlinks and directories require us to only write the archive header
             guard let stream = InputStream(url: item) else {
                 throw Error.failedToCreateInputStream(item)
