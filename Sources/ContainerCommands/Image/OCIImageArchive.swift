@@ -29,13 +29,18 @@ enum OCIImageArchive {
     ) throws -> URL {
         let platform = container.configuration.platform
         let process = container.configuration.initProcess
+        // The container stores only the merged command. Keep the source image's entrypoint
+        // when the command still starts with it, and save the rest as the cmd.
+        let command = [process.executable] + process.arguments
+        let imageEntrypoint = sourceImage.config?.entrypoint ?? []
+        let entrypoint = command.starts(with: imageEntrypoint) ? imageEntrypoint : []
         var labels = sourceImage.config?.labels ?? [:]
         labels.merge(container.configuration.labels) { _, containerValue in containerValue }
         let imageConfig = ImageConfig(
             user: process.user.description,
             env: process.environment,
-            entrypoint: [process.executable],
-            cmd: process.arguments,
+            entrypoint: entrypoint.isEmpty ? nil : entrypoint,
+            cmd: Array(command.dropFirst(entrypoint.count)),
             workingDir: process.workingDirectory,
             labels: labels,
             stopSignal: container.configuration.stopSignal
