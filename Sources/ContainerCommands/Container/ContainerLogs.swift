@@ -49,6 +49,8 @@ extension Application {
             let client = ContainerClient()
             let fhs = try await client.logs(id: containerId)
             let fileHandle = boot ? fhs[1] : fhs[0]
+            let unusedFileHandle = boot ? fhs[0] : fhs[1]
+            try? unusedFileHandle.close()
 
             try await Self.tail(
                 fh: fileHandle,
