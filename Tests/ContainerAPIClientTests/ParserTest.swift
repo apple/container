@@ -972,6 +972,24 @@ struct ParserTest {
         #expect(result.aliases == ["a.test", ".a.test"])
     }
 
+    @Test(arguments: [NetworkMTU.validRange.lowerBound, NetworkMTU.validRange.upperBound])
+    func testParseNetworkMTUBoundaries(value: UInt32) throws {
+        #expect(try Parser.network("backend,mtu=\(value)").mtu == value)
+    }
+
+    @Test(arguments: [String(NetworkMTU.validRange.lowerBound - 1), String(NetworkMTU.validRange.upperBound + 1), "abc"])
+    func testParseNetworkMTUOutOfRange(value: String) throws {
+        #expect {
+            _ = try Parser.network("backend,mtu=\(value)")
+        } throws: { error in
+            guard let error = error as? ContainerizationError else {
+                return false
+            }
+            let range = NetworkMTU.validRange
+            return error.description.contains("invalid mtu value '\(value)': must be between \(range.lowerBound) and \(range.upperBound)")
+        }
+    }
+
     @Test(arguments: ["backend,alias=", "backend,alias=.", "backend,alias=a..test", "backend,alias=exa mple.test"])
     func testParseNetworkInvalidAlias(spec: String) throws {
         #expect {

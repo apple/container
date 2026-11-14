@@ -60,6 +60,9 @@ extension NetworkVmnetHelper {
         @Option(name: .customLong("subnet-v6"), help: "CIDR address for the IPv6 prefix")
         var ipv6Subnet: String?
 
+        @Option(name: .long, help: "MTU of the network and its attachments")
+        var mtu: UInt32?
+
         @Option(name: .long, help: "Variant of the network helper to use.")
         var variant: Variant = {
             guard #available(macOS 26, *) else {
@@ -89,6 +92,7 @@ extension NetworkVmnetHelper {
                     mode: mode,
                     ipv4Subnet: ipv4Subnet,
                     ipv6Subnet: ipv6Subnet,
+                    mtu: mtu,
                     plugin: NetworkVmnetHelper._commandName,
                     options: ["variant": self.variant.rawValue]
                 )
@@ -98,7 +102,7 @@ extension NetworkVmnetHelper {
                     log: log
                 )
                 try await network.start()
-                let service = try await DefaultNetworkService(network: network, log: log)
+                let service = try await DefaultNetworkService(network: network, mtu: configuration.mtu, log: log)
                 let harness = NetworkHarness(service: service)
                 let xpc = XPCServer(
                     identifier: serviceIdentifier,

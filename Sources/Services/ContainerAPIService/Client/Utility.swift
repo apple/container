@@ -219,7 +219,12 @@ public struct Utility {
                 dnsDomain: containerSystemConfig.dns.domain,
             )
             for attachmentConfiguration in config.networks {
-                _ = try await networkClient.get(id: attachmentConfiguration.network)
+                let network = try await networkClient.get(id: attachmentConfiguration.network)
+                try NetworkMTU.check(
+                    attachment: attachmentConfiguration.options.mtu,
+                    network: network.configuration.mtu,
+                    networkId: network.id
+                )
             }
         }
 
@@ -310,7 +315,7 @@ public struct Utility {
             // attach the first network using the fqdn, and the rest using just the container ID
             return try networks.enumerated().map { item in
                 let macAddress = try item.element.macAddress.map { try MACAddress($0) }
-                let mtu = item.element.mtu ?? 1280
+                let mtu = item.element.mtu
                 let aliases = try qualifyAliases(item.element.aliases, dnsDomain: dnsDomain)
                 guard item.offset == 0 else {
                     return AttachmentConfiguration(
@@ -329,7 +334,7 @@ public struct Utility {
         guard let builtinNetworkId else {
             throw ContainerizationError(.invalidState, message: "builtin network is not present")
         }
-        return [AttachmentConfiguration(network: builtinNetworkId, options: AttachmentOptions(hostname: fqdn ?? containerId, macAddress: nil, mtu: 1280))]
+        return [AttachmentConfiguration(network: builtinNetworkId, options: AttachmentOptions(hostname: fqdn ?? containerId, macAddress: nil))]
     }
 
     /// Appends the default DNS domain to the aliases that have no domain of their own.

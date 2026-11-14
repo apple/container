@@ -16,6 +16,7 @@
 
 import ContainerizationError
 import ContainerizationExtras
+import Foundation
 import Testing
 
 @testable import ContainerResource
@@ -28,6 +29,25 @@ struct NetworkConfigurationTest {
             mode: .nat,
             plugin: "container-network-vmnet"
         )
+    }
+
+    @Test func testMTURoundTrips() throws {
+        let original = try NetworkConfiguration(name: "foo", mode: .nat, mtu: 1500, plugin: "container-network-vmnet")
+        let decoded = try JSONDecoder().decode(NetworkConfiguration.self, from: JSONEncoder().encode(original))
+        #expect(decoded.mtu == 1500)
+    }
+
+    @Test func testStoredConfigurationWithoutMTUDecodes() throws {
+        let json = #"{"name":"foo","mode":"nat","plugin":"container-network-vmnet"}"#
+        let decoded = try JSONDecoder().decode(NetworkConfiguration.self, from: Data(json.utf8))
+        #expect(decoded.mtu == nil)
+    }
+
+    @Test(arguments: [NetworkMTU.validRange.lowerBound - 1, NetworkMTU.validRange.upperBound + 1])
+    func testMTUOutsideTheValidRangeIsRejected(mtu: UInt32) throws {
+        #expect(throws: ContainerizationError.self) {
+            _ = try NetworkConfiguration(name: "foo", mode: .nat, mtu: mtu, plugin: "container-network-vmnet")
+        }
     }
 
     @Test func testValidationGoodId() throws {
