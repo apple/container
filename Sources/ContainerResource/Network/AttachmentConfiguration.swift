@@ -30,6 +30,14 @@ public struct AttachmentConfiguration: Codable, Sendable {
     }
 }
 
+extension MACAddress {
+    /// A locally-administered unicast MAC, assigned at create time so it and the
+    /// IPv6 SLAAC address derived from it survive stop/start.
+    public static func generate() -> MACAddress {
+        MACAddress((UInt64.random(in: 0...UInt64.max) & 0x0cff_ffff_ffff) | 0xf200_0000_0000)
+    }
+}
+
 // Option information for a network attachment.
 public struct AttachmentOptions: Codable, Sendable {
     /// The hostname associated with the attachment.
@@ -48,11 +56,22 @@ public struct AttachmentOptions: Codable, Sendable {
     /// name below it. The list is empty when the attachment has no aliases.
     public let aliases: [String]
 
-    public init(hostname: String, macAddress: MACAddress? = nil, mtu: UInt32? = nil, aliases: [String] = []) {
+    /// Last assigned IPv4, re-offered on restart for a best-effort sticky IP
+    /// (reassigned if taken).
+    public let ipv4Address: IPv4Address?
+
+    public init(
+        hostname: String,
+        macAddress: MACAddress? = nil,
+        mtu: UInt32? = nil,
+        aliases: [String] = [],
+        ipv4Address: IPv4Address? = nil
+    ) {
         self.hostname = hostname
         self.macAddress = macAddress
         self.mtu = mtu
         self.aliases = aliases
+        self.ipv4Address = ipv4Address
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -60,6 +79,7 @@ public struct AttachmentOptions: Codable, Sendable {
         case macAddress
         case mtu
         case aliases
+        case ipv4Address
     }
 
     // Configurations stored before aliases existed have no `aliases` key, and decode with none.
@@ -69,6 +89,7 @@ public struct AttachmentOptions: Codable, Sendable {
         self.macAddress = try container.decodeIfPresent(MACAddress.self, forKey: .macAddress)
         self.mtu = try container.decodeIfPresent(UInt32.self, forKey: .mtu)
         self.aliases = try container.decodeIfPresent([String].self, forKey: .aliases) ?? []
+        self.ipv4Address = try container.decodeIfPresent(IPv4Address.self, forKey: .ipv4Address)
     }
 
     // The key is left out when there are no aliases, so a configuration without them is stored as it was before.
@@ -80,6 +101,7 @@ public struct AttachmentOptions: Codable, Sendable {
         if !aliases.isEmpty {
             try container.encode(aliases, forKey: .aliases)
         }
+        try container.encodeIfPresent(ipv4Address, forKey: .ipv4Address)
     }
 }
 
