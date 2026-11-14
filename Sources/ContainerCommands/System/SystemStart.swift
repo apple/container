@@ -127,16 +127,30 @@ extension Application {
             try data.write(to: plistURL)
 
             log.info("Launching container-apiserver...")
-            try ServiceManager.register(plistPath: plistURL.path)
+            let launchdDomain = try ServiceManager.getDomainString()
+            let registered = try ServiceManager.register(plistPath: plistURL.path, in: launchdDomain)
 
             // Now ping our friendly daemon. Fail if we don't get a response.
             do {
                 log.info("Testing access to container-apiserver...")
                 _ = try await ClientHealthCheck.ping(timeout: timeout)
             } catch {
+                if registered {
+                    let label = "\(launchdDomain)/\(plist.label)"
+                    do {
+                        var status: Int32 = 0
+                        try ServiceManager.deregister(fullServiceLabel: label, status: &status)
+                        if status != 0 {
+                            log.warning("Failed to unregister \(label) after startup failure (launchctl exit \(status))")
+                        }
+                    } catch {
+                        log.warning("Failed to unregister \(label) after startup failure: \(error)")
+                    }
+                }
                 throw ContainerizationError(
                     .internalError,
-                    message: "failed to get a response from apiserver: \(error)"
+                    message: "container-apiserver failed its startup health check",
+                    cause: error
                 )
             }
 

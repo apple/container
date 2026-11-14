@@ -678,7 +678,8 @@ let package = Package(
         .testTarget(
             name: "DNSServerTests",
             dependencies: [
-                "DNSServer"
+                .product(name: "NIOCore", package: "swift-nio"),
+                "DNSServer",
             ]
         ),
         .target(

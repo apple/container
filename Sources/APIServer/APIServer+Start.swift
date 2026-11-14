@@ -22,6 +22,7 @@ import ContainerPersistence
 import ContainerPlugin
 import ContainerResource
 import ContainerXPC
+import ContainerizationError
 import ContainerizationExtras
 import DNSServer
 import Foundation
@@ -38,6 +39,7 @@ extension APIServer {
         static let listenAddress = "127.0.0.1"
         static let localhostDNSPort = 1053
         static let dnsPort = 2053
+        private static let serviceIdentifier = "com.apple.container.apiserver"
 
         @Flag(name: .long, help: "Enable debug logging")
         var debug = false
@@ -59,118 +61,161 @@ extension APIServer {
             }
 
             do {
-                log.info("configuring XPC server")
-                var routes = [XPCRoute: XPCServer.RouteHandler]()
-                let pluginLoader = try initializePluginLoader(log: log)
+                let listeners: (containerNames: DNSServer.Listener, localhost: DNSServer.Listener)
+                do {
+                    listeners = try await bindDNSListeners(log: log)
+                } catch {
+                    log.error("DNS startup failed", metadata: ["error": "\(error)"])
+                    // Keep the health route available until the CLI receives the error and
+                    // unregisters this job. Do not initialize plugins or expose other routes.
+                    let server = XPCServer(
+                        identifier: Self.serviceIdentifier,
+                        routes: [XPCRoute.ping.rawValue: XPCServer.route { _ in throw error }],
+                        log: log
+                    )
+                    try await server.listen()
+                    return
+                }
 
-                try await initializePlugins(pluginLoader: pluginLoader, log: log, routes: &routes, debug: debug)
-                let containersService = try await initializeContainersService(
-                    pluginLoader: pluginLoader,
-                    containerSystemConfig: containerSystemConfig,
-                    log: log,
-                    routes: &routes
-                )
-                let networkService = try await initializeNetworksService(
-                    pluginLoader: pluginLoader,
-                    containersService: containersService,
-                    containerSystemConfig: containerSystemConfig,
-                    log: log,
-                    routes: &routes
-                )
-                await containersService.setNetworksService(networkService)
-                initializeHealthCheckService(log: log, routes: &routes)
-                try initializeKernelService(log: log, routes: &routes)
-                let volumesService = try await initializeVolumeService(containersService: containersService, log: log, routes: &routes)
-                try initializeDiskUsageService(
-                    containersService: containersService,
-                    volumesService: volumesService,
-                    log: log,
-                    routes: &routes
-                )
-
-                let server = XPCServer(
-                    identifier: "com.apple.container.apiserver",
-                    routes: routes.reduce(
-                        into: [String: XPCServer.RouteHandler](),
-                        {
-                            $0[$1.key.rawValue] = $1.value
-                        }), log: log)
-
-                await withTaskGroup(of: Result<Void, Error>.self) { group in
-                    group.addTask {
-                        log.info("starting XPC server")
-                        do {
-                            try await server.listen()
-                            return .success(())
-                        } catch {
-                            return .failure(error)
-                        }
-                    }
-
-                    // start up host table DNS
-                    group.addTask {
-                        let hostsResolver = ContainerDNSHandler(networkService: networkService)
-                        let nxDomainResolver = NxDomainResolver()
-                        let compositeResolver = CompositeResolver(handlers: [hostsResolver, nxDomainResolver])
-                        let hostsQueryValidator = StandardQueryValidator(handler: compositeResolver)
-                        let dnsServer: DNSServer = DNSServer(handler: hostsQueryValidator, log: log)
-                        log.info(
-                            "starting DNS resolver for container hostnames",
-                            metadata: [
-                                "host": "\(Self.listenAddress)",
-                                "port": "\(Self.dnsPort)",
-                            ]
-                        )
-                        do {
-                            try await dnsServer.run(host: Self.listenAddress, port: Self.dnsPort)
-                            return .success(())
-                        } catch {
-                            return .failure(error)
-                        }
-
-                    }
-
-                    // start up realhost DNS
-                    group.addTask {
-                        do {
-                            let localhostResolver = LocalhostDNSHandler(log: log)
-                            try await localhostResolver.monitorResolvers()
-
-                            let nxDomainResolver = NxDomainResolver()
-                            let compositeResolver = CompositeResolver(handlers: [localhostResolver, nxDomainResolver])
-                            let hostsQueryValidator = StandardQueryValidator(handler: compositeResolver)
-                            let dnsServer: DNSServer = DNSServer(handler: hostsQueryValidator, log: log)
-                            log.info(
-                                "starting DNS resolver for localhost",
-                                metadata: [
-                                    "host": "\(Self.listenAddress)",
-                                    "port": "\(Self.localhostDNSPort)",
-                                ]
-                            )
-                            try await dnsServer.run(host: Self.listenAddress, port: Self.localhostDNSPort)
-                            return .success(())
-                        } catch {
-                            return .failure(error)
-                        }
-                    }
-
-                    for await result in group {
-                        switch result {
-                        case .success():
-                            continue
-                        case .failure(let error):
-                            log.error("API server task failed: \(error)")
-                        }
-                    }
+                do {
+                    try await runServices(
+                        containerSystemConfig: containerSystemConfig,
+                        containerNamesListener: listeners.containerNames,
+                        localhostListener: listeners.localhost,
+                        log: log
+                    )
+                } catch {
+                    await listeners.localhost.close()
+                    await listeners.containerNames.close()
+                    throw error
                 }
             } catch {
-                log.error(
-                    "helper failed",
-                    metadata: [
-                        "name": "\(commandName)",
-                        "error": "\(error)",
-                    ])
+                log.error("helper failed", metadata: ["name": "\(commandName)", "error": "\(error)"])
                 APIServer.exit(withError: error)
+            }
+        }
+
+        private func bindDNSListeners(log: Logger) async throws(ContainerizationError) -> (
+            containerNames: DNSServer.Listener, localhost: DNSServer.Listener
+        ) {
+            let containerNames = try await bindDNSListener(port: Self.dnsPort, name: "container hostnames", log: log)
+            do {
+                let localhost = try await bindDNSListener(port: Self.localhostDNSPort, name: "localhost", log: log)
+                return (containerNames, localhost)
+            } catch {
+                await containerNames.close()
+                throw error
+            }
+        }
+
+        private func bindDNSListener(port: Int, name: String, log: Logger) async throws(ContainerizationError) -> DNSServer.Listener {
+            log.info("Binding DNS resolver for \(name)", metadata: ["host": "\(Self.listenAddress)", "port": "\(port)"])
+            do {
+                return try await DNSServer.bind(host: Self.listenAddress, port: port)
+            } catch {
+                throw ContainerizationError(
+                    .internalError,
+                    message: "failed to bind DNS resolver for \(name) on UDP \(Self.listenAddress):\(port)",
+                    cause: error
+                )
+            }
+        }
+
+        private func runServices(
+            containerSystemConfig: ContainerSystemConfig,
+            containerNamesListener: DNSServer.Listener,
+            localhostListener: DNSServer.Listener,
+            log: Logger
+        ) async throws {
+            log.info("configuring XPC server")
+            var routes = [XPCRoute: XPCServer.RouteHandler]()
+            let pluginLoader = try initializePluginLoader(log: log)
+
+            try await initializePlugins(pluginLoader: pluginLoader, log: log, routes: &routes, debug: debug)
+            let containersService = try await initializeContainersService(
+                pluginLoader: pluginLoader,
+                containerSystemConfig: containerSystemConfig,
+                log: log,
+                routes: &routes
+            )
+            let networkService = try await initializeNetworksService(
+                pluginLoader: pluginLoader,
+                containersService: containersService,
+                containerSystemConfig: containerSystemConfig,
+                log: log,
+                routes: &routes
+            )
+            await containersService.setNetworksService(networkService)
+            initializeHealthCheckService(log: log, routes: &routes)
+            try initializeKernelService(log: log, routes: &routes)
+            let volumesService = try await initializeVolumeService(containersService: containersService, log: log, routes: &routes)
+            try initializeDiskUsageService(
+                containersService: containersService,
+                volumesService: volumesService,
+                log: log,
+                routes: &routes
+            )
+
+            let server = XPCServer(
+                identifier: Self.serviceIdentifier,
+                routes: routes.reduce(
+                    into: [String: XPCServer.RouteHandler](),
+                    {
+                        $0[$1.key.rawValue] = $1.value
+                    }), log: log)
+
+            await withTaskGroup(of: Result<Void, Error>.self) { group in
+                group.addTask {
+                    log.info("starting XPC server")
+                    do {
+                        try await server.listen()
+                        return .success(())
+                    } catch {
+                        return .failure(error)
+                    }
+                }
+
+                // start up host table DNS
+                group.addTask {
+                    let hostsResolver = ContainerDNSHandler(networkService: networkService)
+                    let nxDomainResolver = NxDomainResolver()
+                    let compositeResolver = CompositeResolver(handlers: [hostsResolver, nxDomainResolver])
+                    let hostsQueryValidator = StandardQueryValidator(handler: compositeResolver)
+                    let dnsServer: DNSServer = DNSServer(handler: hostsQueryValidator, log: log)
+                    do {
+                        try await dnsServer.run(listener: containerNamesListener)
+                        return .success(())
+                    } catch {
+                        return .failure(error)
+                    }
+
+                }
+
+                // start up realhost DNS
+                group.addTask {
+                    do {
+                        let localhostResolver = LocalhostDNSHandler(log: log)
+                        try await localhostResolver.monitorResolvers()
+
+                        let nxDomainResolver = NxDomainResolver()
+                        let compositeResolver = CompositeResolver(handlers: [localhostResolver, nxDomainResolver])
+                        let hostsQueryValidator = StandardQueryValidator(handler: compositeResolver)
+                        let dnsServer: DNSServer = DNSServer(handler: hostsQueryValidator, log: log)
+                        try await dnsServer.run(listener: localhostListener)
+                        return .success(())
+                    } catch {
+                        return .failure(error)
+                    }
+                }
+
+                for await result in group {
+                    switch result {
+                    case .success():
+                        continue
+                    case .failure(let error):
+                        log.error("API server task failed: \(error)")
+                    }
+                }
             }
         }
 
