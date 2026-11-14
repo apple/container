@@ -35,23 +35,43 @@ public struct DNSServer {
         self.log = log
     }
 
-    public func run(host: String, port: Int) async throws {
-        // TODO: TCP server
-        let srv = try await DatagramBootstrap(group: NIOSingletons.posixEventLoopGroup)
-            .channelOption(.socketOption(.so_reuseaddr), value: 1)
-            .bind(host: host, port: port)
-            .flatMapThrowing { channel in
-                try NIOAsyncChannel(
-                    wrappingChannelSynchronously: channel,
-                    configuration: NIOAsyncChannel.Configuration(
-                        inboundType: AddressedEnvelope<ByteBuffer>.self,
-                        outboundType: AddressedEnvelope<ByteBuffer>.self
-                    )
-                )
-            }
-            .get()
+    /// A bound UDP listener that can be passed to `run(listener:)` once the DNS handler is ready.
+    public struct Listener: Sendable {
+        fileprivate let channel: NIOAsyncChannel<AddressedEnvelope<ByteBuffer>, AddressedEnvelope<ByteBuffer>>
 
-        try await srv.executeThenClose { inbound, outbound in
+        var localPort: Int? { channel.channel.localAddress?.port }
+
+        public func close() async {
+            channel.channel.close(promise: nil)
+            try? await channel.channel.closeFuture.get()
+        }
+    }
+
+    public static func bind(host: String, port: Int) async throws -> Listener {
+        // TODO: TCP server
+        let channel = try await DatagramBootstrap(group: NIOSingletons.posixEventLoopGroup)
+            .channelOption(.socketOption(.so_reuseaddr), value: 1)
+            .bind(host: host, port: port) { channel in
+                channel.eventLoop.makeCompletedFuture {
+                    try NIOAsyncChannel(
+                        wrappingChannelSynchronously: channel,
+                        configuration: NIOAsyncChannel.Configuration(
+                            inboundType: AddressedEnvelope<ByteBuffer>.self,
+                            outboundType: AddressedEnvelope<ByteBuffer>.self
+                        )
+                    )
+                }
+            }
+        return Listener(channel: channel)
+    }
+
+    public func run(host: String, port: Int) async throws {
+        let listener = try await Self.bind(host: host, port: port)
+        try await run(listener: listener)
+    }
+
+    public func run(listener: Listener) async throws {
+        try await listener.channel.executeThenClose { inbound, outbound in
             for try await var packet in inbound {
                 try await self.handle(outbound: outbound, packet: &packet)
             }

@@ -39,8 +39,7 @@ actor LocalhostDNSHandler: DNSHandler {
     }
 
     public func monitorResolvers() async throws {
-        var readyIterator = await self.watcher.readyEvents.makeAsyncIterator()
-
+        // The watcher polls for /etc/resolver when the directory does not exist yet.
         try await self.watcher.startWatching { [weak self] filePaths in
             var dns: [DNSName: IPv4Address] = [:]
             let regex = try Regex(HostDNSResolver.localhostOptionsRegex)
@@ -67,11 +66,6 @@ actor LocalhostDNSHandler: DNSHandler {
                 Task { await self.updateDNS(dns) }
             }
         }
-
-        // Wait for the watcher to actually be watching before returning, so callers can rely on
-        // resolver file changes being observed once this call completes, instead of racing the
-        // watcher's own poll cadence.
-        await readyIterator.next()
     }
 
     public func answer(query: Message) async throws -> Message? {

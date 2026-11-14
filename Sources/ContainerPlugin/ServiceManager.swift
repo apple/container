@@ -40,7 +40,12 @@ public struct ServiceManager {
     /// Register a service by providing the path to a plist.
     public static func register(plistPath: String) throws {
         let domain = try Self.getDomainString()
-        _ = try runLaunchctlCommand(args: ["bootstrap", domain, plistPath])
+        _ = try register(plistPath: plistPath, in: domain)
+    }
+
+    /// Returns whether this bootstrap registered the service with launchd.
+    public static func register(plistPath: String, in domain: String) throws -> Bool {
+        try runLaunchctlCommand(args: ["bootstrap", domain, plistPath]) == 0
     }
 
     /// Deregister a service by a launchd label.
