@@ -49,14 +49,16 @@ extension Application.VolumeCommand {
 
             var prunedVolumes = [String]()
             var totalSize: UInt64 = 0
+            var hadFailure = false
 
             for volume in volumesToPrune {
                 do {
                     let actualSize = try await ClientVolume.volumeDiskUsage(name: volume.name)
-                    totalSize += actualSize
                     try await ClientVolume.delete(name: volume.name)
+                    totalSize += actualSize
                     prunedVolumes.append(volume.name)
                 } catch {
+                    hadFailure = true
                     log.error(
                         "failed to prune volume",
                         metadata: [
@@ -73,6 +75,10 @@ extension Application.VolumeCommand {
             let formatter = ByteCountFormatter()
             let freed = formatter.string(fromByteCount: Int64(totalSize))
             log.info("Reclaimed \(freed) in disk space")
+
+            if hadFailure {
+                throw ExitCode.failure
+            }
         }
     }
 }
