@@ -19,7 +19,10 @@ import ContainerAPIClient
 import ContainerPersistence
 import ContainerPlugin
 import Containerization
+import ContainerizationError
 import ContainerizationOCI
+import Foundation
+import Logging
 import TerminalProgress
 
 extension Application {
@@ -50,7 +53,7 @@ extension Application {
         var os: String?
 
         @Option(
-            help: "Limit the pull to the specified platform (format: os/arch[/variant], takes precedence over --os and --arch) [environment: CONTAINER_DEFAULT_PLATFORM]"
+            help: "Limit the pull to a platform (os/arch[/variant]; 'all' unpacks every platform; takes precedence over --os and --arch) [environment: CONTAINER_DEFAULT_PLATFORM]"
         )
         var platform: String?
 
@@ -70,7 +73,7 @@ extension Application {
 
         public func run() async throws {
             let containerSystemConfig: ContainerSystemConfig = try await ClientHealthCheck.loadContainerSystemConfig()
-            let p = try DefaultPlatform.resolve(platform: platform, os: os, arch: arch, log: log)
+            let selection = try Self.resolvePlatforms(platform: platform, os: os, arch: arch, log: log)
 
             let scheme = try RequestScheme(registry.scheme)
 
@@ -94,7 +97,7 @@ extension Application {
             let taskManager = ProgressTaskCoordinator()
             let fetchTask = await taskManager.startTask()
             let image = try await ClientImage.pull(
-                reference: processedReference, platform: p, scheme: scheme, containerSystemConfig: containerSystemConfig,
+                reference: processedReference, platform: selection.fetch, scheme: scheme, containerSystemConfig: containerSystemConfig,
                 progressUpdate: ProgressTaskCoordinator.handler(for: fetchTask, from: progress.handler),
                 maxConcurrentDownloads: self.imageFetchFlags.maxConcurrentDownloads
             )
@@ -102,9 +105,41 @@ extension Application {
             progress.set(description: "Unpacking image")
             progress.set(itemsName: "entries")
             let unpackTask = await taskManager.startTask()
-            try await image.unpack(platform: p, progressUpdate: ProgressTaskCoordinator.handler(for: unpackTask, from: progress.handler))
+            try await image.unpack(platform: selection.unpack, progressUpdate: ProgressTaskCoordinator.handler(for: unpackTask, from: progress.handler))
             await taskManager.finish()
             progress.finish()
+        }
+
+        struct PlatformSelection {
+            let fetch: ContainerizationOCI.Platform?
+            let unpack: ContainerizationOCI.Platform?
+        }
+
+        /// Resolves the platforms used for fetching and unpacking.
+        ///
+        /// `--platform all` fetches every platform and unpacks every platform,
+        /// restoring the previous behavior. Otherwise the fetch uses the
+        /// requested platform (or all platforms when none is requested, so
+        /// blobs remain available offline), and unpacking defaults to the host
+        /// platform to avoid one snapshot per architecture.
+        static func resolvePlatforms(
+            platform: String?,
+            os: String?,
+            arch: String?,
+            environment: [String: String] = ProcessInfo.processInfo.environment,
+            log: Logger? = nil
+        ) throws -> PlatformSelection {
+            if platform?.lowercased() == "all" {
+                guard os == nil, arch == nil else {
+                    throw ContainerizationError(
+                        .invalidArgument,
+                        message: "--platform all cannot be combined with --os or --arch"
+                    )
+                }
+                return PlatformSelection(fetch: nil, unpack: nil)
+            }
+            let resolved = try DefaultPlatform.resolve(platform: platform, os: os, arch: arch, environment: environment, log: log)
+            return PlatformSelection(fetch: resolved, unpack: resolved ?? .current)
         }
     }
 }
