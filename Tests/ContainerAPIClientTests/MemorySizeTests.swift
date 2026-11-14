@@ -61,6 +61,25 @@ struct MemorySizeTests {
         #expect(original == decoded)
     }
 
+    @Test(
+        arguments: [
+            ("1.5gb", "1536mb"),
+            ("0.5tb", "512gb"),
+            ("2.5kb", "2560b"),
+        ] as [(String, String)])
+    func testFractionalFormattedOutput(input: String, expected: String) throws {
+        let size = try MemorySize(input)
+        #expect(size.formatted == expected)
+    }
+
+    @Test(arguments: ["1gb", "2048mb", "1.5gb", "0.5tb"])
+    func testRoundTripPreservesSize(input: String) throws {
+        let original = try MemorySize(input)
+        let data = try JSONEncoder().encode(original)
+        let decoded = try JSONDecoder().decode(MemorySize.self, from: data)
+        #expect(decoded.toUInt64(unit: .bytes) == original.toUInt64(unit: .bytes))
+    }
+
     @Test func testDecodingFromString() throws {
         let json = Data("\"512kb\"".utf8)
         let decoded = try JSONDecoder().decode(MemorySize.self, from: json)
