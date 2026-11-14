@@ -38,6 +38,9 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
     /// The preferred CIDR address for the IPv6 subnet, if specified
     public let ipv6Subnet: CIDRv6?
 
+    /// The default MTU for attachments to this network, if specified
+    public let mtu: UInt32?
+
     /// Key-value labels for the network.
     /// Resource labels should not be mutated, except while building a network configurations.
     public let labels: ResourceLabels
@@ -54,6 +57,7 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
         mode: NetworkMode,
         ipv4Subnet: CIDRv4? = nil,
         ipv6Subnet: CIDRv6? = nil,
+        mtu: UInt32? = nil,
         labels: ResourceLabels = .init(),
         plugin: String,
         options: [String: String] = [:]
@@ -63,6 +67,7 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
         self.mode = mode
         self.ipv4Subnet = ipv4Subnet
         self.ipv6Subnet = ipv6Subnet
+        self.mtu = mtu
         self.labels = labels
         self.plugin = plugin
         self.options = options
@@ -78,6 +83,7 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
         case mode
         case ipv4Subnet
         case ipv6Subnet
+        case mtu
         case labels
         case plugin
         case options
@@ -102,6 +108,7 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
         ipv4Subnet = try subnetText.map { try CIDRv4($0) }
         ipv6Subnet = try container.decodeIfPresent(String.self, forKey: .ipv6Subnet)
             .map { try CIDRv6($0) }
+        mtu = try container.decodeIfPresent(UInt32.self, forKey: .mtu)
         let decodedLabels = try container.decodeIfPresent([String: String].self, forKey: .labels) ?? [:]
         labels = try .init(decodedLabels)
 
@@ -132,6 +139,7 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
         try container.encode(mode, forKey: .mode)
         try container.encodeIfPresent(ipv4Subnet, forKey: .ipv4Subnet)
         try container.encodeIfPresent(ipv6Subnet, forKey: .ipv6Subnet)
+        try container.encodeIfPresent(mtu, forKey: .mtu)
         try container.encode(labels, forKey: .labels)
         try container.encode(plugin, forKey: .plugin)
         try container.encode(options, forKey: .options)
@@ -140,6 +148,9 @@ public struct NetworkConfiguration: Codable, Sendable, Identifiable {
     private func validate() throws {
         guard NetworkResource.nameValid(name) else {
             throw ContainerizationError(.invalidArgument, message: "invalid network name: \(name)")
+        }
+        if let mtu {
+            _ = try NetworkMTU.parse(String(mtu))
         }
     }
 }

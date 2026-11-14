@@ -124,6 +124,54 @@ struct TestCLINetwork {
     }
 
     @available(macOS 26, *)
+    @Test func testNetworkCreateMTU() async throws {
+        try await ContainerFixture.with { f in
+            let net = "\(f.testID)-net"
+            let c = "\(f.testID)-c"
+            try f.doNetworkCreate(net, args: ["--mtu", "1500"])
+            f.addCleanup { f.doNetworkDeleteIfExists(net) }
+
+            let network = try f.inspectNetwork(net)
+            #expect(network.configuration.mtu == 1500)
+            #expect(network.effectiveMTU == 1500)
+
+            try await f.doLongRun(name: c, args: ["--network", net], autoRemove: false, waitUntilRunning: true)
+            f.addCleanup {
+                try? f.doStop(c)
+                try? f.doRemove(c)
+            }
+            let output = try f.doExec(c, cmd: ["ip", "link", "show", "eth0"])
+            #expect(output.contains("mtu 1500"), "expected mtu 1500 in ip link output: \(output)")
+        }
+    }
+
+    @available(macOS 26, *)
+    @Test func testNetworkFlagBeatsNetworkMTU() async throws {
+        try await ContainerFixture.with { f in
+            let net = "\(f.testID)-net"
+            let c = "\(f.testID)-c"
+            try f.doNetworkCreate(net, args: ["--mtu", "1500"])
+            f.addCleanup { f.doNetworkDeleteIfExists(net) }
+
+            try await f.doLongRun(name: c, args: ["--network", "\(net),mtu=1400"], autoRemove: false, waitUntilRunning: true)
+            f.addCleanup {
+                try? f.doStop(c)
+                try? f.doRemove(c)
+            }
+            let output = try f.doExec(c, cmd: ["ip", "link", "show", "eth0"])
+            #expect(output.contains("mtu 1400"), "expected mtu 1400 in ip link output: \(output)")
+        }
+    }
+
+    @Test func testNetworkCreateRejectsInvalidMTU() async throws {
+        try await ContainerFixture.with { f in
+            let result = try f.run(["network", "create", "--mtu", "100", "\(f.testID)-net"])
+            #expect(result.status != 0)
+            #expect(result.error.contains("invalid mtu value '100'"))
+        }
+    }
+
+    @available(macOS 26, *)
     @Test func testIsolatedNetwork() async {
         await withKnownIssue("curl error 7 despite retries", isIntermittent: true) {
             try await ContainerFixture.with { f in

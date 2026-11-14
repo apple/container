@@ -272,6 +272,19 @@ container network delete foo
 
 Networks support both IPv4 and IPv6. When creating a network without explicit subnet options, the system uses default values if configured in your runtime configuration file (see [Configure default network subnets](#configure-default-network-subnets)), or automatically allocates subnets. The system validates that custom subnets don't overlap with existing networks.
 
+## Configure the network MTU
+
+Containers attach to their network with an MTU of 1280, which is also the minimum, unless you set another value of up to 65535. To change the default, set `mtu` in the `[network]` section of your runtime configuration file at `~/.config/container/config.toml`, or in `<installRoot>/etc/container/config.toml` for every user of the install. The user file overrides the system file:
+
+```toml
+[network]
+mtu = 1500
+```
+
+The default applies to `container run`, `container create`, the builder, `container machine`, and the nodes of `container cluster create`. To override it for one attachment, use `container run --network default,mtu=1400 ...`. Containers and clusters created with an MTU keep it, and a builder that is already running keeps its MTU until it is recreated.
+
+To set an MTU for every container on a network, use `container network create --mtu 1500 foo`. An MTU on an attachment overrides the network's, and the network's overrides `[network] mtu`. Changing `[network] mtu` does not affect a network created with its own MTU. `container network inspect` shows the MTU a new attachment would get as `effectiveMTU`.
+
 ## Configure default network subnets
 
 You can customize the default IPv4 and IPv6 subnets used for new networks by editing your runtime configuration file at `~/.config/container/config.toml`:

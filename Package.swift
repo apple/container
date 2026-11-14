@@ -526,6 +526,7 @@ let package = Package(
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "Containerization", package: "containerization"),
                 "ContainerLog",
+                "ContainerPersistence",
                 "ContainerPlugin",
                 "ContainerResource",
                 "ContainerRuntimeClient",
@@ -536,6 +537,15 @@ let package = Package(
             ],
             path: "Sources/Plugins/RuntimeLinux",
             exclude: ["config.toml"]
+        ),
+        .testTarget(
+            name: "ContainerRuntimeLinuxServerTests",
+            dependencies: [
+                .product(name: "Containerization", package: "containerization"),
+                .product(name: "ContainerizationExtras", package: "containerization"),
+                "ContainerResource",
+                "ContainerRuntimeLinuxServer",
+            ]
         ),
         .target(
             name: "ContainerRuntimeLinuxServer",

@@ -81,6 +81,46 @@ struct ConfigurationLoaderTests {
         }
     }
 
+    @Test func networkMTUUserConfigOverridesSystemConfig() async throws {
+        try await TemporaryStorage.withTempDir { tempDir in
+            let appRoot = tempDir.appending("appRoot.toml")
+            let installRoot = tempDir.appending("installRoot.toml")
+            try Self.writeToml("[network]\nmtu = 1500\n", to: appRoot)
+            try Self.writeToml("[network]\nmtu = 1400\nsubnet = \"10.0.0.1/16\"\n", to: installRoot)
+
+            let config: ContainerSystemConfig = try await ConfigurationLoader.load(
+                configurationFiles: [appRoot, installRoot]
+            )
+            #expect(config.network.mtu == 1500)
+            let expectedSubnet = try CIDRv4("10.0.0.1/16")
+            #expect(config.network.subnet == expectedSubnet)
+        }
+    }
+
+    @Test func networkMTUFromSystemConfigAlone() async throws {
+        try await TemporaryStorage.withTempDir { tempDir in
+            let appRoot = tempDir.appending("appRoot.toml")
+            let installRoot = tempDir.appending("installRoot.toml")
+            try Self.writeToml("[build]\nrosetta = false\n", to: appRoot)
+            try Self.writeToml("[network]\nmtu = 1400\n", to: installRoot)
+
+            let config: ContainerSystemConfig = try await ConfigurationLoader.load(
+                configurationFiles: [appRoot, installRoot]
+            )
+            #expect(config.network.mtu == 1400)
+        }
+    }
+
+    @Test func networkMTUAbsentIsNil() async throws {
+        try await TemporaryStorage.withTempDir { tempDir in
+            let path = tempDir.appending("network.toml")
+            try Self.writeToml("[network]\nsubnet = \"10.0.0.1/16\"\n", to: path)
+
+            let config: ContainerSystemConfig = try await ConfigurationLoader.load(configurationFiles: [path])
+            #expect(config.network.mtu == nil)
+        }
+    }
+
     @Test func defaultsWithNoFile() async throws {
         try await TemporaryStorage.withTempDir { tempDir in
             let path = tempDir.appending("nonexistent.toml")

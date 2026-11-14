@@ -54,6 +54,13 @@ extension Application {
             })
         var ipv6Subnet: CIDRv6? = nil
 
+        @Option(
+            name: .customLong("mtu"), help: "Set the default MTU for containers attached to this network",
+            transform: {
+                try NetworkMTU.parse($0)
+            })
+        var mtu: UInt32? = nil
+
         @OptionGroup
         public var logOptions: Flags.Logging
 
@@ -71,6 +78,7 @@ extension Application {
                 mode: mode,
                 ipv4Subnet: ipv4Subnet,
                 ipv6Subnet: ipv6Subnet,
+                mtu: mtu,
                 labels: parsedLabels,
                 plugin: self.plugin,
                 options: parsedOptions
