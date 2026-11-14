@@ -238,55 +238,60 @@ extension Application {
         }
 
         private static func collectStats(client: ContainerClient, for containers: [ContainerSnapshot]) async throws -> [StatsSnapshot] {
-            var snapshots: [StatsSnapshot] = []
-            let clock = ContinuousClock()
+            let running = containers.filter { $0.status == .running }
 
-            // First sample
-            for container in containers {
-                guard container.status == .running else { continue }
-                do {
-                    let stats1 = try await client.stats(id: container.id)
-                    let sampledAt = clock.now
-                    snapshots.append(
-                        StatsSnapshot(
-                            container: container,
-                            stats1: stats1,
-                            sampledAt1: sampledAt,
-                            stats2: stats1,
-                            sampledAt2: sampledAt
-                        ))
-                } catch {
-                    // Skip containers that error out
-                    continue
+            // First sample. Containers that error out are skipped.
+            let firstSample = await sample(client: client, ids: running.map { $0.id })
+            var snapshots = running.compactMap { container -> StatsSnapshot? in
+                guard let stats = firstSample[container.id] else {
+                    return nil
                 }
+                return StatsSnapshot(container: container, stats1: stats, stats2: stats)
+            }
+
+            guard !snapshots.isEmpty else {
+                return snapshots
             }
 
             // Wait 2 seconds for CPU delta calculation
-            if !snapshots.isEmpty {
-                try await Task.sleep(for: Self.sampleInterval)
+            try await Task.sleep(for: .seconds(2))
 
-                // Second sample
-                for i in 0..<snapshots.count {
-                    do {
-                        let stats2 = try await client.stats(id: snapshots[i].container.id)
-                        snapshots[i] = StatsSnapshot(
-                            container: snapshots[i].container,
-                            stats1: snapshots[i].stats1,
-                            sampledAt1: snapshots[i].sampledAt1,
-                            stats2: stats2,
-                            sampledAt2: clock.now
-                        )
-                    } catch {
-                        // Keep the original stats if second sample fails
-                        continue
-                    }
+            // Second sample
+            let secondSample = await sample(client: client, ids: snapshots.map { $0.container.id })
+            snapshots = snapshots.map { snapshot -> StatsSnapshot in
+                guard let stats2 = secondSample[snapshot.container.id] else {
+                    // Keep the original stats if second sample fails
+                    return snapshot
                 }
+                return StatsSnapshot(container: snapshot.container, stats1: snapshot.stats1, stats2: stats2)
             }
 
             return snapshots
         }
 
-        /// Calculate CPU utilization from two stat snapshots
+        /// Fetch stats for every container concurrently, omitting the ones whose
+        /// stats could not be read. One round trip per container in series adds
+        /// up quickly once more than a handful of containers are running.
+        private static func sample(client: ContainerClient, ids: [String]) async -> [String: ContainerResource.ContainerStats] {
+            await withTaskGroup(
+                of: (String, ContainerResource.ContainerStats?).self,
+                returning: [String: ContainerResource.ContainerStats].self
+            ) { group in
+                for id in ids {
+                    group.addTask {
+                        (id, try? await client.stats(id: id))
+                    }
+                }
+
+                var results = [String: ContainerResource.ContainerStats]()
+                for await (id, stats) in group {
+                    results[id] = stats
+                }
+                return results
+            }
+        }
+
+        /// Calculate CPU percentage from two stat snapshots
         /// - Parameters:
         ///   - cpuUsage1: CPU usage from the first sample
         ///   - cpuUsage2: CPU usage from the second sample
