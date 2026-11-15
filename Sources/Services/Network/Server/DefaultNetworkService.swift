@@ -24,14 +24,21 @@ import Logging
 
 public actor DefaultNetworkService: NetworkService {
     private let network: any Network
+    private let mtu: UInt32?
     private let log: Logger
     private var allocator: AttachmentAllocator
     private var macAddresses: [UInt32: MACAddress]
     private var allocationsBySession: [XPCServerSession: [(hostname: String, index: UInt32)]]
 
     /// Set up a network service for the specified network.
+    ///
+    /// - Parameters:
+    ///   - network: The network to serve.
+    ///   - mtu: The MTU of the network, returned with each attachment. `nil` leaves it to the runtime.
+    ///   - log: The logger.
     public init(
         network: any Network,
+        mtu: UInt32? = nil,
         log: Logger
     ) async throws {
         guard let status = await network.status else {
@@ -41,6 +48,7 @@ public actor DefaultNetworkService: NetworkService {
         let subnet = status.ipv4Subnet
         let size = Int(subnet.upper.value - subnet.lower.value - 3)
         self.network = network
+        self.mtu = mtu
         self.log = log
         self.allocator = try AttachmentAllocator(lower: subnet.lower.value + 2, size: size)
         self.macAddresses = [:]
@@ -90,6 +98,7 @@ public actor DefaultNetworkService: NetworkService {
             ipv4Gateway: status.ipv4Gateway,
             ipv6Address: ipv6Address,
             macAddress: macAddress,
+            mtu: mtu,
             variant: network.variant
         )
         log.info(
@@ -171,6 +180,7 @@ public actor DefaultNetworkService: NetworkService {
             ipv4Gateway: status.ipv4Gateway,
             ipv6Address: ipv6Address,
             macAddress: macAddress,
+            mtu: mtu,
             variant: network.variant
         )
         log.debug(

@@ -162,22 +162,25 @@ public actor NetworksService {
                 throw ContainerizationError(.exists, message: "network \(configuration.id) already exists")
             }
 
-            // Create and start the network.
-            try await self.registerService(configuration: configuration)
-            let client = try Self.getClient(configuration: configuration)
-
-            // Ensure the network is running
-            let networkStatus = try await client.status()
-
+            // A network without an MTU of its own takes `[network] mtu` when it is created, and keeps it.
+            let containerSystemConfig: ContainerSystemConfig = try await ConfigurationLoader.load()
             let finalConfiguration = try NetworkConfiguration(
                 name: configuration.name,
                 mode: configuration.mode,
                 ipv4Subnet: configuration.ipv4Subnet,
                 ipv6Subnet: configuration.ipv6Subnet,
+                mtu: NetworkMTU.resolve(network: configuration.mtu, config: containerSystemConfig.network.mtu),
                 labels: configuration.labels,
                 plugin: configuration.plugin,
                 options: configuration.options
             )
+
+            // Create and start the network.
+            try await self.registerService(configuration: finalConfiguration)
+            let client = try Self.getClient(configuration: finalConfiguration)
+
+            // Ensure the network is running
+            let networkStatus = try await client.status()
 
             let entry = NetworkEntry(configuration: finalConfiguration, status: networkStatus, client: client)
             await self.setServiceState(key: finalConfiguration.id, value: entry)
@@ -403,6 +406,10 @@ public actor NetworksService {
             }
 
             args += ["--subnet-v6", ipv6Subnet.description]
+        }
+
+        if let mtu = configuration.mtu {
+            args += ["--mtu", "\(mtu)"]
         }
 
         if let variant = configuration.options["variant"] {

@@ -256,6 +256,31 @@ struct UtilityTests {
         #expect(attachments[1].options.aliases.isEmpty)
     }
 
+    @Test("The default attachment leaves the MTU to its network")
+    func testDefaultAttachmentLeavesMTUToNetwork() throws {
+        let attachments = try Utility.getAttachmentConfigurations(
+            containerId: "foo",
+            builtinNetworkId: "default",
+            networks: [],
+            dnsDomain: nil
+        )
+        #expect(attachments.map(\.options.mtu) == [nil])
+    }
+
+    @Test("Only an attachment with mtu= sets its own MTU")
+    func testOnlyMTUOptionSetsAttachmentMTU() throws {
+        let attachments = try Utility.getAttachmentConfigurations(
+            containerId: "foo",
+            builtinNetworkId: "default",
+            networks: [
+                Parser.ParsedNetwork(name: "default"),
+                Parser.ParsedNetwork(name: "backend", mtu: 1400),
+            ],
+            dnsDomain: nil
+        )
+        #expect(attachments.map(\.options.mtu) == [nil, 1400])
+    }
+
     @Test("Aliases are carried to a later attachment")
     func testAttachmentConfigurationsCarryAliasesOnLaterNetworks() throws {
         let networks = [

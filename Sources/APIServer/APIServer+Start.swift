@@ -327,6 +327,7 @@ extension APIServer {
                 mode: .nat,
                 ipv4Subnet: containerSystemConfig.network.subnet,
                 ipv6Subnet: containerSystemConfig.network.subnetv6,
+                mtu: NetworkMTU.resolve(network: nil, config: containerSystemConfig.network.mtu),
                 labels: try .init([ResourceLabelKeys.role: ResourceRoleValues.builtin]),
                 plugin: "container-network-vmnet"
             )

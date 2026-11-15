@@ -265,10 +265,13 @@ final public class KernelConfig: Codable, Sendable {
 final public class NetworkConfig: Codable, Sendable {
     public let subnet: CIDRv4?
     public let subnetv6: CIDRv6?
+    /// The MTU of networks created without one. Validated when a network is created, by `NetworkMTU.resolve`.
+    public let mtu: Int?
 
-    public init(subnet: CIDRv4? = nil, subnetv6: CIDRv6? = nil) {
+    public init(subnet: CIDRv4? = nil, subnetv6: CIDRv6? = nil, mtu: Int? = nil) {
         self.subnet = subnet
         self.subnetv6 = subnetv6
+        self.mtu = mtu
     }
 }
 
