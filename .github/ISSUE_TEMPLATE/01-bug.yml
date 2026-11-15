@@ -42,9 +42,9 @@ body:
       label: Environment 
       description: |
         Examples: 
-          - **OS**: macOS 26.0 (25A354)
-          - **Xcode**: Version 26.0 (17A324)
-          - **Container**: Container CLI version 0.1.0
+          - **OS**: macOS 27.0 (26A354)
+          - **Xcode**: Version 27.0 (27A324)
+          - **Container**: Container CLI version 1.0.0
         
         📖 **Need help gathering this info?** See our guide: [Environment Information](https://github.com/apple/containerization/blob/main/CONTRIBUTING.md#filing-effective-bug-reports)
       value: |

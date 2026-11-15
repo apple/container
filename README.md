@@ -17,7 +17,7 @@ The tool consumes and produces [OCI-compatible container images](https://github.
 
 You need a Mac with Apple silicon to run `container`. To build it, see the [BUILDING](./BUILDING.md) document.
 
-`container` is supported on macOS 26, since it takes advantage of new features and enhancements to virtualization and networking in this release. We do not support older versions of macOS and the `container` maintainers typically will not address issues that cannot be reproduced on macOS 26.
+`container` is designed to run on macOS 26 or later, since it takes advantage of new features and enhancements to virtualization and networking in this release. We do not support older versions of macOS and the `container` maintainers typically will not address issues that cannot be reproduced on macOS 26 or later.
 
 ### Initial install
 
