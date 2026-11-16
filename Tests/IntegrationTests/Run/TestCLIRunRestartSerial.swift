@@ -207,11 +207,11 @@ struct TestCLIRunRestartSerial {
             let name = "\(f.testID)-c"
 
             // Each run increments a counter by appending a line to /tmp/count.
-            // On run 8, backOff has accumulated to 10s (capped); the container then sleeps 12s
+            // On run 8, backOff has accumulated to 12.8s; the container then sleeps 12s
             // to stay alive past the stabilityCall window, which resets backOff to nil.
             //
-            // BackOff sequence: 100ms, 200ms, 400ms, 800ms, 1.6s, 3.2s, 6.4s, 10s (cap)
-            // Total expected wait: (1+0.1)+(1+0.2)+(1+0.4)+(1+0.8)+(1+1.6)+(1+3.2)+(1+6.4)+(1+10)+12+0.5 ~= 43.2s
+            // BackOff sequence: 100ms, 200ms, 400ms, 800ms, 1.6s, 3.2s, 6.4s, 12.8s
+            // Total expected wait: (1+0.1)+(1+0.2)+(1+0.4)+(1+0.8)+(1+1.6)+(1+3.2)+(1+6.4)+(1+12.8)+12+0.5 ~= 45.0s
             try await f.doLongRun(
                 name: name,
                 args: ["--restart", "always"],
@@ -227,7 +227,7 @@ struct TestCLIRunRestartSerial {
             }
 
             // Wait for all 8 cycles + stability window + a small buffer.
-            try await Task.sleep(for: .seconds(45))
+            try await Task.sleep(for: .seconds(50))
 
             // At this point run 8 has slept 12s, triggering stabilityCall and resetting backOff.
             // The container should be running (restarted quickly after backOff reset).

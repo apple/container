@@ -39,7 +39,7 @@ public actor ContainersService {
 
     struct ContainerState {
         private static let initialBackOff = Duration.milliseconds(100)
-        private static let maxBackOff = Duration.seconds(10)
+        private static let maxBackOff = Duration.seconds(60)
         public static let stabilityCall = Duration.seconds(10)
 
         var snapshot: ContainerSnapshot
