@@ -122,6 +122,7 @@ public actor ContainersService {
         (self.exitQueue, self.exitQueueContinuation) = AsyncStream.makeStream(of: String.self)
         self.containers = try await Self.loadAtBoot(root: containerRoot, loader: pluginLoader, log: log)
 
+        // Schedule restarts for containers according to their restart policy
         for id in self.containers.keys {
             self.exitQueueContinuation.yield(id)
         }
