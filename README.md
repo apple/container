@@ -100,7 +100,9 @@ Contributions to `container` are welcome and encouraged. Please see our [main co
 
 ## Project Status
 
-The container project is under active development. Its release versions are product versions, not semantic versions.
+The container project is under active development. It is considered production-quality: both the tool and its Swift package APIs are suitable for production use on supported systems.
+
+Its release versions are product versions, not semantic versions.
 
 The `container` CLI compatibility generally preserves backward compatibility within a major release (not breaking existing scripts), however, there may be the odd case where breaking compatibility may be necessary. **Note:** Features marked *experimental* (for example, the `cluster` subcommand) may change and do not guarantee backward compatibility.
 
