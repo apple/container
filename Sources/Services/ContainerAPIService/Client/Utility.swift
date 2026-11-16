@@ -181,13 +181,54 @@ public struct Utility {
                 resolvedMounts.append(fs)
             case .volume(let parsed):
                 let volume = try await getOrCreateVolume(parsed: parsed, log: log)
-                let volumeMount = Filesystem.volume(
-                    name: parsed.name,
-                    format: volume.format,
-                    source: volume.source,
-                    destination: parsed.destination,
-                    options: parsed.options
-                )
+                let volumeMount: Filesystem
+                switch volume.driver {
+                case "smb":
+                    do {
+                        try MountOptionValidator.validatePerMountOptions(parsed.options)
+                    } catch let violation as MountOptionValidator.Violation {
+                        throw ContainerizationError(
+                            .invalidArgument,
+                            message: "invalid mount options for \(parsed.destination): \(violation)"
+                        )
+                    }
+                    volumeMount = Filesystem.smb(
+                        name: parsed.name,
+                        share: volume.source,
+                        mountOptions: volume.options,
+                        destination: parsed.destination,
+                        options: parsed.options
+                    )
+                case "nfs":
+                    do {
+                        try MountOptionValidator.validatePerMountOptions(parsed.options)
+                    } catch let violation as MountOptionValidator.Violation {
+                        throw ContainerizationError(
+                            .invalidArgument,
+                            message: "invalid mount options for \(parsed.destination): \(violation)"
+                        )
+                    }
+                    volumeMount = Filesystem.nfs(
+                        name: parsed.name,
+                        share: volume.source,
+                        mountOptions: volume.options,
+                        destination: parsed.destination,
+                        options: parsed.options
+                    )
+                case "local":
+                    volumeMount = Filesystem.volume(
+                        name: parsed.name,
+                        format: volume.format,
+                        source: volume.source,
+                        destination: parsed.destination,
+                        options: parsed.options
+                    )
+                default:
+                    throw ContainerizationError(
+                        .invalidArgument,
+                        message: "volume '\(parsed.name)' uses unsupported driver '\(volume.driver)'"
+                    )
+                }
                 resolvedMounts.append(volumeMount)
             }
         }

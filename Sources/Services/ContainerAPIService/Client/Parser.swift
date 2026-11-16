@@ -626,7 +626,7 @@ public struct Parser {
                 }
 
                 // This is a named volume
-                let options = parts.count == 3 ? parts[2].split(separator: ",").map { String($0) } : []
+                let options = parts.count == 3 ? parts[2].split(separator: ",", omittingEmptySubsequences: false).map { String($0) } : []
                 return .volume(
                     ParsedVolume(
                         name: src,

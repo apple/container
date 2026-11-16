@@ -56,4 +56,7 @@ public enum RuntimeKeys: String {
 
     /// Per-network connection info passed to the runtime so it can allocate directly.
     case networkBootstrapInfos
+
+    /// Secrets for volume mounts, keyed by volume name, resolved by the API server at bootstrap.
+    case mountCredentials
 }

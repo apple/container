@@ -58,19 +58,22 @@ public actor ContainersService {
     private let runtimePlugins: [Plugin]
     private let exitMonitor: ExitMonitor
     private let containerSystemConfig: ContainerSystemConfig
+    private let credentialStore: VolumeCredentialStore
 
     private let lock: AsyncLock
     private var containers: [String: ContainerState]
 
     // FIXME: Find a better mechanism for services running on the APIServer to work with each other
     private weak var networksService: NetworksService?
+    private weak var volumesService: VolumesService?
 
     public init(
         appRoot: URL,
         pluginLoader: PluginLoader,
         containerSystemConfig: ContainerSystemConfig,
         log: Logger,
-        debugHelpers: Bool = false
+        debugHelpers: Bool = false,
+        credentialStore: VolumeCredentialStore = KeychainVolumeCredentialStore()
     ) async throws {
         let containerRoot = appRoot.appendingPathComponent("containers")
         try PathUtils.createDirectoryExcludingFromBackup(containerRoot)
@@ -79,6 +82,7 @@ public actor ContainersService {
         self.containerRoot = containerRoot
         self.pluginLoader = pluginLoader
         self.containerSystemConfig = containerSystemConfig
+        self.credentialStore = credentialStore
         self.log = log
         self.debugHelpers = debugHelpers
         self.runtimePlugins = pluginLoader.findPlugins().filter { $0.hasType(.runtime) }
@@ -87,6 +91,10 @@ public actor ContainersService {
 
     public func setNetworksService(_ service: NetworksService) async {
         self.networksService = service
+    }
+
+    public func setVolumesService(_ service: VolumesService) async {
+        self.volumesService = service
     }
 
     static func loadAtBoot(root: URL, loader: PluginLoader, log: Logger) async throws -> [String: ContainerState] {
@@ -309,6 +317,11 @@ public actor ContainersService {
 
             try ContainerConfiguration.Resources.validate(memoryInBytes: configuration.resources.memoryInBytes)
 
+            // Volumes are validated when they are created, but a client can also attach an SMB
+            // or NFS filesystem directly, so check the mount options here as well. An SMB password
+            // is never accepted here; it belongs in the credential store, keyed by volume name.
+            try await self.validateMounts(configuration.mounts)
+
             let path = self.containerRoot.appendingPathComponent(configuration.id)
             let systemPlatform = kernel.platform
 
@@ -394,7 +407,7 @@ public actor ContainersService {
             }
 
             let path = self.containerRoot.appendingPathComponent(id)
-            let (config, _) = try Self.getContainerConfiguration(at: path)
+            var (config, _) = try Self.getContainerConfiguration(at: path)
             try AttachmentNameValidator.validateStored(id: id, networks: config.networks)
 
             var networkBootstrapInfos = [NetworkBootstrapInfo]()
@@ -403,6 +416,14 @@ public actor ContainersService {
                     throw ContainerizationError(.internalError, message: "failed to get plugin for network \(n.network)")
                 }
                 networkBootstrapInfos.append(NetworkBootstrapInfo(plugin: plugin))
+            }
+
+            // Rebuild named SMB mounts from their authoritative volume configurations and resolve
+            // their passwords here, where the credential store is, for this bootstrap only.
+            let mountCredentials = try await self.prepareBootstrapMounts(for: &config)
+            if config.mounts.contains(where: { $0.isSMB && $0.volumeName != nil }) {
+                try Self.updateStoredContainerConfiguration(config, at: path)
+                state.snapshot.configuration = config
             }
 
             do {
@@ -419,7 +440,12 @@ public actor ContainersService {
                     id: id,
                     runtime: runtime
                 )
-                try await runtimeClient.bootstrap(stdio: stdio, networkBootstrapInfos: networkBootstrapInfos, dynamicEnv: dynamicEnv)
+                try await runtimeClient.bootstrap(
+                    stdio: stdio,
+                    networkBootstrapInfos: networkBootstrapInfos,
+                    dynamicEnv: dynamicEnv,
+                    mountCredentials: mountCredentials
+                )
 
                 try await self.exitMonitor.registerProcess(
                     id: id,
@@ -439,6 +465,134 @@ public actor ContainersService {
                 throw error
             }
         }
+    }
+
+    /// Validates the mounts of a container configuration at creation time.
+    ///
+    /// Named SMB mounts must refer to an existing `smb` volume and match its stored `share` and
+    /// `mountOptions`; per-mount options may contain only `ro` and `rw`. Direct (unnamed) SMB
+    /// mounts never receive a credential and may not carry secrets.
+    package func validateMounts(_ mounts: [Filesystem]) async throws {
+        for mount in mounts {
+            do {
+                try mount.validateMountOptions()
+                try mount.validateNoSecretOptions()
+            } catch let violation as MountOptionValidator.Violation {
+                throw ContainerizationError(
+                    .invalidArgument,
+                    message: "invalid mount options for \(mount.destination): \(violation)"
+                )
+            }
+
+            if case .smb(let name?, let share, let mountOptions) = mount.type {
+                guard let volumesService = self.volumesService,
+                    let volume = try? await volumesService.inspect(name),
+                    volume.driver == "smb"
+                else {
+                    throw ContainerizationError(
+                        .invalidArgument,
+                        message: "mount for \(mount.destination) references unknown or non-smb volume '\(name)'"
+                    )
+                }
+                guard share == volume.source, mount.source == volume.source else {
+                    throw ContainerizationError(
+                        .invalidArgument,
+                        message: "mount for \(mount.destination) does not match volume '\(name)' field 'share'"
+                    )
+                }
+                guard mountOptions == volume.options else {
+                    throw ContainerizationError(
+                        .invalidArgument,
+                        message: "mount for \(mount.destination) does not match volume '\(name)' field 'mountOptions'"
+                    )
+                }
+            }
+        }
+    }
+
+    /// Rebuilds each named SMB mount in `config` from its volume's current configuration (keeping
+    /// only the container's validated `ro`/`rw` per-mount options and `destination`), then resolves
+    /// the SMB passwords for those volume-backed mounts.
+    package func prepareBootstrapMounts(for config: inout ContainerConfiguration) async throws -> [String: String] {
+        for i in config.mounts.indices {
+            let mount = config.mounts[i]
+            do {
+                try mount.validateMountOptions()
+                try mount.validateNoSecretOptions()
+            } catch let violation as MountOptionValidator.Violation {
+                throw ContainerizationError(
+                    .invalidState,
+                    message: "invalid mount options for \(mount.destination): \(violation)"
+                )
+            }
+
+            guard case .smb(let name?, _, _) = mount.type else {
+                continue
+            }
+
+            guard let volumesService = self.volumesService,
+                let volume = try? await volumesService.inspect(name),
+                volume.driver == "smb"
+            else {
+                throw ContainerizationError(
+                    .invalidState,
+                    message: "SMB volume '\(name)' for mount \(mount.destination) does not exist"
+                )
+            }
+
+            let rebuilt = Filesystem.smb(
+                name: volume.name,
+                share: volume.source,
+                mountOptions: volume.options,
+                destination: mount.destination,
+                options: mount.options
+            )
+            do {
+                try rebuilt.validateMountOptions()
+                try rebuilt.validateNoSecretOptions()
+            } catch let violation as MountOptionValidator.Violation {
+                throw ContainerizationError(
+                    .invalidState,
+                    message: "invalid mount options for \(mount.destination): \(violation)"
+                )
+            }
+            config.mounts[i] = rebuilt
+        }
+
+        return try self.resolveMountCredentials(for: config)
+    }
+
+    /// Returns the SMB passwords for the volumes a container mounts, keyed by volume name.
+    ///
+    /// A volume with a `username` option must have a stored credential; if it is missing from the
+    /// keychain, bootstrap fails rather than attempting an unauthenticated mount. A volume without
+    /// a `username` option is left out so guest shares can mount anonymously.
+    private nonisolated func resolveMountCredentials(for config: ContainerConfiguration) throws -> [String: String] {
+        var credentials = [String: String]()
+        for mount in config.mounts {
+            guard case .smb(let name?, _, let mountOptions) = mount.type, credentials[name] == nil else {
+                continue
+            }
+            let credential: VolumeCredential?
+            do {
+                credential = try self.credentialStore.lookup(volume: name)
+            } catch {
+                throw ContainerizationError(
+                    .internalError,
+                    message: "failed to read the credential for volume \(name) from the keychain",
+                    cause: error
+                )
+            }
+            if let credential {
+                credentials[name] = credential.password
+            } else if let username = mountOptions["username"] ?? mountOptions["user"], !username.isEmpty {
+                throw ContainerizationError(
+                    .invalidState,
+                    message: "missing credential in the keychain for SMB volume \(name)"
+                )
+            }
+        }
+        return credentials
     }
 
     /// Create a new process in the container.
@@ -1193,6 +1347,25 @@ public actor ContainersService {
                 throw ContainerizationError(.internalError, message: "runtime configuration missing container configuration")
             }
             return (config, runtimeConfig.options)
+        }
+    }
+
+    private static func updateStoredContainerConfiguration(_ config: ContainerConfiguration, at path: URL) throws {
+        let bundle = ContainerResource.Bundle(path: path)
+        if (try? bundle.configuration) != nil {
+            try bundle.set(configuration: config)
+        }
+        if let runtimeConfig = try? RuntimeConfiguration.readRuntimeConfiguration(from: path) {
+            let updated = RuntimeConfiguration(
+                path: runtimeConfig.path,
+                initialFilesystem: runtimeConfig.initialFilesystem,
+                kernel: runtimeConfig.kernel,
+                containerConfiguration: config,
+                containerRootFilesystem: runtimeConfig.containerRootFilesystem,
+                options: runtimeConfig.options,
+                runtimeData: runtimeConfig.runtimeData
+            )
+            try updated.writeRuntimeConfiguration()
         }
     }
 }
