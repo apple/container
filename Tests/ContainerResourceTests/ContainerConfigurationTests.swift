@@ -92,3 +92,29 @@ struct ContainerConfigurationCreationDateTests {
         #expect(decoded.creationDate == Date(timeIntervalSince1970: 0))
     }
 }
+
+struct ContainerConfigurationMDNSTests {
+    @Test func mdnsIsOffByDefault() {
+        #expect(!makeTestConfiguration().mdns)
+    }
+
+    @Test func roundTripsMDNS() throws {
+        var config = makeTestConfiguration()
+        config.mdns = true
+        let data = try JSONEncoder().encode(config)
+        let decoded = try JSONDecoder().decode(ContainerConfiguration.self, from: data)
+        #expect(decoded.mdns)
+    }
+
+    // A configuration stored before the option existed has no key for it.
+    @Test func decodesMissingMDNSAsOff() throws {
+        var config = makeTestConfiguration()
+        config.mdns = true
+        let data = try JSONEncoder().encode(config)
+        var obj = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        #expect(obj.removeValue(forKey: "mdns") != nil)
+        let stripped = try JSONSerialization.data(withJSONObject: obj)
+        let decoded = try JSONDecoder().decode(ContainerConfiguration.self, from: stripped)
+        #expect(!decoded.mdns)
+    }
+}

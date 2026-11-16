@@ -553,6 +553,7 @@ let package = Package(
                 "ContainerRuntimeClient",
                 "ContainerRuntimeLinuxClient",
                 "ContainerXPC",
+                "MDNSReflector",
                 "SocketForwarder",
             ],
             path: "Sources/Services/RuntimeLinux/Server"
@@ -693,6 +694,23 @@ let package = Package(
         .testTarget(
             name: "SocketForwarderTests",
             dependencies: ["SocketForwarder"]
+        ),
+        .target(
+            name: "MDNSReflector",
+            dependencies: [
+                .product(name: "ContainerizationExtras", package: "containerization"),
+                .product(name: "Logging", package: "swift-log"),
+                "ContainerResource",
+            ]
+        ),
+        .testTarget(
+            name: "MDNSReflectorTests",
+            dependencies: [
+                .product(name: "ContainerizationExtras", package: "containerization"),
+                .product(name: "Logging", package: "swift-log"),
+                "ContainerResource",
+                "MDNSReflector",
+            ]
         ),
         .target(
             name: "ContainerVersion",

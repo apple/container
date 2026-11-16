@@ -253,6 +253,9 @@ public struct Utility {
         // to enable socket forwarding from container to host.
         config.publishedSockets = try Parser.publishSockets(management.publishSockets)
 
+        try validateMDNS(enabled: management.mdns, publishedPorts: config.publishedPorts)
+        config.mdns = management.mdns
+
         config.ssh = management.ssh
         config.readOnly = management.readOnly
         config.useInit = management.useInit
@@ -267,6 +270,18 @@ public struct Utility {
         config.runtimeHandler = management.runtime ?? "\(runtimePrefix)\(requestedPlatform.os)"
 
         return (config, kernel, management.initImage)
+    }
+
+    /// Checks that a container that asks for mDNS advertisement has something
+    /// to advertise.
+    ///
+    /// Only a service on a published port can be reached from the host's
+    /// network, so a container without one would advertise nothing.
+    static func validateMDNS(enabled: Bool, publishedPorts: [PublishPort]) throws {
+        guard enabled, publishedPorts.isEmpty else {
+            return
+        }
+        throw ContainerizationError(.invalidArgument, message: "--mdns requires at least one published port (--publish)")
     }
 
     static func getAttachmentConfigurations(

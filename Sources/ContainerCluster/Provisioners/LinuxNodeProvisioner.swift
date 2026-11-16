@@ -120,6 +120,7 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
                 "\(ResourceLabelKeys.role)=\(roles.joined(separator: ","))",
             ],
             maskedPaths: [],
+            mdns: false,
             mounts: [],
             name: name,
             networks: [],
