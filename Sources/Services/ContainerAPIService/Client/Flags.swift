@@ -179,6 +179,7 @@ public struct Flags {
             kernelArgs: [String],
             labels: [String],
             maskedPaths: [String],
+            mdns: Bool,
             mounts: [String],
             name: String?,
             networks: [String],
@@ -211,6 +212,7 @@ public struct Flags {
             self.kernelArgs = kernelArgs
             self.labels = labels
             self.maskedPaths = maskedPaths
+            self.mdns = mdns
             self.mounts = mounts
             self.name = name
             self.networks = networks
@@ -304,6 +306,12 @@ public struct Flags {
             )
         )
         public var maskedPaths: [String] = []
+
+        @Flag(
+            name: .long,
+            help: "Advertise the container's mDNS services on the local network, for services on published ports"
+        )
+        public var mdns = false
 
         @Option(name: .customLong("mount"), help: "Add a mount to the container (format: type=<>,source=<>,target=<>,readonly)")
         public var mounts: [String] = []

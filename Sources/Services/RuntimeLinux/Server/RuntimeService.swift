@@ -27,6 +27,7 @@ import ContainerizationOCI
 import ContainerizationOS
 import Foundation
 import Logging
+import MDNSReflector
 import NIO
 import NIOFoundationCompat
 import SocketForwarder
@@ -50,6 +51,7 @@ public actor RuntimeService {
     private var state: State = .created
     private var processes: [String: ProcessInfo] = [:]
     private var socketForwarders: [SocketForwarderResult] = []
+    private var mdnsReflector: MDNSReflector?
     private var networkSessions: [XPCClientSession] = []
 
     private static let sshAuthSocketGuestPath = "/var/host-services/ssh-auth.sock"
@@ -308,6 +310,9 @@ public actor RuntimeService {
                 try await self.monitor.registerProcess(id: config.id, onExit: self.onContainerExit)
                 if !container.interfaces.isEmpty {
                     try await self.startSocketForwarders(attachment: attachments[0], publishedPorts: config.publishedPorts)
+                    if config.mdns {
+                        await self.startMDNSReflector(attachment: attachments[0], publishedPorts: config.publishedPorts)
+                    }
                 }
                 await self.setState(.booted)
             } catch {
@@ -1094,6 +1099,37 @@ public actor RuntimeService {
         log.info("closed forwarders")
     }
 
+    /// Advertises the container's mDNS services on the host's networks.
+    ///
+    /// Published ports forward to the first attachment, so that is the network
+    /// whose services are advertised. A failure here leaves the container
+    /// running without advertisement instead of failing its startup.
+    private func startMDNSReflector(attachment: Attachment, publishedPorts: [PublishPort]) {
+        let reflector = MDNSReflector(
+            configuration: .init(
+                containerAddress: attachment.ipv4Address.address,
+                gateway: attachment.ipv4Gateway,
+                publishedPorts: publishedPorts
+            ),
+            log: log
+        )
+        do {
+            try reflector.start()
+            self.mdnsReflector = reflector
+        } catch {
+            log.error("failed to start mDNS reflector", metadata: ["error": "\(error)"])
+        }
+    }
+
+    private func stopMDNSReflector() {
+        guard let reflector = self.mdnsReflector else {
+            return
+        }
+        self.mdnsReflector = nil
+        reflector.stop()
+        log.info("stopped mDNS reflector")
+    }
+
     private func onContainerExit(id: String, exitStatus: ExitStatus) async throws {
         self.log.info("init process exited", metadata: ["status": "\(exitStatus)"])
 
@@ -1412,6 +1448,7 @@ public actor RuntimeService {
         }
 
         await self.stopSocketForwarders()
+        self.stopMDNSReflector()
 
         for session in networkSessions { session.close() }
         networkSessions = []

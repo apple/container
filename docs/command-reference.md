@@ -59,6 +59,7 @@ container run [<options>] <image> [<arguments> ...]
 *   `--kernel-arg <arg>`: Append a raw boot argument to the kernel command line (repeatable).
 *   `-l, --label <label>`: Add a key=value label to the container
 *   `--masked-path <path>`: **Experimental.** Hide a path inside the container, in addition to the runtime defaults (or `NONE` to clear prior values and the defaults)
+*   `--mdns`: Advertise the container's mDNS services on the local network, for services on published ports; see [Advertise a container's services on your local network](networking.md#advertise-a-containers-services-on-your-local-network)
 *   `--mount <mount>`: Add a mount to the container (format: type=<>,source=<>,target=<>,readonly)
 *   `--name <name>`: Use the specified name as the container ID
 *   `--network <network>`: Attach the container to a network (format: `<name>[,mac=XX:XX:XX:XX:XX:XX][,mtu=VALUE][,alias=NAME]...`). Use `alias` to give the container additional DNS names; see [Give a container additional DNS names](networking.md#give-a-container-additional-dns-names)
@@ -227,6 +228,7 @@ container create [<options>] <image> [<arguments> ...]
 *   `--kernel-arg <arg>`: Append a raw boot argument to the kernel command line (repeatable).
 *   `-l, --label <label>`: Add a key=value label to the container
 *   `--masked-path <path>`: **Experimental.** Hide a path inside the container, in addition to the runtime defaults (or `NONE` to clear prior values and the defaults)
+*   `--mdns`: Advertise the container's mDNS services on the local network, for services on published ports; see [Advertise a container's services on your local network](networking.md#advertise-a-containers-services-on-your-local-network)
 *   `--mount <mount>`: Add a mount to the container (format: type=<>,source=<>,target=<>,readonly)
 *   `--name <name>`: Use the specified name as the container ID
 *   `--network <network>`: Attach the container to a network (format: `<name>[,mac=XX:XX:XX:XX:XX:XX][,mtu=VALUE][,alias=NAME]...`). Use `alias` to give the container additional DNS names; see [Give a container additional DNS names](networking.md#give-a-container-additional-dns-names)

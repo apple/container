@@ -50,6 +50,9 @@ public struct ContainerConfiguration: Sendable, Codable {
     public var virtualization: Bool = false
     /// Enable SSH agent socket forwarding from host to container.
     public var ssh: Bool = false
+    /// Advertise the DNS-SD services that the container announces over mDNS on
+    /// the host's local network, for services on published ports.
+    public var mdns: Bool = false
     /// Whether to mount the rootfs as read-only.
     public var readOnly: Bool = false
     /// Whether to use a minimal init process inside the container.
@@ -90,6 +93,7 @@ public struct ContainerConfiguration: Sendable, Codable {
         case runtimeHandler
         case virtualization
         case ssh
+        case mdns
         case readOnly
         case useInit
         case capAdd
@@ -128,6 +132,7 @@ public struct ContainerConfiguration: Sendable, Codable {
         runtimeHandler = try container.decodeIfPresent(String.self, forKey: .runtimeHandler) ?? "container-runtime-linux"
         virtualization = try container.decodeIfPresent(Bool.self, forKey: .virtualization) ?? false
         ssh = try container.decodeIfPresent(Bool.self, forKey: .ssh) ?? false
+        mdns = try container.decodeIfPresent(Bool.self, forKey: .mdns) ?? false
         readOnly = try container.decodeIfPresent(Bool.self, forKey: .readOnly) ?? false
         useInit = try container.decodeIfPresent(Bool.self, forKey: .useInit) ?? false
         capAdd = try container.decodeIfPresent([String].self, forKey: .capAdd) ?? []

@@ -150,6 +150,47 @@ Test access using `curl`:
 </body></html>
 ```
 
+## Advertise a container's services on your local network
+
+Some applications announce themselves with mDNS (Bonjour) so that other devices can find them without configuration: a HomeKit bridge, a media server, a printer. A container's announcements reach your Mac, but they stop there. They never reach the rest of your network, and they name the container's own address, which only your Mac can reach.
+
+Use the `--mdns` option with `--publish` to have `container` advertise those services for the container. While the container runs, `container` watches for the services that it announces and registers each one with your Mac's mDNS responder, as a service of your Mac on the published host port. Other devices on your network then find the service and connect to it through the published port.
+
+```bash
+container run -d --name homebridge \
+  --mdns \
+  -p 8581:8581 \
+  -p 51826:51826 \
+  -v "$HOME/homebridge:/homebridge" \
+  homebridge/homebridge:latest
+```
+
+In this example the HomeKit port is `51826`. Use the value of `bridge.port` in your own `config.json`.
+
+The image runs unmodified, and nothing in it needs to know about your Mac. The advertisement follows the container:
+
+- A service appears on your network when the container starts announcing it, and is withdrawn when the container stops announcing it or stops running.
+- A change to a service's TXT record is carried over. For a HomeKit bridge that includes its pairing status and its configuration number, which change when you pair the bridge and when you add accessories to it.
+- The advertised port is the host port, so `-p 8080:80` advertises a service on container port 80 as port 8080.
+
+To see what is advertised, browse for a service type from your Mac or another machine on the network:
+
+```bash
+dns-sd -B _hap._tcp local
+```
+
+### Things to know
+
+- **Only published ports are advertised.** A service on a port that is not published cannot be reached from outside your Mac, so it is skipped. `--mdns` without `--publish` is an error.
+- **Publish on an address that your network can reach.** A port published on `127.0.0.1` accepts connections from your Mac only, so its services are not advertised. The default (`0.0.0.0`) and the address of a specific interface both work, and a port published on one interface's address is advertised on that interface only.
+- **The service is advertised as your Mac.** Devices connect to your Mac's name and address, not the container's, and the service keeps its instance name. If that name is already taken on your network, the advertised name gets a numeric suffix.
+- **The first network only.** Published ports forward to the container's first network, so the services that the container announces on that network are the ones advertised.
+- **The application has to announce over mDNS itself.** `--mdns` relays announcements, it does not create them. It also relies on the application answering the DNS-SD query that lists service types.
+- **Subtypes are not carried over.** A service is advertised under its primary type only.
+- **Advertising makes a service discoverable.** Publishing a port already makes it reachable from your network, and `--mdns` additionally tells every device there that it exists. Leave it off for services that you do not want to be found.
+
+See [mDNS architecture](./architecture/mdns.md) for how this works.
+
 ## Set a custom MAC address for your container
 
 Use the `mac` option to specify a custom MAC address for your container's network interface. This is useful for:
