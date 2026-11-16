@@ -58,7 +58,7 @@ struct ContainerCreateOptionsTests {
     }
 
     @Test func roundTripsRestartPolicy() throws {
-        let options = ContainerCreateOptions(autoRemove: false, restartPolicy: .always)
+        let options = try ContainerCreateOptions(autoRemove: false, restartPolicy: .always)
         let decoded = try JSONDecoder().decode(ContainerCreateOptions.self, from: JSONEncoder().encode(options))
         #expect(decoded.restartPolicy == .always)
     }
@@ -66,23 +66,28 @@ struct ContainerCreateOptionsTests {
     @Test(arguments: [RestartPolicy.always, .onFailure(maximumRetryCount: 0), .onFailure(maximumRetryCount: 2)])
     func rejectsAutoRemoveWithRestartPolicy(policy: RestartPolicy) {
         #expect(throws: Error.self) {
-            try ContainerCreateOptions(autoRemove: true, restartPolicy: policy).validate()
+            _ = try ContainerCreateOptions(autoRemove: true, restartPolicy: policy)
         }
     }
 
     @Test func roundTripsMaximumRetryCount() throws {
-        let options = ContainerCreateOptions(autoRemove: false, restartPolicy: .onFailure(maximumRetryCount: 4))
+        let options = try ContainerCreateOptions(autoRemove: false, restartPolicy: .onFailure(maximumRetryCount: 4))
         let decoded = try JSONDecoder().decode(ContainerCreateOptions.self, from: JSONEncoder().encode(options))
         #expect(decoded.restartPolicy == .onFailure(maximumRetryCount: 4))
     }
 
     @Test func rejectsNegativeRetryCount() {
-        #expect(throws: Error.self) { try ContainerCreateOptions(autoRemove: false, restartPolicy: .onFailure(maximumRetryCount: -1)).validate() }
+        #expect(throws: Error.self) { _ = try ContainerCreateOptions(autoRemove: false, restartPolicy: .onFailure(maximumRetryCount: -1)) }
+    }
+
+    @Test func decodingRejectsAutoRemoveWithRestartPolicy() {
+        let json = Data(#"{"autoRemove": true, "restartPolicy": "always"}"#.utf8)
+        #expect(throws: Error.self) { try JSONDecoder().decode(ContainerCreateOptions.self, from: json) }
     }
 
     @Test func allowsValidCombinations() throws {
-        try ContainerCreateOptions(autoRemove: true, restartPolicy: .no).validate()
-        try ContainerCreateOptions(autoRemove: false, restartPolicy: .always).validate()
-        try ContainerCreateOptions(autoRemove: false, restartPolicy: .onFailure(maximumRetryCount: 3)).validate()
+        _ = try ContainerCreateOptions(autoRemove: true)
+        _ = try ContainerCreateOptions(autoRemove: false, restartPolicy: .always)
+        _ = try ContainerCreateOptions(autoRemove: false, restartPolicy: .onFailure(maximumRetryCount: 3))
     }
 }

@@ -72,14 +72,16 @@ public struct ContainerCreateOptions: Codable, Sendable {
     public let rootFsOverride: Filesystem?
     public let restartPolicy: RestartPolicy
 
-    public init(autoRemove: Bool, restartPolicy: RestartPolicy = .no, rootFsOverride: Filesystem? = nil) {
+    /// Throws if the combination of options is invalid, so an invalid `ContainerCreateOptions` cannot be constructed.
+    public init(autoRemove: Bool, restartPolicy: RestartPolicy = .no, rootFsOverride: Filesystem? = nil) throws {
         self.autoRemove = autoRemove
         self.restartPolicy = restartPolicy
         self.rootFsOverride = rootFsOverride
+        try validate()
     }
 
-    /// Validates option combinations that must be rejected before a container is created.
-    public func validate() throws {
+    /// Rejects option combinations that must never exist. Called from every initializer.
+    private func validate() throws {
         if case .onFailure(let max) = restartPolicy, max < 0 {
             throw ContainerizationError(
                 .invalidArgument,
@@ -94,7 +96,8 @@ public struct ContainerCreateOptions: Codable, Sendable {
         }
     }
 
-    public static let `default` = ContainerCreateOptions(autoRemove: false, restartPolicy: .no)
+    // A known-valid combination, so the throwing initializer cannot fail here.
+    public static let `default` = try! ContainerCreateOptions(autoRemove: false)
 
     enum CodingKeys: String, CodingKey {
         case autoRemove
@@ -108,5 +111,7 @@ public struct ContainerCreateOptions: Codable, Sendable {
         autoRemove = try container.decode(Bool.self, forKey: .autoRemove)
         restartPolicy = try container.decodeIfPresent(RestartPolicy.self, forKey: .restartPolicy) ?? .no
         rootFsOverride = try container.decodeIfPresent(Filesystem.self, forKey: .rootFsOverride)
+
+        try validate()
     }
 }

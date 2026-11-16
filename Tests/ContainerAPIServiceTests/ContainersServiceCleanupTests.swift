@@ -89,7 +89,7 @@ struct ContainersServiceCleanupTests {
         )
         let bundle = ContainerResource.Bundle(path: path)
         try bundle.write(filename: "config.json", value: ContainerConfiguration(id: id, image: image, process: process))
-        try bundle.write(filename: "options.json", value: ContainerCreateOptions(autoRemove: removal == .auto))
+        try bundle.write(filename: "options.json", value: try ContainerCreateOptions(autoRemove: removal == .auto))
         return path
     }
 

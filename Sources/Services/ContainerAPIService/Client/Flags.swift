@@ -400,9 +400,6 @@ public struct Flags {
         public var volumes: [String] = []
 
         public func validate() throws {
-            if remove && restart != .no {
-                throw ValidationError("`--rm` cannot be used with `--restart \(restart.cliValue)`")
-            }
             if dnsDisabled {
                 let hasDNSConfig =
                     !dns.nameservers.isEmpty

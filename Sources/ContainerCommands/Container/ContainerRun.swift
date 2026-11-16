@@ -110,7 +110,7 @@ extension Application {
 
             progress.set(description: "Starting container")
 
-            let options = ContainerCreateOptions(autoRemove: managementFlags.remove, restartPolicy: managementFlags.restart)
+            let options = try ContainerCreateOptions(autoRemove: managementFlags.remove, restartPolicy: managementFlags.restart)
             try await client.create(
                 configuration: ck.0,
                 options: options,
