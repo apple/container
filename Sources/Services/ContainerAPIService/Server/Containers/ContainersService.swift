@@ -579,6 +579,8 @@ public actor ContainersService {
                 await self.exitMonitor.stopTracking(id: id)
                 try? ServiceManager.deregister(fullServiceLabel: label)
 
+                // Roll back from `restarting` (scheduler) so the container is not left in limbo.
+                state.snapshot.status = .stopped
                 state.setStartError(error: error)
                 await self.setContainerState(id, state, context: context)
 
