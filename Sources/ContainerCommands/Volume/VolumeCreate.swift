@@ -16,6 +16,7 @@
 
 import ArgumentParser
 import ContainerAPIClient
+import ContainerResource
 import Foundation
 
 extension Application.VolumeCommand {
@@ -25,11 +26,17 @@ extension Application.VolumeCommand {
             abstract: "Create a new volume"
         )
 
+        @Option(name: .customLong("driver"), help: "Volume driver: local, smb, or nfs (default: local; smb and nfs are experimental)")
+        var driver: String = "local"
+
         @Option(name: .customLong("label"), help: "Set metadata for a volume")
         var labels: [String] = []
 
         @Option(name: .customLong("opt"), help: "Set driver specific options")
         var driverOpts: [String] = []
+
+        @Flag(name: .customLong("password-stdin"), help: "Take the SMB password from stdin (smb driver only)")
+        var passwordStdin: Bool = false
 
         @Option(name: .short, help: "Size of the volume in bytes, with optional K, M, G, T, or P suffix")
         var size: String?
@@ -51,13 +58,67 @@ extension Application.VolumeCommand {
                 parsedDriverOpts["size"] = size
             }
 
+            if passwordStdin {
+                try Self.validatePasswordStdin(driver: driver, driverOpts: parsedDriverOpts)
+                parsedDriverOpts[MountOptionValidator.passwordKey] = try Self.password(
+                    fromStdin: try FileHandle.standardInput.readToEnd()
+                )
+            }
+
+            // The server validates the options too, but checking here fails fast with a CLI error.
+            if driver == "smb" || driver == "nfs" {
+                do {
+                    if driver == "smb" {
+                        try MountOptionValidator.validateSMBOptions(parsedDriverOpts, allowPassword: true)
+                    } else {
+                        try MountOptionValidator.validateNFSOptions(parsedDriverOpts)
+                    }
+                } catch let violation as MountOptionValidator.Violation {
+                    throw ValidationError(violation.description)
+                }
+            }
+
             let volume = try await ClientVolume.create(
                 name: name,
-                driver: "local",
+                driver: driver,
                 driverOpts: parsedDriverOpts,
                 labels: parsedLabels
             )
             print(volume.name)
+        }
+
+        /// Checks that `--password-stdin` can be used with the given driver and options.
+        ///
+        /// This runs before stdin is read, so a mistake in the command line is reported without
+        /// waiting for input.
+        static func validatePasswordStdin(driver: String, driverOpts: [String: String]) throws {
+            guard driver == "smb" else {
+                throw ValidationError("--password-stdin is only supported with --driver smb")
+            }
+            guard driverOpts[MountOptionValidator.passwordKey] == nil else {
+                throw ValidationError("--password-stdin cannot be combined with --opt \(MountOptionValidator.passwordKey)=")
+            }
+            guard let username = driverOpts["username"], !username.isEmpty else {
+                throw ValidationError("--password-stdin requires --opt username=<user>")
+            }
+        }
+
+        /// Returns the password in the data read from stdin, without its trailing line ending.
+        ///
+        /// Only trailing newlines and carriage returns are removed, so `echo` and `printf` both
+        /// work. Any other whitespace is left for the option validator to reject, rather than
+        /// silently changing the password.
+        static func password(fromStdin data: Data?) throws -> String {
+            guard let data, var password = String(data: data, encoding: .utf8) else {
+                throw ValidationError("failed to read the password from stdin")
+            }
+            while let last = password.unicodeScalars.last, last == "\n" || last == "\r" {
+                password.unicodeScalars.removeLast()
+            }
+            guard !password.isEmpty else {
+                throw ValidationError("the password read from stdin is empty")
+            }
+            return password
         }
     }
 }

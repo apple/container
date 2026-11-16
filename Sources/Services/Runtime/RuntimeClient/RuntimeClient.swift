@@ -80,7 +80,8 @@ extension RuntimeClient {
     public func bootstrap(
         stdio: [FileHandle?],
         networkBootstrapInfos: [NetworkBootstrapInfo],
-        dynamicEnv: [String: String] = [:]
+        dynamicEnv: [String: String] = [:],
+        mountCredentials: [String: String] = [:]
     ) async throws {
         let request = XPCMessage(route: RuntimeRoutes.bootstrap.rawValue)
 
@@ -106,6 +107,11 @@ extension RuntimeClient {
 
             let infosData = try JSONEncoder().encode(networkBootstrapInfos)
             request.set(key: RuntimeKeys.networkBootstrapInfos.rawValue, value: infosData)
+
+            if !mountCredentials.isEmpty {
+                let credentialsData = try JSONEncoder().encode(mountCredentials)
+                request.set(key: RuntimeKeys.mountCredentials.rawValue, value: credentialsData)
+            }
             try await self.client.send(request)
         } catch {
             throw ContainerizationError(
