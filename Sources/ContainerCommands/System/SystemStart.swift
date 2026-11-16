@@ -20,6 +20,7 @@ import ContainerPersistence
 import ContainerPlugin
 import ContainerXPC
 import ContainerizationError
+import ContainerizationOCI
 import Foundation
 import MachineAPIClient
 import SystemPackage
@@ -151,7 +152,7 @@ extension Application {
             }
 
             if await !initImageExists(containerSystemConfig: containerSystemConfig) {
-                try? await installInitialFilesystem(initImage: containerSystemConfig.vminit.image)
+                await installInitialFilesystem(initImage: containerSystemConfig.vminit.image)
             }
 
             guard await !kernelExists() else {
@@ -163,14 +164,15 @@ extension Application {
                 kernelDigest: containerSystemConfig.kernel.digest)
         }
 
-        private func installInitialFilesystem(initImage: String) async throws {
-            var pullCommand = try ImagePull.parse()
-            pullCommand.reference = initImage
+        private func installInitialFilesystem(initImage: String) async {
             log.info("Installing base container filesystem...")
             do {
+                let pullCommand = try ImagePull.parse(["--platform", Platform.current.description, initImage])
                 try await pullCommand.run()
             } catch {
-                log.error("failed to install base container filesystem", metadata: ["error": "\(error)"])
+                log.error(
+                    "failed to install base container filesystem; it will be fetched when the first container is created",
+                    metadata: ["image": "\(initImage)", "error": "\(error)"])
             }
         }
 
