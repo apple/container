@@ -85,6 +85,8 @@ public actor ContainersService {
     private let exitQueue: AsyncStream<String>
     private let exitQueueContinuation: AsyncStream<String>.Continuation
     private var restartScheduler: Task<Void, Never>?
+    /// The pending or running restart task of each container. At most one per container.
+    private var restartTasks: [String: Task<Void, Never>] = [:]
     private var stabilityMonitor: ExitMonitor?
 
     private let log: Logger
@@ -226,7 +228,14 @@ public actor ContainersService {
         stabilityMonitor = ExitMonitor(log: log)
         restartScheduler = Task {
             for await id in self.exitQueue {
-                Task {
+                // A container has at most one restart task. Both the check and the assignment run
+                // on the actor without suspending, so a duplicate exit event cannot spawn a second.
+                guard self.restartTasks[id] == nil else {
+                    continue
+                }
+
+                self.restartTasks[id] = Task {
+                    defer { self.restartTasks[id] = nil }
                     // Only a container this task bootstrapped itself may be killed on failure.
                     // Any earlier failure (e.g. `restart` finding the container already started
                     // by the user) must leave the container untouched.
@@ -284,6 +293,9 @@ public actor ContainersService {
                             try? await kill(id: id, processID: id, signal: "SIGKILL")
                             throw error
                         }
+                    } catch is CancellationError {
+                        // The restart was cancelled by `stop` or `kill`.
+                        return
                     } catch {
                         log.error(
                             "failed to restart container",
@@ -517,6 +529,9 @@ public actor ContainersService {
         }
 
         try await self.lock.withLock(logMetadata: ["acquirer": "\(#function)", "id": "\(id)"]) { context in
+            // A restart cancelled by `stop` or `kill` while waiting for the lock must not bootstrap.
+            try Task.checkCancellation()
+
             var state = try await self.getContainerState(id: id, context: context)
 
             // We've already bootstrapped this container. Ideally we should be able to
@@ -728,6 +743,7 @@ public actor ContainersService {
             let terminatingSignals: [Signal] = [.kill, .term, .int, .quit]
             if processID == id, let sig = try? Signal(signal), terminatingSignals.contains(sig) {
                 state.stoppedByUser = true
+                self.restartTasks[id]?.cancel()
                 await self.setContainerState(id, state, context: context)
             }
 
@@ -764,6 +780,7 @@ public actor ContainersService {
             var state = try await self.getContainerState(id: id, context: context)
 
             state.stoppedByUser = true
+            await self.restartTasks[id]?.cancel()
 
             // The container is waiting to be restarted and has no running sandbox yet.
             // Cancel the pending restart; the scheduler bails when it sees the status change.
