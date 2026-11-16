@@ -698,6 +698,10 @@ public actor ContainersService {
                 state.snapshot.networks = sandboxSnapshot.networks
                 state.snapshot.startedDate = Date()
                 await self.setContainerState(id, state, context: context)
+
+                // The container is running, so any pending restart (e.g. the user started it during
+                // the backoff) is obsolete.
+                await self.restartTasks[id]?.cancel()
             } catch {
                 await self.exitMonitor.stopTracking(id: id)
                 try? await client.stop(options: ContainerStopOptions.default)
