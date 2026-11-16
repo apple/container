@@ -227,6 +227,9 @@ public actor ContainersService {
         restartScheduler = Task {
             for await id in self.exitQueue {
                 Task {
+                    // Only a container this task bootstrapped itself may be killed on failure.
+                    // Any earlier failure (e.g. `restart` finding the container already started
+                    // by the user) must leave the container untouched.
                     do {
                         await stabilityMonitor?.stopTracking(id: id)
 
@@ -275,15 +278,13 @@ public actor ContainersService {
                         }
 
                         try await bootstrap(id: id, stdio: [FileHandle?](repeating: nil, count: 3), dynamicEnv: [:])
-                        try await startProcess(id: id, processID: id)
-                    } catch {
                         do {
-                            try await kill(id: id, processID: id, signal: "SIGKILL")
+                            try await startProcess(id: id, processID: id)
                         } catch {
-                            log.error(
-                                "failed to kill container after restart failure",
-                                metadata: ["id": "\(id)", "error": "\(error)"])
+                            try? await kill(id: id, processID: id, signal: "SIGKILL")
+                            throw error
                         }
+                    } catch {
                         log.error(
                             "failed to restart container",
                             metadata: ["id": "\(id)", "error": "\(error)"])
