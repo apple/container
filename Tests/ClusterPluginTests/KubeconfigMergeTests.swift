@@ -386,6 +386,34 @@ struct MergeConfigTests {
         #expect(result.clusters.first { $0.name == "dev" }?.cluster.server == "https://127.0.0.1:6446")
     }
 
+    @Test func mergeIntoExistingEmptyFileSucceeds() throws {
+        let (path, cleanup) = try makeTempFile()
+        defer { cleanup() }
+
+        // An existing but empty file, as produced by `KUBECONFIG=$(mktemp)`.
+        try "".write(toFile: path.string, atomically: true, encoding: .utf8)
+
+        try ClusterHelper.mergeConfig(makeConfig(clusterName: "dev"), containerId: "dev", targetPath: path, setCurrentContext: true, log: log)
+
+        let written = try decode(String(contentsOfFile: path.string, encoding: .utf8))
+        #expect(written.clusters.count == 1)
+        #expect(written.clusters[0].name == "dev")
+        #expect(written.currentContext == "dev")
+    }
+
+    @Test func mergeIntoWhitespaceOnlyFileSucceeds() throws {
+        let (path, cleanup) = try makeTempFile()
+        defer { cleanup() }
+
+        try "\n    \n".write(toFile: path.string, atomically: true, encoding: .utf8)
+
+        try ClusterHelper.mergeConfig(makeConfig(clusterName: "dev"), containerId: "dev", targetPath: path, setCurrentContext: true, log: log)
+
+        let written = try decode(String(contentsOfFile: path.string, encoding: .utf8))
+        #expect(written.clusters.count == 1)
+        #expect(written.currentContext == "dev")
+    }
+
     @Test func mergeThrowsWhenExistingFileIsInvalidYAML() throws {
         let (path, cleanup) = try makeTempFile()
         defer { cleanup() }
@@ -548,6 +576,43 @@ struct KubeconfigEnvTests {
                 if let original { setenv("KUBECONFIG", original, 1) } else { unsetenv("KUBECONFIG") }
             }
             try ClusterHelper.removeConfig(containerId: "dev", log: log)
+        }
+
+        private func withKubeconfigFile(contents: String, _ body: (FilePath) throws -> Void) throws {
+            let tmp = FilePath(FileManager.default.temporaryDirectory.path)
+                .appending("kubeconfig-file-\(UUID().uuidString)")
+            defer { try? FileManager.default.removeItem(atPath: tmp.string) }
+            try contents.write(toFile: tmp.string, atomically: true, encoding: .utf8)
+            let original = Darwin.getenv("KUBECONFIG").map { String(cString: $0) }
+            setenv("KUBECONFIG", tmp.string, 1)
+            defer {
+                if let original { setenv("KUBECONFIG", original, 1) } else { unsetenv("KUBECONFIG") }
+            }
+            try body(tmp)
+        }
+
+        @Test func noopOnZeroByteFileLeavesFileUntouched() throws {
+            try withKubeconfigFile(contents: "") { path in
+                try ClusterHelper.removeConfig(containerId: "dev", log: log)
+                let contents = try String(contentsOfFile: path.string, encoding: .utf8)
+                #expect(contents.isEmpty)
+            }
+        }
+
+        @Test func noopOnWhitespaceOnlyFileLeavesFileUntouched() throws {
+            try withKubeconfigFile(contents: "\n    \n") { path in
+                try ClusterHelper.removeConfig(containerId: "dev", log: log)
+                let contents = try String(contentsOfFile: path.string, encoding: .utf8)
+                #expect(contents == "\n    \n")
+            }
+        }
+
+        @Test func noopOnUnparseableFileLeavesFileUntouched() throws {
+            try withKubeconfigFile(contents: "this: is: not: valid: yaml: [[[") { path in
+                try ClusterHelper.removeConfig(containerId: "dev", log: log)
+                let contents = try String(contentsOfFile: path.string, encoding: .utf8)
+                #expect(contents == "this: is: not: valid: yaml: [[[")
+            }
         }
     }
 }
