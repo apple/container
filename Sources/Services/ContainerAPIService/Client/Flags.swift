@@ -19,19 +19,6 @@ import ContainerResource
 import ContainerizationError
 import Foundation
 
-extension RestartPolicy: ExpressibleByArgument {
-    public init?(argument: String) {
-        guard let policy = try? RestartPolicy(parsing: argument) else {
-            return nil
-        }
-        self = policy
-    }
-
-    public var defaultValueDescription: String { cliValue }
-
-    public static var allValueStrings: [String] { ["no", "always", "on-failure", "on-failure:<max-retries>"] }
-}
-
 public struct Flags {
     public struct Logging: ParsableArguments {
         public init() {}
@@ -371,7 +358,11 @@ public struct Flags {
         @Flag(name: [.customLong("rm"), .long], help: "Remove the container after it stops")
         public var remove = false
 
-        @Option(name: .long, help: "Restart policy when the container exits (no, always, on-failure[:max-retries])")
+        @Option(
+            name: .long,
+            help: "Restart policy when the container exits (no, always, on-failure[:max-retries])",
+            transform: { try RestartPolicy(parsing: $0) }
+        )
         public var restart: RestartPolicy = .no
 
         @Flag(name: .long, help: "Enable Rosetta in the container")
