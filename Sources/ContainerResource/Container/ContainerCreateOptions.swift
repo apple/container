@@ -27,7 +27,7 @@ public enum RestartPolicy: Sendable, Equatable, Codable {
     /// `maximumRetryCount` times. 0 means unlimited retries, matching Docker/Moby
     /// (`MaximumRetryCount == 0`).
     case onFailure(maximumRetryCount: Int)
-    /// Always restart the container, unless it was manually stopped.
+    /// Always restart the container, unless it was stopped by the user.
     case always
 
     public init(parsing value: String) throws {
