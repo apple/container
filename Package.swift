@@ -136,6 +136,7 @@ let package = Package(
                 "MachineAPIClient",
                 "TerminalProgress",
                 "Yams",
+                "SocketForwarder",
             ],
             path: "Sources/ContainerCommands"
         ),
