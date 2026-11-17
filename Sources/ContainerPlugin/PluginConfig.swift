@@ -57,6 +57,15 @@ public struct PluginConfig: Sendable, Codable {
         case auxiliary
     }
 
+    /// The interface strategy a variant of a network service needs from the runtime.
+    public enum InterfaceStrategyType: String, Sendable, Codable {
+        /// An interface with no container to container networking, the only
+        /// approach that works on macOS Sequoia.
+        case isolated
+        /// An interface on the custom network the network plugin creates, on macOS 26.
+        case nonisolated
+    }
+
     // An XPC service that the plugin publishes.
     public struct Service: Sendable, Codable {
         /// The type of the service the daemon is exposing.
@@ -68,6 +77,11 @@ public struct PluginConfig: Sendable, Codable {
         public let type: DaemonPluginType
         /// Optional description of this service.
         public let description: String?
+        /// For a `network` service, the interface strategy each variant it offers
+        /// needs, keyed by variant name (for example `allocationOnly = "isolated"`).
+        /// The runtime builds its strategy table from the network plugins present.
+        /// A strategy name outside `InterfaceStrategyType` fails the manifest's load.
+        public let interfaces: [String: InterfaceStrategyType]?
     }
 
     /// Descriptor for the services that the plugin offers.

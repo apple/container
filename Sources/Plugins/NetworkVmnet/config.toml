@@ -9,3 +9,4 @@ defaultArguments = []
 
 [[servicesConfig.services]]
 type = "network"
+interfaces = { allocationOnly = "isolated", reserved = "nonisolated" }

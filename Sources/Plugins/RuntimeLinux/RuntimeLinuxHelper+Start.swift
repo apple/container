@@ -50,6 +50,30 @@ extension RuntimeLinuxHelper {
             "\(Self.label).\(uuid)"
         }
 
+        private func initializePluginLoader(log: Logger) throws -> PluginLoader {
+            let installRootURL = URL(fileURLWithPath: InstallRoot.path.string)
+            let appRootURL = URL(fileURLWithPath: ApplicationRoot.path.string)
+            let installPluginsURL =
+                installRootURL
+                .appendingPathComponent("libexec")
+                .appendingPathComponent("container")
+                .appendingPathComponent("plugins")
+            var pluginDirectories = [installPluginsURL]
+            let userPluginsURL = PluginLoader.userPluginsDir(installRoot: installRootURL)
+            var isDirectory: ObjCBool = false
+            if FileManager.default.fileExists(atPath: userPluginsURL.path, isDirectory: &isDirectory), isDirectory.boolValue {
+                pluginDirectories.insert(userPluginsURL, at: 0)
+            }
+            return try PluginLoader(
+                appRoot: appRootURL,
+                installRoot: installRootURL,
+                logRoot: logRoot,
+                pluginDirectories: pluginDirectories,
+                pluginFactories: [DefaultPluginFactory(logger: log), AppBundlePluginFactory(logger: log)],
+                log: log
+            )
+        }
+
         func run() async throws {
             let commandName = RuntimeLinuxHelper._commandName
             let logPath = logRoot.map { $0.appending("\(commandName)-\(uuid).log") }
@@ -64,20 +88,14 @@ extension RuntimeLinuxHelper {
                 try adjustLimits()
                 signal(SIGPIPE, SIG_IGN)
 
-                // FIXME: The network plugins that the runtime supports should be configurable elsewhere
-                var interfaceStrategies: [NetworkInterfaceKey: InterfaceStrategy] = [
-                    NetworkInterfaceKey(plugin: "container-network-vmnet", variant: "allocationOnly"): IsolatedInterfaceStrategy()
-                ]
-                if #available(macOS 26, *) {
-                    interfaceStrategies[NetworkInterfaceKey(plugin: "container-network-vmnet", variant: "reserved")] = NonisolatedInterfaceStrategy(log: log)
-                }
+                let pluginLoader = try initializePluginLoader(log: log)
 
                 log.info("configuring XPC server")
                 nonisolated(unsafe) let anonymousConnection = xpc_connection_create(nil, nil)
 
                 let server = RuntimeService(
                     root: .init(fileURLWithPath: root),
-                    interfaceStrategies: interfaceStrategies,
+                    pluginLoader: pluginLoader,
                     eventLoopGroup: eventLoopGroup,
                     connection: anonymousConnection,
                     log: log
