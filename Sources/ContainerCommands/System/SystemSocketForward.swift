@@ -66,6 +66,7 @@ extension Application {
                     proxyAddress: SocketAddress(ipAddress: host, port: port),
                     serverAddress: SocketAddress(unixDomainSocketPath: socketPath),
                     eventLoopGroup: group,
+                    allowRemoteHalfClosure: true,
                     log: log
                 )
                 let result = try await forwarder.run().get()

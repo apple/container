@@ -68,6 +68,59 @@ struct UnixBackendForwarderTest {
         try await group.shutdownGracefully()
     }
 
+    @Test(.timeLimit(.minutes(1)), arguments: ["127.0.0.1", "::1"])
+    func receivesResponseAfterClientHalfClose(listenAddress: String) async throws {
+        let path = "/tmp/cz-half-close-\(UUID().uuidString).sock"
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+        let serverAddress = try SocketAddress(unixDomainSocketPath: path)
+        let server = try await ServerBootstrap(group: group)
+            .childChannelOption(ChannelOptions.allowRemoteHalfClosure, value: true)
+            .childChannelInitializer { channel in
+                channel.eventLoop.makeCompletedFuture {
+                    try channel.pipeline.syncOperations.addHandler(ReplyAfterEOFHandler())
+                }
+            }
+            .bind(to: serverAddress).get()
+        let forwarder = try TCPForwarder(
+            proxyAddress: SocketAddress(ipAddress: listenAddress, port: 0),
+            serverAddress: serverAddress,
+            eventLoopGroup: group,
+            allowRemoteHalfClosure: true
+        )
+        let listener = try await forwarder.run().get()
+        do {
+            let client = try await ClientBootstrap(group: group)
+                .channelOption(ChannelOptions.allowRemoteHalfClosure, value: true)
+                .connect(to: #require(listener.proxyAddress)) { channel in
+                    channel.eventLoop.makeCompletedFuture {
+                        try NIOAsyncChannel(
+                            wrappingChannelSynchronously: channel,
+                            configuration: NIOAsyncChannel.Configuration(inboundType: ByteBuffer.self, outboundType: ByteBuffer.self)
+                        )
+                    }
+                }
+            let payload = ByteBuffer(string: "reply after reading EOF")
+            try await client.executeThenClose { inbound, outbound in
+                try await outbound.write(payload)
+                try await client.channel.close(mode: .output).get()
+                var response = ByteBuffer()
+                for try await var buffer in inbound { response.writeBuffer(&buffer) }
+                #expect(response == payload)
+            }
+        } catch {
+            listener.close()
+            try await listener.wait()
+            try await server.close()
+            try await group.shutdownGracefully()
+            throw error
+        }
+        listener.close()
+        try await listener.wait()
+        try await server.close()
+        try await group.shutdownGracefully()
+    }
+
     @Test(.timeLimit(.minutes(1)))
     func missingUnixBackendClosesFrontend() async throws {
         let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
@@ -82,5 +135,26 @@ struct UnixBackendForwarderTest {
         listener.close()
         try await listener.wait()
         try await group.shutdownGracefully()
+    }
+}
+
+private final class ReplyAfterEOFHandler: ChannelInboundHandler {
+    typealias InboundIn = ByteBuffer
+    typealias OutboundOut = ByteBuffer
+    private var buffer = ByteBuffer()
+
+    func channelRead(context: ChannelHandlerContext, data: NIOAny) {
+        var input = unwrapInboundIn(data)
+        buffer.writeBuffer(&input)
+    }
+
+    func userInboundEventTriggered(context: ChannelHandlerContext, event: Any) {
+        if let event = event as? ChannelEvent, case .inputClosed = event {
+            context.writeAndFlush(wrapOutboundOut(buffer)).assumeIsolatedUnsafeUnchecked().whenComplete { _ in
+                context.close(promise: nil)
+            }
+        } else {
+            context.fireUserInboundEventTriggered(event)
+        }
     }
 }

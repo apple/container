@@ -26,6 +26,8 @@ public struct TCPForwarder: SocketForwarder {
 
     private let eventLoopGroup: any EventLoopGroup
 
+    private let allowRemoteHalfClosure: Bool
+
     private let connectTimeout: TimeAmount
 
     private let log: Logger?
@@ -35,12 +37,14 @@ public struct TCPForwarder: SocketForwarder {
         serverAddress: SocketAddress,
         eventLoopGroup: any EventLoopGroup,
         connectTimeout: TimeAmount = .seconds(10),
+        allowRemoteHalfClosure: Bool = false,
         log: Logger? = nil
     ) throws {
         self.proxyAddress = proxyAddress
         self.serverAddress = serverAddress
         self.eventLoopGroup = eventLoopGroup
         self.connectTimeout = connectTimeout
+        self.allowRemoteHalfClosure = allowRemoteHalfClosure
         self.log = log
     }
 
@@ -53,10 +57,16 @@ public struct TCPForwarder: SocketForwarder {
             // Reads are paused until the backend connects; the client's bytes are held in the
             // kernel receive buffer instead of an app-level buffer while we wait.
             .childChannelOption(ChannelOptions.autoRead, value: false)
+            .childChannelOption(ChannelOptions.allowRemoteHalfClosure, value: self.allowRemoteHalfClosure)
             .childChannelInitializer { channel in
                 channel.eventLoop.makeCompletedFuture {
                     try channel.pipeline.syncOperations.addHandler(
-                        ConnectHandler(serverAddress: self.serverAddress, connectTimeout: self.connectTimeout, log: log)
+                        ConnectHandler(
+                            serverAddress: self.serverAddress,
+                            connectTimeout: self.connectTimeout,
+                            allowRemoteHalfClosure: self.allowRemoteHalfClosure,
+                            log: log
+                        )
                     )
                 }
             }
