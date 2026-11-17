@@ -19,7 +19,7 @@ import Testing
 @testable import ContainerCommands
 
 struct SystemSocketForwardTests {
-    private func command(host: String = "127.0.0.1", port: Int = 6379, socket: String = "/tmp/redis.sock") -> Application.SystemSocketForward {
+    private func command(host: String = "127.0.0.1", port: Int = 8080, socket: String = "/tmp/service.sock") -> Application.SystemSocketForward {
         var command = Application.SystemSocketForward()
         command.host = host
         command.port = port
@@ -39,7 +39,7 @@ struct SystemSocketForwardTests {
         #expect(throws: (any Error).self) { try command.validate() }
     }
 
-    @Test(arguments: ["redis.sock", "", String(repeating: "/x", count: 100)])
+    @Test(arguments: ["service.sock", "", String(repeating: "/x", count: 100)])
     func rejectsInvalidSocketPath(socket: String) {
         let command = command(socket: socket)
         #expect(throws: (any Error).self) { try command.validate() }

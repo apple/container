@@ -16,7 +16,6 @@
 
 import ArgumentParser
 import ContainerAPIClient
-import Foundation
 import NIOCore
 import NIOPosix
 import SocketForwarder
@@ -35,13 +34,13 @@ extension Application {
         )
 
         @Option(help: "Numeric IP address for the host listener (default: localhost only)")
-        public var host: String = "127.0.0.1"
+        var host: String = "127.0.0.1"
 
         @Option(help: "TCP port for the host listener (1–65535)")
-        public var port: Int
+        var port: Int
 
         @Option(name: .customLong("socket"), help: "Absolute path to the backend Unix socket on the host")
-        public var socketPath: String
+        var socketPath: String
 
         @OptionGroup
         public var logOptions: Flags.Logging

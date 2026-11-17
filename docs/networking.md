@@ -284,7 +284,6 @@ subnetv6 = "fd00:abcd::/64"
 
 These settings apply to networks created without explicit `--subnet` or `--subnet-v6` options.
 
-
 ## Forward TCP traffic to a published Unix socket
 
 `container system socket-forward` exposes a host Unix socket through a TCP
