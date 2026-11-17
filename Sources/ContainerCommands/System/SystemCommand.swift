@@ -29,6 +29,7 @@ extension Application {
                 SystemKernel.self,
                 SystemLogs.self,
                 SystemProperty.self,
+                SystemSocketForward.self,
                 SystemStart.self,
                 SystemStatus.self,
                 SystemStop.self,

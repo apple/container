@@ -20,12 +20,14 @@ import NIOPosix
 
 final class ConnectHandler {
     private let serverAddress: SocketAddress
+    private let allowRemoteHalfClosure: Bool
     private let connectTimeout: TimeAmount
     private var log: Logger? = nil
 
-    init(serverAddress: SocketAddress, connectTimeout: TimeAmount, log: Logger?) {
+    init(serverAddress: SocketAddress, connectTimeout: TimeAmount, allowRemoteHalfClosure: Bool = false, log: Logger?) {
         self.serverAddress = serverAddress
         self.connectTimeout = connectTimeout
+        self.allowRemoteHalfClosure = allowRemoteHalfClosure
         self.log = log
     }
 }
@@ -55,6 +57,7 @@ extension ConnectHandler {
 
         ClientBootstrap(group: context.eventLoop)
             .connectTimeout(self.connectTimeout)
+            .channelOption(ChannelOptions.allowRemoteHalfClosure, value: self.allowRemoteHalfClosure)
             .connect(to: serverAddress)
             .assumeIsolatedUnsafeUnchecked()
             .whenComplete { result in

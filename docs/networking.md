@@ -283,3 +283,60 @@ subnetv6 = "fd00:abcd::/64"
 ```
 
 These settings apply to networks created without explicit `--subnet` or `--subnet-v6` options.
+
+## Forward TCP traffic to a published Unix socket
+
+`container system socket-forward` exposes a host Unix socket through a TCP
+listener. Combined with `--publish-socket`, it lets a TCP client reach a guest
+service through the VM socket relay instead of a connection to the guest's IP.
+
+```text
+TCP client -> host TCP listener -> published Unix socket
+                                  -> VM socket relay -> guest Unix socket
+```
+
+The guest service must support a Unix socket. Configure it to listen at a
+writable path in the container's root filesystem, such as `/tmp/service.sock`.
+Current relay implementations may not resolve sockets inside bind mounts,
+named volumes, or tmpfs mounts. Keep the socket outside those mounts.
+
+Create a private host directory and publish the guest socket. Replace `IMAGE`
+and `SERVICE_COMMAND` with the image and command for the service:
+
+```bash
+socket_dir="$(mktemp -d /tmp/container-socket.XXXXXX)"
+container run -d --name socket-service \
+  --publish-socket "$socket_dir/service.sock:/tmp/service.sock" \
+  IMAGE SERVICE_COMMAND
+```
+
+In the same Terminal tab, start the TCP listener in the foreground:
+
+```bash
+container system socket-forward --socket "$socket_dir/service.sock" --port 8080
+```
+
+Connect the service's normal TCP client to `127.0.0.1:8080` from another tab.
+Verify a complete application-protocol exchange; opening the TCP listener alone
+does not establish that the backend works. Use `--host ::1` for IPv6 loopback.
+Binding to another interface requires an explicit numeric `--host` address.
+Loopback is not per-user authentication: other local processes can connect.
+Unix-socket access permissions are not transferred to TCP clients; retain the
+service's application-level authentication where access must be restricted.
+
+Each client connection opens a new backend connection. If the service stops,
+existing clients must reconnect after it returns; the forwarder does not replay
+requests or restore application sessions. Half-closed TCP streams are supported.
+Press Control-C to stop the forwarder.
+
+This command forwards TCP streams only. It does not replace `--publish`, add UDP
+forwarding, configure automatic startup, or change container egress, DNS, host
+routes, or VPN policy.
+
+After stopping the forwarder, remove the example container and empty directory:
+
+```bash
+container stop socket-service
+container delete socket-service
+rmdir "$socket_dir"
+```
