@@ -283,3 +283,78 @@ subnetv6 = "fd00:abcd::/64"
 ```
 
 These settings apply to networks created without explicit `--subnet` or `--subnet-v6` options.
+
+
+## Forward a local TCP port through the VM socket relay
+
+Some VPN configurations prevent the host from reaching a container's vmnet IP,
+including cases where the local subnet overlaps a company VPN range. Changing a
+socket's route scope alone does not override filtering. A separate local subnet
+can help when the problem is address overlap.
+
+For a TCP service that also supports a Unix socket, another option is to use
+`--publish-socket` and `container system socket-forward`. The path is:
+
+```text
+Mac TCP client -> Mac TCP listener -> published Unix socket
+                                     -> VM socket relay -> guest Unix socket
+```
+
+The VM socket relay uses the virtualization transport, so this conversation does
+not require a host IP connection to the container's vmnet address. It preserves
+the TCP interface expected by a host application. The service must explicitly
+listen on a Unix socket; this is not a transparent replacement for arbitrary
+container TCP or UDP ports.
+
+For example, start a disposable Redis instance with a guest Unix socket:
+
+```bash
+socket_dir="$(mktemp -d /tmp/redis-vmrelay.XXXXXX)"
+container run -d --name redis-vmrelay \
+  --cpus 1 --memory 256M \
+  --publish-socket "$socket_dir/redis.sock:/data/redis.sock" \
+  docker.io/library/redis:7.4 \
+  redis-server --appendonly no --save "" \
+  --unixsocket /data/redis.sock --unixsocketperm 700
+```
+
+The Redis image's entrypoint runs the service as its `redis` user. `/data` is
+writable by that user; a socket directly under `/run` may fail with a permission
+error. The private temporary host directory restricts access to the published
+socket. No `-p` is needed.
+
+In the same Terminal tab, run the forwarding command in the foreground:
+
+```bash
+container system socket-forward --socket "$socket_dir/redis.sock" --port 6380
+```
+
+Test from a second Terminal tab:
+
+```bash
+redis-cli -h 127.0.0.1 -p 6380 ping
+```
+
+The command binds only `127.0.0.1` by default. Use `--host ::1` for IPv6 loopback.
+It accepts numeric listener addresses and validates the port and socket path.
+Press Control-C to stop the forwarder. Stopping it does not stop Redis; each new
+client connection opens a fresh connection to the backend socket. This command
+does not configure automatic startup, container egress, UDP, or DNS, and it does
+not change VPN configuration, routing tables, or firewall rules.
+
+After testing, remove only the example instance:
+
+```bash
+container stop redis-vmrelay
+container delete redis-vmrelay
+rmdir "$socket_dir"
+```
+
+This uses the same architectural principle as Docker Desktop's host-side proxy
+and VM transport, while reusing Apple's existing published Unix-socket support.
+It is not an implementation of Docker Desktop's entire user-mode network stack.
+Docker explains the broader design in its
+[networking documentation](https://docs.docker.com/desktop/features/networking/)
+and [technical article](https://www.docker.com/blog/how-docker-desktop-networking-works-under-the-hood/).
+Apple's [issue #2529](https://github.com/apple/container/issues/2529) requests a
+native network interface for user-mode stacks such as gvproxy or VPNKit.
