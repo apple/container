@@ -50,9 +50,7 @@ extension RuntimeLinuxHelper {
             "\(Self.label).\(uuid)"
         }
 
-        /// The plugins installed, whose network services declare in their
-        /// manifests the interface strategy each of their variants needs.
-        private func installedPlugins(log: Logger) throws -> [Plugin] {
+        private func initializePluginLoader(log: Logger) throws -> PluginLoader {
             let installRootURL = URL(fileURLWithPath: InstallRoot.path.string)
             let appRootURL = URL(fileURLWithPath: ApplicationRoot.path.string)
             let installPluginsURL =
@@ -66,7 +64,7 @@ extension RuntimeLinuxHelper {
             if FileManager.default.fileExists(atPath: userPluginsURL.path, isDirectory: &isDirectory), isDirectory.boolValue {
                 pluginDirectories.insert(userPluginsURL, at: 0)
             }
-            let loader = try PluginLoader(
+            return try PluginLoader(
                 appRoot: appRootURL,
                 installRoot: installRootURL,
                 logRoot: logRoot,
@@ -74,7 +72,6 @@ extension RuntimeLinuxHelper {
                 pluginFactories: [DefaultPluginFactory(logger: log), AppBundlePluginFactory(logger: log)],
                 log: log
             )
-            return loader.findPlugins()
         }
 
         func run() async throws {
@@ -91,17 +88,14 @@ extension RuntimeLinuxHelper {
                 try adjustLimits()
                 signal(SIGPIPE, SIG_IGN)
 
-                let interfaceStrategies = RuntimeService.interfaceStrategies(
-                    plugins: try installedPlugins(log: log),
-                    log: log
-                )
+                let pluginLoader = try initializePluginLoader(log: log)
 
                 log.info("configuring XPC server")
                 nonisolated(unsafe) let anonymousConnection = xpc_connection_create(nil, nil)
 
                 let server = RuntimeService(
                     root: .init(fileURLWithPath: root),
-                    interfaceStrategies: interfaceStrategies,
+                    pluginLoader: pluginLoader,
                     eventLoopGroup: eventLoopGroup,
                     connection: anonymousConnection,
                     log: log
