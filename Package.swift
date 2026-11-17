@@ -435,6 +435,7 @@ let package = Package(
                 "ContainerNetworkClient",
                 "ContainerOS",
                 "ContainerPersistence",
+                "ContainerPlugin",
                 "ContainerResource",
                 "ContainerRuntimeClient",
                 "ContainerRuntimeLinuxClient",
@@ -442,6 +443,15 @@ let package = Package(
                 "SocketForwarder",
             ],
             path: "Sources/Services/RuntimeLinux/Server"
+        ),
+        .testTarget(
+            name: "ContainerRuntimeLinuxServerTests",
+            dependencies: [
+                .product(name: "Logging", package: "swift-log"),
+                "ContainerPlugin",
+                "ContainerRuntimeClient",
+                "ContainerRuntimeLinuxServer",
+            ]
         ),
         .target(
             name: "ContainerRuntimeClient",

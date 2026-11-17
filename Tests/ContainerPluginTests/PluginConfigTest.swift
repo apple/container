@@ -114,9 +114,39 @@ struct PluginConfigTest {
         #expect(servicesConfig.services.count == 1)
         #expect(
             servicesConfig.services[0].interfaces == [
-                "allocationOnly": "isolated",
-                "reserved": "nonisolated",
+                "allocationOnly": .isolated,
+                "reserved": .nonisolated,
             ])
+    }
+
+    @Test
+    func testNetworkServiceUnknownInterfaceStrategyThrows() async throws {
+        let tempURL = try FileManager.default.url(
+            for: .itemReplacementDirectory,
+            in: .userDomainMask,
+            appropriateFor: .temporaryDirectory,
+            create: true
+        )
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+        let configURL = tempURL.appending(path: "config.toml")
+        let configToml = """
+            abstract = "vmnet network management plugin"
+            author = "Apple"
+            version = 0.1
+
+            [servicesConfig]
+            loadAtBoot = false
+            runAtLoad = true
+            defaultArguments = []
+
+            [[servicesConfig.services]]
+            type = "network"
+            interfaces = { allocationOnly = "isolatd" }
+            """
+        try configToml.write(to: configURL, atomically: true, encoding: .utf8)
+        #expect(throws: DecodingError.self) {
+            try PluginConfig(configURL: configURL)
+        }
     }
 
     @Test
