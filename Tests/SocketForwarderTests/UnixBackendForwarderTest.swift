@@ -68,6 +68,62 @@ struct UnixBackendForwarderTest {
         try await group.shutdownGracefully()
     }
 
+    @Test(.timeLimit(.minutes(1)))
+    func reconnectsAfterUnixBackendIsRecreated() async throws {
+        let path = "/tmp/cz-recovery-\(UUID().uuidString).sock"
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+        let backend = try SocketAddress(unixDomainSocketPath: path)
+        let forwarder = try TCPForwarder(
+            proxyAddress: SocketAddress(ipAddress: "127.0.0.1", port: 0),
+            serverAddress: backend,
+            eventLoopGroup: group,
+            allowRemoteHalfClosure: true
+        )
+        let listener = try await forwarder.run().get()
+        let address = try #require(listener.proxyAddress)
+        var server: (any Channel)?
+        do {
+            for _ in 0..<3 {
+                let unavailable = try await ClientBootstrap(group: group).connect(to: address).get()
+                try await unavailable.closeFuture.get()
+                server = try await TCPEchoServer(serverAddress: backend, eventLoopGroup: group).run().get()
+                let client = try await ClientBootstrap(group: group).connect(to: address) { channel in
+                    channel.eventLoop.makeCompletedFuture {
+                        try NIOAsyncChannel(
+                            wrappingChannelSynchronously: channel,
+                            configuration: NIOAsyncChannel.Configuration(inboundType: ByteBuffer.self, outboundType: ByteBuffer.self)
+                        )
+                    }
+                }
+                let payload = ByteBuffer(string: "backend recovered")
+                try await client.executeThenClose { inbound, outbound in
+                    try await outbound.write(payload)
+                    var response = ByteBuffer()
+                    for try await var buffer in inbound {
+                        response.writeBuffer(&buffer)
+                        if response.readableBytes >= payload.readableBytes { break }
+                    }
+                    #expect(response == payload)
+                }
+                try await server?.close()
+                server = nil
+                if FileManager.default.fileExists(atPath: path) {
+                    try FileManager.default.removeItem(atPath: path)
+                }
+            }
+        } catch {
+            listener.close()
+            try await listener.wait()
+            try await server?.close()
+            try await group.shutdownGracefully()
+            throw error
+        }
+        listener.close()
+        try await listener.wait()
+        try await group.shutdownGracefully()
+    }
+
     @Test(.timeLimit(.minutes(1)), arguments: ["127.0.0.1", "::1"])
     func receivesResponseAfterClientHalfClose(listenAddress: String) async throws {
         let path = "/tmp/cz-half-close-\(UUID().uuidString).sock"
