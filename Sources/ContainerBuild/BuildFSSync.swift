@@ -267,18 +267,19 @@ actor BuildFSSync: BuildPipelineHandler {
                 continue
             }
 
-            let relPath = try url.relativeChildPath(to: contextDir)
-            let parentPath = try url.deletingLastPathComponent().relativeChildPath(to: contextDir)
-            let entry = DirEntry(url: url, isDirectory: url.hasDirectoryPath, relativePath: relPath)
-            entries[parentPath, default: []].insert(entry)
+            try self.insertEntryWithAncestors(url, into: &entries)
 
             if url.isSymlink {
-                let target: URL = url.resolvingSymlinksInPath()
-                if self.contextDir.parentOf(target) {
-                    let relPath = try target.relativeChildPath(to: self.contextDir)
-                    let entry = DirEntry(url: target, isDirectory: target.hasDirectoryPath, relativePath: relPath)
-                    let parentPath: String = try target.deletingLastPathComponent().relativeChildPath(to: self.contextDir)
-                    entries[parentPath, default: []].insert(entry)
+                var visitedLinks: Set<String> = []
+                var resolvedURLs: [URL] = []
+                if try self.resolveInContextSymlinkChain(
+                    url,
+                    visitedLinks: &visitedLinks,
+                    resolvedURLs: &resolvedURLs
+                ) != nil {
+                    for resolvedURL in resolvedURLs {
+                        try self.insertEntryWithAncestors(resolvedURL, into: &entries)
+                    }
                 }
             }
         }
@@ -417,6 +418,119 @@ actor BuildFSSync: BuildPipelineHandler {
             try globber.match(p)
         }
         return Array(globber.results)
+    }
+
+    /// Inserts `itemURL` and all of its ancestor directories beneath `contextDir` into `entries`.
+    private func insertEntryWithAncestors(
+        _ itemURL: URL,
+        into entries: inout [String: Set<DirEntry>]
+    ) throws {
+        var current = itemURL
+        var isCurrentDirectory = !current.isSymlink && (current.hasDirectoryPath || current.isDirectory)
+        while self.contextDir.absoluteURL.cleanPath != current.absoluteURL.cleanPath,
+            self.contextDir.parentOf(current)
+        {
+            let relPath = try current.relativeChildPath(to: self.contextDir)
+            let parentURL = current.deletingLastPathComponent()
+            let parentPath = try parentURL.relativeChildPath(to: self.contextDir)
+            let entry = DirEntry(url: current, isDirectory: isCurrentDirectory, relativePath: relPath)
+            entries[parentPath, default: []].insert(entry)
+            current = parentURL
+            isCurrentDirectory = true
+        }
+    }
+
+    /// Resolves `symlinkURL` hop-by-hop and component-by-component within `contextDir`,
+    /// appending every existing in-context intermediate symlink, directory, and final target
+    /// to `resolvedURLs`. Returns the final resolved URL if the target exists within
+    /// `contextDir`, or `nil` if any component is missing, escapes `contextDir`, or loops.
+    private func resolveInContextSymlinkChain(
+        _ symlinkURL: URL,
+        visitedLinks: inout Set<String>,
+        resolvedURLs: inout [URL]
+    ) throws -> URL? {
+        let linkKey = symlinkURL.absoluteURL.cleanPath
+        guard visitedLinks.insert(linkKey).inserted else {
+            return nil
+        }
+
+        let rawDest = try FileManager.default.destinationOfSymbolicLink(atPath: symlinkURL.cleanPath)
+        var currentDir: URL
+        let relDest: String
+        if rawDest.hasPrefix("/") {
+            let absTarget = URL(fileURLWithPath: rawDest).standardizedFileURL
+            if absTarget.cleanPath == self.contextDir.cleanPath {
+                return self.contextDir
+            }
+            guard self.contextDir.parentOf(absTarget) else {
+                return nil
+            }
+            currentDir = self.contextDir
+            relDest = try absTarget.relativeChildPath(to: self.contextDir)
+        } else {
+            currentDir = symlinkURL.deletingLastPathComponent().standardizedFileURL
+            relDest = rawDest
+        }
+
+        let components = relDest.split(separator: "/", omittingEmptySubsequences: true).map(String.init)
+        guard !components.isEmpty else {
+            return nil
+        }
+
+        for (index, component) in components.enumerated() {
+            let isLast = index == components.count - 1
+            if component == "." {
+                continue
+            }
+            if component == ".." {
+                let parentDir = currentDir.deletingLastPathComponent().standardizedFileURL
+                guard parentDir.cleanPath == self.contextDir.cleanPath || self.contextDir.parentOf(parentDir) else {
+                    return nil
+                }
+                currentDir = parentDir
+                continue
+            }
+
+            let nextURL = currentDir.appendingPathComponent(component)
+            guard self.contextDir.parentOf(nextURL) else {
+                return nil
+            }
+            var st = stat()
+            guard lstat(nextURL.cleanPath, &st) == 0 else {
+                return nil
+            }
+
+            let fileType = st.st_mode & S_IFMT
+            if fileType == S_IFLNK {
+                resolvedURLs.append(nextURL)
+                guard let resolvedHop = try self.resolveInContextSymlinkChain(
+                    nextURL,
+                    visitedLinks: &visitedLinks,
+                    resolvedURLs: &resolvedURLs
+                ) else {
+                    return nil
+                }
+                if !isLast {
+                    var hopStat = stat()
+                    guard lstat(resolvedHop.cleanPath, &hopStat) == 0,
+                        (hopStat.st_mode & S_IFMT) == S_IFDIR
+                    else {
+                        return nil
+                    }
+                }
+                currentDir = resolvedHop
+            } else {
+                if !isLast {
+                    guard fileType == S_IFDIR else {
+                        return nil
+                    }
+                }
+                currentDir = nextURL
+            }
+        }
+
+        resolvedURLs.append(currentDir)
+        return currentDir
     }
 
     private func processDirectory(
