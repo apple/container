@@ -1383,6 +1383,29 @@ container system start [--app-root <app-root>] [--install-root <install-root>] [
 > [!NOTE]
 > The `--log-root` option is principally intended for short-term test and diagnostic purposes. The log handler for this option neither aggregates log messages, nor does it rotate logs.
 
+### `container system socket-forward`
+
+Forwards a host TCP listener to a Unix socket, including one published from a container with `--publish-socket`. Runs in the foreground; press Control-C to stop it.
+
+**Usage**
+
+```bash
+container system socket-forward --socket <path> --port <port> [--host <ip>] [--debug]
+```
+
+**Options**
+
+*   `--socket <path>`: Absolute host path to the backend Unix socket.
+*   `--port <port>`: Host TCP port, from 1 to 65535.
+*   `--host <ip>`: Numeric listener address (default: `127.0.0.1`). Use `::1` for IPv6 loopback.
+*   `--debug`: Enable debug logging.
+
+The guest service must support a Unix socket. Keep its socket outside mounted directories; current relay implementations can fail to resolve sockets inside volumes or tmpfs mounts. This command does not configure automatic startup, UDP, container egress, or DNS. Existing client connections close when the backend stops; clients must reconnect after it returns.
+
+Loopback limits network reachability, not local-user access. Unix-socket permissions do not authenticate TCP clients.
+
+See [TCP-to-Unix-socket forwarding](networking.md#forward-tcp-traffic-to-a-published-unix-socket) for setup and lifecycle details.
+
 ### `container system stop`
 
 Stops the container services and deregisters them from launchd. You can specify a prefix to target services created with a different launchd prefix.
