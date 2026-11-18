@@ -18,6 +18,7 @@ spelling.
 | `docker logs` | `container logs` | |
 | `docker cp` | `container copy` / `cp` | `container:path` on either side |
 | `docker export` | `container export` | |
+| `docker commit` | `container commit <id> <reference>` | no `--author`, `--change`, or `--message`; a running container is snapshotted, not paused |
 | `docker inspect` | `container inspect` | also the way to find a container's IP |
 | `docker stats` | `container stats` | |
 | `docker ps` | `container list` / `ls` | add `-a` for stopped containers |
@@ -26,7 +27,6 @@ spelling.
 | `docker attach` | — | use `container exec -it <id> sh` |
 | `docker top` | — | `container exec <id> ps aux` |
 | `docker port` | — | `container inspect <id>` |
-| `docker commit` | — | build an image from a Dockerfile instead |
 | `docker rename`, `pause`, `unpause`, `wait`, `diff`, `update` | — | no equivalent |
 
 There is no `--restart` policy flag on `container run`. Supervise long-running services with
