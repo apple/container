@@ -56,6 +56,9 @@ extension Application {
         var arguments: [String] = []
 
         public func run() async throws {
+            if managementFlags.virtualization {
+                try MachineCapabilities.requireNestedVirtualizationSupported()
+            }
             let containerSystemConfig: ContainerSystemConfig = try await ClientHealthCheck.loadContainerSystemConfig()
             let progressConfig = try ProgressConfig(
                 showTasks: true,
