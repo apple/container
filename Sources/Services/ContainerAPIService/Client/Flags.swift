@@ -106,7 +106,7 @@ public struct Flags {
             self.memory = memory
         }
 
-        @Option(name: .shortAndLong, help: "Number of CPUs to allocate to the container")
+        @Option(name: .shortAndLong, help: "Number of CPUs to allocate to the container (its VM gets one extra vCPU for the guest agent)")
         public var cpus: Int64?
 
         @Option(

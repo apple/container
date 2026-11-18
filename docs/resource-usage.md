@@ -11,6 +11,34 @@ Since the containers created by `container` are lightweight virtual machines, co
 container run --rm --cpus 8 --memory 32g big
 ```
 
+### CPUs inside the container
+
+`--cpus N` limits the container to N CPUs worth of CPU time. The VM that runs the
+container gets N + 1 virtual CPUs: the extra vCPU keeps the guest agent responsive
+even when the container uses all of its CPU time. A VM can't have more vCPUs than your
+Mac has CPUs, so when N + 1 exceeds that number, the VM gets one vCPU per host CPU and
+no extra vCPU.
+
+The container sees every vCPU in the VM, so tools that count CPUs, such as `nproc`,
+`/proc/cpuinfo`, and Python's `os.cpu_count()`, report N + 1. Tools that read the
+cgroup CPU limit in `/sys/fs/cgroup/cpu.max` see N. For example, with `--cpus 2`:
+
+```console
+% container run --rm --cpus 2 debian:bookworm-slim sh -c 'nproc; cat /sys/fs/cgroup/cpu.max'
+3
+200000 100000
+```
+
+`cpu.max` holds the CPU quota and period in microseconds, so `200000 100000` is 2 CPUs.
+
+An application that sizes a thread or worker pool from the CPU count starts N + 1
+workers that share N CPUs of time. To size it to N, compute N from `cpu.max`, or
+restrict the application to N CPUs with `taskset`:
+
+```bash
+container run --rm --cpus 2 big taskset -c 0-1 myapp
+```
+
 See [Resource limits (ulimits)](./ulimits.md) for per-process resource limits like open-file and process-count limits.
 
 ## Configure memory and CPUs for large builds
