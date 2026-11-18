@@ -41,7 +41,7 @@ trust that message when `container system status` also reports the service down.
 `prune`, `volume *`, and `network *` match Docker, as do the common `run` flags: `-d`, `--rm`,
 `-i`, `-t`, `-e`, `-p`, `-v`, `-w`, `--name`, `--network`, `--entrypoint`.
 
-`restart`, `commit`, `attach`, `top`, `rename`, `pause`, `port`, and `--restart` have no
+`restart`, `attach`, `top`, `rename`, `pause`, `port`, and `--restart` have no
 equivalent. Check `references/docker-migration.md` before assuming anything else exists.
 
 ## Gotchas
