@@ -750,14 +750,28 @@ public actor ContainersService {
         try await self.lock.withLock(logMetadata: ["acquirer": "\(#function)", "id": "\(id)"]) { context in
             var state = try await self.getContainerState(id: id, context: context)
 
-            let client = try state.getClient()
-            try await client.kill(processID, signal: signal)
-
             // Only a successful kill of the init process with a terminating signal counts as
             // a stop by the user. Signals such as SIGHUP (reload) leave the container running.
             let terminatingSignals: [Signal] = [.kill, .term, .int, .quit]
-            if processID == id, let sig = try? Signal(signal), terminatingSignals.contains(sig) {
+            var stopsInit = false
+            if processID == id, let sig = try? Signal(signal) {
+                stopsInit = terminatingSignals.contains(sig)
+            }
+
+            // A container waiting to be restarted has no process to signal. A terminating signal
+            // just cancels the pending restart, as `stop` does.
+            let cancelsRestart = stopsInit && state.snapshot.status == .restarting
+            if !cancelsRestart {
+                let client = try state.getClient()
+                try await client.kill(processID, signal: signal)
+            }
+
+            if stopsInit {
                 state.stoppedByUser = true
+                state.backOff = nil
+                if cancelsRestart {
+                    state.snapshot.status = .stopped
+                }
                 await self.restartTasks[id]?.cancel()
                 await self.setContainerState(id, state, context: context)
             }
