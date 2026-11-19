@@ -550,7 +550,7 @@ public actor ContainersService {
             }
 
             let path = self.containerRoot.appendingPathComponent(id)
-            let (config, _) = try Self.getContainerConfiguration(at: path)
+            let (config, options) = try Self.getContainerConfiguration(at: path)
             try AttachmentNameValidator.validateStored(id: id, networks: config.networks)
 
             var networkBootstrapInfos = [NetworkBootstrapInfo]()
@@ -562,6 +562,15 @@ public actor ContainersService {
             }
 
             do {
+                // The SSH agent socket is passed in per start via `dynamicEnv`, which the restart
+                // scheduler cannot supply, so a restartable container could not be restarted correctly.
+                if config.ssh, let restartPolicy = options?.restartPolicy, restartPolicy != .no {
+                    throw ContainerizationError(
+                        .unsupported,
+                        message: "--ssh is not supported for a container with --restart \(restartPolicy.cliValue)"
+                    )
+                }
+
                 try Self.registerService(
                     plugin: self.runtimePlugins.first { $0.name == config.runtimeHandler }!,
                     loader: self.pluginLoader,
@@ -747,7 +756,7 @@ public actor ContainersService {
             let terminatingSignals: [Signal] = [.kill, .term, .int, .quit]
             if processID == id, let sig = try? Signal(signal), terminatingSignals.contains(sig) {
                 state.stoppedByUser = true
-                self.restartTasks[id]?.cancel()
+                await self.restartTasks[id]?.cancel()
                 await self.setContainerState(id, state, context: context)
             }
 

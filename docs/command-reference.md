@@ -69,6 +69,7 @@ container run [<options>] <image> [<arguments> ...]
 *   `--publish-socket <spec>`: Publish a socket from container to host (format: host_path:container_path)
 *   `--read-only`: Mount the container's root filesystem as read-only
 *   `--read-only-path <path>`: **Experimental.** Mark a path inside the container read-only, in addition to the runtime defaults (or `NONE` to clear prior values and the defaults)
+*   `--restart <policy>`: Restart policy applied when the container exits (default: `no`). See [Restart Policies](#restart-policies). Cannot be combined with `--rm` (unless `no`) or `--ssh` (unless `no`)
 *   `--rm, --remove`: Remove the container after it stops
 *   `--rosetta`: Enable Rosetta in the container
 *   `--runtime`: Set the runtime handler for the container (default: container-runtime-<os>)
@@ -113,7 +114,29 @@ container run --init ubuntu:latest my-app
 
 # run a container with a custom init image for boot customization
 container run --init-image local/custom-init:latest ubuntu:latest
+
+# restart a container automatically if it exits with a non-zero code, at most 3 times
+container run -d --restart on-failure:3 my-worker:latest
 ```
+
+#### Restart Policies
+
+`--restart <policy>` on `container run` and `container create` controls whether the container is restarted automatically when its init process exits.
+
+| Policy | Behavior |
+|--------|----------|
+| `no` (default) | Never restart. |
+| `on-failure` | Restart on a non-zero exit code, with unlimited retries. |
+| `on-failure:<n>` | Same, but give up after `n` automatic restarts. `on-failure:0` means unlimited. |
+| `always` | Restart on any exit, unless the container was stopped manually (`container stop` or `container kill`). |
+
+Restarts use an exponential backoff starting at 100ms. A container that stays running for 10 seconds is considered stable and its backoff is reset. Stopping or killing a container cancels a pending restart. Starting a container with `container start` begins a fresh `on-failure:<n>` retry budget.
+
+> [!WARNING]
+> **`--ssh` is not supported for restartable containers.** The SSH agent socket is forwarded from the client's `SSH_AUTH_SOCK` each time the container is started, and the API server has no client to supply it when it restarts a container automatically. Starting a container that was created with `--ssh` and a restart policy other than `no` fails.
+
+> [!NOTE]
+> `--rm` cannot be combined with a restart policy other than `no`. `unless-stopped` is not supported yet.
 
 ### `container build`
 
@@ -237,6 +260,7 @@ container create [<options>] <image> [<arguments> ...]
 *   `--publish-socket <spec>`: Publish a socket from container to host (format: host_path:container_path)
 *   `--read-only`: Mount the container's root filesystem as read-only
 *   `--read-only-path <path>`: **Experimental.** Mark a path inside the container read-only, in addition to the runtime defaults (or `NONE` to clear prior values and the defaults)
+*   `--restart <policy>`: Restart policy applied when the container exits (default: `no`). See [Restart Policies](#restart-policies). Cannot be combined with `--rm` (unless `no`) or `--ssh` (unless `no`)
 *   `--rm, --remove`: Remove the container after it stops
 *   `--rosetta`: Enable Rosetta in the container
 *   `--runtime`: Set the runtime handler for the container (default: container-runtime-<os>)  
