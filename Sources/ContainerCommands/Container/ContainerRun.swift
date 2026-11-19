@@ -63,6 +63,9 @@ extension Application {
         var arguments: [String] = []
 
         public func run() async throws {
+            if managementFlags.virtualization {
+                try MachineCapabilities.requireNestedVirtualizationSupported()
+            }
             let containerSystemConfig: ContainerSystemConfig = try await ClientHealthCheck.loadContainerSystemConfig()
             var exitCode: Int32 = 127
             let id = Utility.createContainerID(name: self.managementFlags.name)
