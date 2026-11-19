@@ -217,10 +217,17 @@ public struct ClusterHelper {
 
     /// Pure filtering logic behind `workerContainerNames(clusterName:client:)`, split out for unit testing.
     static func workerContainerNames(from snapshots: [ContainerSnapshot], clusterName: String) -> [String] {
-        snapshots
+        let prefix = workerNamePrefix(cluster: clusterName)
+        return
+            snapshots
             .filter { $0.configuration.labels[ResourceLabelKeys.role] == workerRoleName }
             .map { $0.configuration.id }
-            .filter { $0.hasPrefix(workerNamePrefix(cluster: clusterName)) }
+            .filter { name in
+                // A worker is `<cluster>-worker-<N>`. A longer suffix such as `1-worker-1` means the
+                // container is a worker of another cluster, e.g. `dev-worker-1` next to `dev`.
+                let index = name.dropFirst(prefix.count)
+                return name.hasPrefix(prefix) && !index.isEmpty && index.allSatisfy { ("0"..."9").contains($0) }
+            }
             .sorted()
     }
 
