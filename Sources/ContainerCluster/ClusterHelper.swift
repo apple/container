@@ -174,6 +174,17 @@ public struct ClusterHelper {
         return f
     }
 
+    /// Returns a duplicate of `handle` to pass to `createProcess`. Sending a handle over XPC closes its
+    /// descriptor, so sending the caller's own handle and closing it later closes the descriptor twice,
+    /// and a concurrent task that reused the descriptor number loses its file.
+    static func stdioDuplicate(of handle: FileHandle) throws -> FileHandle {
+        let fd = dup(handle.fileDescriptor)
+        guard fd >= 0 else {
+            throw ContainerizationError(.internalError, message: "failed to duplicate a stdio descriptor: errno \(errno)")
+        }
+        return FileHandle(fileDescriptor: fd, closeOnDealloc: false)
+    }
+
     // Shared exec helper used by bootstrap, readiness, and kubeconfig extensions.
     public static func execCapture(
         containerId: String, executable: String, arguments: [String],
@@ -182,9 +193,12 @@ public struct ClusterHelper {
         let pipe = Pipe()
         let config = ProcessConfiguration(
             executable: executable, arguments: arguments, environment: [], terminal: false)
+        // Only stdout is captured, as before: callers parse it, and the handle used to be sent a second
+        // time as stderr after the first send had already closed it, so stderr was never attached.
+        let stdout = try stdioDuplicate(of: pipe.fileHandleForWriting)
         let proc = try await client.createProcess(
             containerId: containerId, processId: UUID().uuidString.lowercased(),
-            configuration: config, stdio: [nil, pipe.fileHandleForWriting, pipe.fileHandleForWriting])
+            configuration: config, stdio: [nil, stdout, nil])
         try await proc.start()
         pipe.fileHandleForWriting.closeFile()
         let data = pipe.fileHandleForReading.readDataToEndOfFile()

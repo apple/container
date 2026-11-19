@@ -36,7 +36,7 @@ extension ClusterHelper {
             containerId: containerId,
             processId: UUID().uuidString.lowercased(),
             configuration: probe,
-            stdio: [nil, devNull, devNull])
+            stdio: [nil, try devNull.map(stdioDuplicate), nil])
         try await proc.start()
         return try await proc.wait()
     }
