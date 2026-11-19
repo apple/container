@@ -384,7 +384,7 @@ public actor MachinesService {
             do {
                 try await self.client.create(
                     configuration: config,
-                    options: ContainerCreateOptions(autoRemove: true, rootFsOverride: rootfs),
+                    options: try ContainerCreateOptions(autoRemove: true, rootFsOverride: rootfs),
                     kernel: kernel
                 )
 

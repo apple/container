@@ -147,7 +147,7 @@ extension Builder {
                     .invalidState,
                     message: "builder is stopping, please wait until it is fully stopped before proceeding"
                 )
-            case .unknown:
+            case .unknown, .restarting:
                 break
             }
         }

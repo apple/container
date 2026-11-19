@@ -172,7 +172,7 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
         let client = ContainerClient()
         try await client.create(
             configuration: config,
-            options: ContainerCreateOptions(autoRemove: remove),
+            options: try ContainerCreateOptions(autoRemove: remove),
             kernel: kernel,
             initImage: initfs
         )

@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
+import ContainerResource
 import ContainerizationError
 import Foundation
 
@@ -356,6 +357,13 @@ public struct Flags {
 
         @Flag(name: [.customLong("rm"), .long], help: "Remove the container after it stops")
         public var remove = false
+
+        @Option(
+            name: .long,
+            help: "Restart policy when the container exits (no, always, on-failure[:max-retries])",
+            transform: { try RestartPolicy(parsing: $0) }
+        )
+        public var restart: RestartPolicy = .no
 
         @Flag(name: .long, help: "Enable Rosetta in the container")
         public var rosetta = false

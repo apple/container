@@ -32,9 +32,24 @@ import Logging
 import SystemPackage
 
 public actor ContainersService {
+    struct StoppedState {
+        var startError: Error?
+        var exitStatus: ExitStatus?
+    }
+
     struct ContainerState {
+        private static let initialBackOff = Duration.milliseconds(100)
+        private static let maxBackOff = Duration.seconds(60)
+        public static let stabilityCall = Duration.seconds(10)
+
         var snapshot: ContainerSnapshot
         var client: RuntimeClient? = nil
+
+        var stoppedState: StoppedState?
+        var stoppedByUser: Bool = false
+        var backOff: Duration?
+        /// Number of automatic restarts since the container was last started by the user.
+        var restartCount: Int = 0
 
         func getClient() throws -> RuntimeClient {
             guard let client else {
@@ -46,10 +61,33 @@ public actor ContainersService {
             }
             return client
         }
+
+        mutating func setStartError(error: Error) {
+            stoppedState = StoppedState(startError: error)
+            backOff = nil
+        }
+
+        mutating func setExitStatus(exitStatus: ExitStatus?, restartPolicy: RestartPolicy) {
+            stoppedState = StoppedState(exitStatus: exitStatus)
+            switch restartPolicy {
+            case .onFailure where !stoppedByUser && (exitStatus?.exitCode ?? 0) != 0,
+                .always where !stoppedByUser:
+                backOff = backOff.map { min($0 * 2, Self.maxBackOff) } ?? Self.initialBackOff
+            case _:
+                backOff = nil
+            }
+        }
     }
 
     private static let machServicePrefix = "com.apple.container"
     private static let launchdDomainString = try! ServiceManager.getDomainString()
+
+    private let exitQueue: AsyncStream<String>
+    private let exitQueueContinuation: AsyncStream<String>.Continuation
+    private var restartScheduler: Task<Void, Never>?
+    /// The pending or running restart task of each container. At most one per container.
+    private var restartTasks: [String: Task<Void, Never>] = [:]
+    private var stabilityMonitor: ExitMonitor?
 
     private let log: Logger
     private let debugHelpers: Bool
@@ -82,7 +120,14 @@ public actor ContainersService {
         self.log = log
         self.debugHelpers = debugHelpers
         self.runtimePlugins = pluginLoader.findPlugins().filter { $0.hasType(.runtime) }
+
+        (self.exitQueue, self.exitQueueContinuation) = AsyncStream.makeStream(of: String.self)
         self.containers = try await Self.loadAtBoot(root: containerRoot, loader: pluginLoader, log: log)
+
+        // Schedule restarts for containers according to their restart policy
+        for id in self.containers.keys {
+            self.exitQueueContinuation.yield(id)
+        }
     }
 
     public func setNetworksService(_ service: NetworksService) async {
@@ -164,6 +209,103 @@ public actor ContainersService {
         return results
     }
 
+    public func runRestartScheduler() throws {
+        log.debug(
+            "ContainersService: enter",
+            metadata: ["func": "\(#function)"]
+        )
+        defer {
+            log.debug(
+                "ContainersService: exit",
+                metadata: ["func": "\(#function)"]
+            )
+        }
+
+        guard restartScheduler == nil else {
+            throw ContainerizationError(.invalidState, message: "already running restart scheduler")
+        }
+
+        stabilityMonitor = ExitMonitor(log: log)
+        restartScheduler = Task {
+            for await id in self.exitQueue {
+                // A container has at most one restart task. Both the check and the assignment run
+                // on the actor without suspending, so a duplicate exit event cannot spawn a second.
+                guard self.restartTasks[id] == nil else {
+                    continue
+                }
+
+                self.restartTasks[id] = Task {
+                    defer { self.restartTasks[id] = nil }
+                    // Only a container this task bootstrapped itself may be killed on failure.
+                    // Any earlier failure (e.g. `restart` finding the container already started
+                    // by the user) must leave the container untouched.
+                    do {
+                        await stabilityMonitor?.stopTracking(id: id)
+
+                        let state = try self._getContainerState(id: id)
+                        let options = try self.getContainerCreationOptions(id: id)
+                        guard options.autoRemove == false else {
+                            return
+                        }
+
+                        let startFailed = state.stoppedState?.startError != nil
+                        let exitedWithError = (state.stoppedState?.exitStatus?.exitCode ?? 0) != 0
+                        let stoppedByUser = state.stoppedByUser
+
+                        switch options.restartPolicy {
+                        case .onFailure(let maxRetries)
+                        where !startFailed && !stoppedByUser && exitedWithError
+                            && (maxRetries == 0 || state.restartCount < maxRetries):
+                            break
+                        case .always where !startFailed && !stoppedByUser:
+                            break
+                        case _:
+                            return
+                        }
+
+                        try await restart(id: id)
+                        if let backOff = state.backOff {
+                            try await Task.sleep(for: backOff)
+                        }
+
+                        guard (try self._getContainerState(id: id)).snapshot.status == .restarting else {
+                            return
+                        }
+
+                        try await stabilityMonitor?.registerProcess(
+                            id: id,
+                            onExit: { id, code in
+                                guard code.exitCode == 0 else {
+                                    return
+                                }
+                                try? await self.resetBackOff(id: id)
+                            }
+                        )
+                        try await stabilityMonitor?.track(id: id) {
+                            try await Task.sleep(for: ContainerState.stabilityCall)
+                            return ExitStatus(exitCode: 0)
+                        }
+
+                        try await bootstrap(id: id, stdio: [FileHandle?](repeating: nil, count: 3), dynamicEnv: [:])
+                        do {
+                            try await startProcess(id: id, processID: id)
+                        } catch {
+                            try? await kill(id: id, processID: id, signal: "SIGKILL")
+                            throw error
+                        }
+                    } catch is CancellationError {
+                        // The restart was cancelled by `stop` or `kill`.
+                        return
+                    } catch {
+                        log.error(
+                            "failed to restart container",
+                            metadata: ["id": "\(id)", "error": "\(error)"])
+                    }
+                }
+            }
+        }
+    }
+
     /// List containers matching the given filters.
     public func list(filters: ContainerListFilters = .all) async throws -> [ContainerSnapshot] {
         log.debug(
@@ -192,7 +334,12 @@ public actor ContainersService {
         }
 
         return self.containers.values.compactMap { state -> ContainerSnapshot? in
-            let snapshot = state.snapshot
+            var snapshot = state.snapshot
+            // `restarting` is internal. Report it as `stopped` so that existing API clients, which do
+            // not know the status, keep working.
+            if snapshot.status == .restarting {
+                snapshot.status = .stopped
+            }
 
             if !filters.ids.isEmpty {
                 guard filters.ids.contains(snapshot.id) else {
@@ -356,7 +503,10 @@ public actor ContainersService {
                     networks: [],
                     startedDate: nil
                 )
-                await self.setContainerState(configuration.id, ContainerState(snapshot: snapshot), context: context)
+                await self.setContainerState(
+                    configuration.id,
+                    ContainerState(snapshot: snapshot),
+                    context: context)
             } catch {
                 throw error
             }
@@ -384,6 +534,9 @@ public actor ContainersService {
         }
 
         try await self.lock.withLock(logMetadata: ["acquirer": "\(#function)", "id": "\(id)"]) { context in
+            // A restart cancelled by `stop` or `kill` while waiting for the lock must not bootstrap.
+            try Task.checkCancellation()
+
             var state = try await self.getContainerState(id: id, context: context)
 
             // We've already bootstrapped this container. Ideally we should be able to
@@ -393,8 +546,16 @@ public actor ContainersService {
                 return
             }
 
+            // A new start (by the user or the restart scheduler) clears any previous user stop,
+            // so the restart policy applies again to this run.
+            state.stoppedByUser = false
+            // A start that does not come from the restart scheduler begins a fresh retry budget.
+            if state.snapshot.status != .restarting {
+                state.restartCount = 0
+            }
+
             let path = self.containerRoot.appendingPathComponent(id)
-            let (config, _) = try Self.getContainerConfiguration(at: path)
+            let (config, options) = try Self.getContainerConfiguration(at: path)
             try AttachmentNameValidator.validateStored(id: id, networks: config.networks)
 
             var networkBootstrapInfos = [NetworkBootstrapInfo]()
@@ -406,6 +567,15 @@ public actor ContainersService {
             }
 
             do {
+                // The SSH agent socket is passed in per start via `dynamicEnv`, which the restart
+                // scheduler cannot supply, so a restartable container could not be restarted correctly.
+                if config.ssh, let restartPolicy = options?.restartPolicy, restartPolicy != .no {
+                    throw ContainerizationError(
+                        .unsupported,
+                        message: "--ssh is not supported for a container with --restart \(restartPolicy.cliValue)"
+                    )
+                }
+
                 try Self.registerService(
                     plugin: self.runtimePlugins.first { $0.name == config.runtimeHandler }!,
                     loader: self.pluginLoader,
@@ -426,7 +596,10 @@ public actor ContainersService {
                     onExit: self.handleContainerExit
                 )
 
+                // Bootstrapped but not yet started: `stopped` with a live client. This also leaves
+                // `restarting` for a scheduled restart, so `stop` tears the runtime down.
                 state.client = runtimeClient
+                state.snapshot.status = .stopped
                 await self.setContainerState(id, state, context: context)
             } catch {
                 let label = Self.fullLaunchdServiceLabel(
@@ -436,6 +609,12 @@ public actor ContainersService {
 
                 await self.exitMonitor.stopTracking(id: id)
                 try? ServiceManager.deregister(fullServiceLabel: label)
+
+                // Roll back from `restarting` (scheduler) so the container is not left in limbo.
+                state.snapshot.status = .stopped
+                state.setStartError(error: error)
+                await self.setContainerState(id, state, context: context)
+
                 throw error
             }
         }
@@ -535,9 +714,17 @@ public actor ContainersService {
                 state.snapshot.networks = sandboxSnapshot.networks
                 state.snapshot.startedDate = Date()
                 await self.setContainerState(id, state, context: context)
+
+                // The container is running, so any pending restart (e.g. the user started it during
+                // the backoff) is obsolete.
+                await self.restartTasks[id]?.cancel()
             } catch {
                 await self.exitMonitor.stopTracking(id: id)
                 try? await client.stop(options: ContainerStopOptions.default)
+
+                state.setStartError(error: error)
+                await self.setContainerState(id, state, context: context)
+
                 throw error
             }
         }
@@ -565,15 +752,41 @@ public actor ContainersService {
             )
         }
 
-        let state = try self._getContainerState(id: id)
-        let client = try state.getClient()
-        try await client.kill(processID, signal: signal)
+        try await self.lock.withLock(logMetadata: ["acquirer": "\(#function)", "id": "\(id)"]) { context in
+            var state = try await self.getContainerState(id: id, context: context)
 
-        // SIGKILL is guaranteed to terminate the target. When directed at the
-        // container's init process, follow up with the same API-server cleanup
-        // that `stop` performs.
-        if processID == id, (try? Signal(signal)) == .kill {
-            try await handleContainerExit(id: id)
+            // Only a successful kill of the init process with a terminating signal counts as
+            // a stop by the user. Signals such as SIGHUP (reload) leave the container running.
+            let terminatingSignals: [Signal] = [.kill, .term, .int, .quit]
+            var stopsInit = false
+            if processID == id, let sig = try? Signal(signal) {
+                stopsInit = terminatingSignals.contains(sig)
+            }
+
+            // A container waiting to be restarted has no process to signal. A terminating signal
+            // just cancels the pending restart, as `stop` does.
+            let cancelsRestart = stopsInit && state.snapshot.status == .restarting
+            if !cancelsRestart {
+                let client = try state.getClient()
+                try await client.kill(processID, signal: signal)
+            }
+
+            if stopsInit {
+                state.stoppedByUser = true
+                state.backOff = nil
+                if cancelsRestart {
+                    state.snapshot.status = .stopped
+                }
+                await self.restartTasks[id]?.cancel()
+                await self.setContainerState(id, state, context: context)
+            }
+
+            // SIGKILL is guaranteed to terminate the target. When directed at the
+            // container's init process, follow up with the same API-server cleanup
+            // that `stop` performs.
+            if processID == id, (try? Signal(signal)) == .kill {
+                try await self.handleContainerExit(id: id, code: nil, context: context)
+            }
         }
     }
 
@@ -597,29 +810,45 @@ public actor ContainersService {
             )
         }
 
-        let state = try self._getContainerState(id: id)
+        try await self.lock.withLock(logMetadata: ["acquirer": "\(#function)", "id": "\(id)"]) { context in
+            var state = try await self.getContainerState(id: id, context: context)
 
-        // Stop should be idempotent.
-        let client: RuntimeClient
-        do {
-            client = try state.getClient()
-        } catch {
-            return
-        }
+            state.stoppedByUser = true
+            await self.restartTasks[id]?.cancel()
 
-        var resolvedOptions = options
-        if resolvedOptions.signal == nil, let stopSignal = state.snapshot.configuration.stopSignal {
-            resolvedOptions.signal = stopSignal
-        }
-
-        do {
-            try await client.stop(options: resolvedOptions)
-        } catch let err as ContainerizationError {
-            if err.code != .interrupted {
-                throw err
+            // The container is waiting to be restarted and has no running sandbox yet.
+            // Cancel the pending restart; the scheduler bails when it sees the status change.
+            if state.snapshot.status == .restarting {
+                state.snapshot.status = .stopped
+                state.backOff = nil
+                await self.setContainerState(id, state, context: context)
+                return
             }
+            await self.setContainerState(id, state, context: context)
+
+            // Stop should be idempotent.
+            let client: RuntimeClient
+            do {
+                client = try state.getClient()
+            } catch {
+                return
+            }
+
+            var resolvedOptions = options
+            if resolvedOptions.signal == nil, let stopSignal = state.snapshot.configuration.stopSignal {
+                resolvedOptions.signal = stopSignal
+            }
+
+            do {
+                try await client.stop(options: resolvedOptions)
+            } catch let err as ContainerizationError {
+                if err.code != .interrupted {
+                    throw err
+                }
+            }
+
+            try await self.handleContainerExit(id: id, code: nil, context: context)
         }
-        try await handleContainerExit(id: id)
     }
 
     public func dial(id: String, port: UInt32) async throws -> FileHandle {
@@ -971,7 +1200,9 @@ public actor ContainersService {
         var state: ContainerState
         do {
             state = try self.getContainerState(id: id, context: context)
-            if state.snapshot.status == .stopped {
+            // `stopped` with a live client is bootstrapped but never started (or its start failed),
+            // and still needs the runtime torn down below.
+            if state.snapshot.status == .stopped && state.client == nil {
                 return
             }
         } catch {
@@ -1023,14 +1254,44 @@ public actor ContainersService {
                 ])
         }
 
+        let options = try getContainerCreationOptions(id: id)
+
         state.snapshot.status = .stopped
         state.snapshot.networks = []
         state.client = nil
+        state.setExitStatus(exitStatus: code, restartPolicy: options.restartPolicy)
         await self.setContainerState(id, state, context: context)
 
-        let options = try getContainerCreationOptions(id: id)
         if options.autoRemove {
             try await self.cleanUp(id: id, context: context)
+        } else {
+            exitQueueContinuation.yield(id)
+        }
+    }
+
+    private func restart(id: String) async throws {
+        try await self.lock.withLock { context in
+            var state = try await self.getContainerState(id: id, context: context)
+            // A live client means the container is bootstrapped and about to be started, not stopped.
+            guard state.snapshot.status == .stopped, state.client == nil else {
+                throw ContainerizationError(.invalidState, message: "container not stopped: '\(id)'")
+            }
+
+            state.snapshot.status = .restarting
+            state.restartCount += 1
+            await self.setContainerState(id, state, context: context)
+        }
+    }
+
+    private func resetBackOff(id: String) async throws {
+        try await self.lock.withLock { context in
+            var state = try await self.getContainerState(id: id, context: context)
+            guard state.snapshot.status == .running else {
+                return
+            }
+
+            state.backOff = nil
+            await self.setContainerState(id, state, context: context)
         }
     }
 
@@ -1060,6 +1321,9 @@ public actor ContainersService {
         if self.containers[id] == nil {
             return
         }
+
+        // A pending restart must not act on a container that is being removed.
+        self.restartTasks[id]?.cancel()
 
         // To be pedantic. This is only needed if something in the "launch
         // the init process" lifecycle fails before actually fork+exec'ing
