@@ -549,6 +549,41 @@ struct ParserTest {
     }
 
     @Test
+    func testMountBindSocket() throws {
+        // The socket path must fit in sockaddr_un.sun_path (104 bytes), so keep it short.
+        let socketPath = "/tmp/test-bind-\(UUID().uuidString.prefix(8)).sock"
+        let fd = socket(AF_UNIX, SOCK_STREAM, 0)
+        try #require(fd >= 0)
+        defer {
+            close(fd)
+            unlink(socketPath)
+        }
+        var addr = sockaddr_un()
+        addr.sun_family = sa_family_t(AF_UNIX)
+        withUnsafeMutableBytes(of: &addr.sun_path) { bytes in
+            socketPath.withCString { cStr in
+                bytes.copyMemory(from: UnsafeRawBufferPointer(start: cStr, count: socketPath.utf8.count + 1))
+            }
+        }
+        let bindResult = withUnsafePointer(to: addr) { ptr in
+            ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                bind(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
+            }
+        }
+        try #require(bindResult == 0)
+
+        let result = try Parser.mount("type=bind,src=\(socketPath),dst=/var/run/test.sock")
+
+        switch result {
+        case .filesystem(let fs):
+            #expect(fs.source == socketPath)
+            #expect(fs.destination == "/var/run/test.sock")
+        case .volume:
+            #expect(Bool(false), "Expected filesystem mount, got volume")
+        }
+    }
+
+    @Test
     func testIsValidDomainNameOk() throws {
         let names = [
             "a",
