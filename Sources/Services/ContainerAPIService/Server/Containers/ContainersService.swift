@@ -591,8 +591,10 @@ public actor ContainersService {
                     onExit: self.handleContainerExit
                 )
 
+                // Bootstrapped but not yet started: `stopped` with a live client. This also leaves
+                // `restarting` for a scheduled restart, so `stop` tears the runtime down.
                 state.client = runtimeClient
-                state.snapshot.status = .bootstrapped
+                state.snapshot.status = .stopped
                 await self.setContainerState(id, state, context: context)
             } catch {
                 let label = Self.fullLaunchdServiceLabel(
@@ -1179,7 +1181,9 @@ public actor ContainersService {
         var state: ContainerState
         do {
             state = try self.getContainerState(id: id, context: context)
-            if state.snapshot.status == .stopped {
+            // `stopped` with a live client is bootstrapped but never started (or its start failed),
+            // and still needs the runtime torn down below.
+            if state.snapshot.status == .stopped && state.client == nil {
                 return
             }
         } catch {
@@ -1249,7 +1253,8 @@ public actor ContainersService {
     private func restart(id: String) async throws {
         try await self.lock.withLock { context in
             var state = try await self.getContainerState(id: id, context: context)
-            guard state.snapshot.status == .stopped else {
+            // A live client means the container is bootstrapped and about to be started, not stopped.
+            guard state.snapshot.status == .stopped, state.client == nil else {
                 throw ContainerizationError(.invalidState, message: "container not stopped: '\(id)'")
             }
 

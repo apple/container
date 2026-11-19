@@ -123,7 +123,7 @@ extension Builder {
                 // If they changed, stop and delete the existing builder
                 try await client.stop(id: existingContainer.id)
                 try await client.delete(id: existingContainer.id)
-            case .stopped, .bootstrapped:
+            case .stopped:
                 // If the builder is stopped and matches our requirements, start it
                 // Otherwise, delete it and create a new one
                 if imageChanged || cpuChanged || memChanged || envChanged || dnsChanged || sshChanged {
