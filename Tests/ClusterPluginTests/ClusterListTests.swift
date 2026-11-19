@@ -200,6 +200,14 @@ struct WorkerContainerNamesTests {
         let names = ClusterHelper.workerContainerNames(from: [w1, other], clusterName: "dev")
         #expect(names == ["dev-worker-1"])
     }
+
+    @Test func excludesWorkersOfClusterNamedLikeAWorker() throws {
+        let cp = try makeControlPlane("dev")
+        let otherCP = try makeControlPlane("dev-worker-1")
+        let otherWorker = try makeWorker("dev-worker-1-worker-1")
+        let names = ClusterHelper.workerContainerNames(from: [cp, otherCP, otherWorker], clusterName: "dev")
+        #expect(names.isEmpty)
+    }
 }
 
 // MARK: - ClusterHelper.fqdn
