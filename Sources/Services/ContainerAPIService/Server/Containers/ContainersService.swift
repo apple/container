@@ -334,7 +334,12 @@ public actor ContainersService {
         }
 
         return self.containers.values.compactMap { state -> ContainerSnapshot? in
-            let snapshot = state.snapshot
+            var snapshot = state.snapshot
+            // `restarting` is internal. Report it as `stopped` so that existing API clients, which do
+            // not know the status, keep working.
+            if snapshot.status == .restarting {
+                snapshot.status = .stopped
+            }
 
             if !filters.ids.isEmpty {
                 guard filters.ids.contains(snapshot.id) else {
