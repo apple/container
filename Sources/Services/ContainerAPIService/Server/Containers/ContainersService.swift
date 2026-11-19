@@ -1317,6 +1317,9 @@ public actor ContainersService {
             return
         }
 
+        // A pending restart must not act on a container that is being removed.
+        self.restartTasks[id]?.cancel()
+
         // To be pedantic. This is only needed if something in the "launch
         // the init process" lifecycle fails before actually fork+exec'ing
         // the OCI runtime.
