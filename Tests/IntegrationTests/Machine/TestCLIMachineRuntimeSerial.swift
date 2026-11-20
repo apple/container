@@ -16,6 +16,7 @@
 
 import ContainerTestSupport
 import Foundation
+import MachineAPIClient
 import Testing
 
 /// Integration tests for container machine runtime commands: stop, inspect, run, set.
@@ -678,6 +679,54 @@ struct TestCLIMachineRuntimeSerial {
     }
 
     // MARK: - set tests
+
+    @Test func testSetKernelReset() async throws {
+        try await ContainerFixture.with { f in
+            let name = "\(f.testID)-machine"
+            let kernel = f.testDir.appending("kernel=test")
+            try Data([0]).write(to: URL(filePath: kernel.string))
+            f.addCleanup { f.cleanupMachine(name) }
+            try f.doMachineCreate(name: name, image: machineImage, extraArgs: ["--kernel", kernel.string])
+
+            let client = MachineClient()
+            let before = try await client.inspect(id: name).bootConfig
+            #expect(before.kernelPath == kernel)
+
+            try f.runMachine(["set", "--name", name, "kernel="]).check()
+            let after = try await client.inspect(id: name).bootConfig
+            #expect(after.kernelPath == nil)
+            #expect(after.cpus == before.cpus)
+            #expect(after.memory == before.memory)
+            #expect(after.homeMount == before.homeMount)
+            #expect(after.virtualization == before.virtualization)
+
+            try f.runMachine(["set", "--name", name, "kernel=", "kernel=\(kernel)"]).check()
+            #expect(try await client.inspect(id: name).bootConfig.kernelPath == kernel)
+
+            try f.runMachine(["set", "--name", name, "kernel=\(kernel)", "kernel="]).check()
+            #expect(try await client.inspect(id: name).bootConfig.kernelPath == nil)
+        }
+    }
+
+    @Test(arguments: ["kernel", "cpus=", "memory=", "=value"])
+    func testSetRejectsInvalidSettings(setting: String) async throws {
+        try await ContainerFixture.with { f in
+            let name = "\(f.testID)-machine"
+            f.addCleanup { f.cleanupMachine(name) }
+            try f.doMachineCreate(name: name, image: machineImage)
+
+            let client = MachineClient()
+            let before = try await client.inspect(id: name).bootConfig
+            let result = try f.runMachine(["set", "--name", name, setting])
+            #expect(result.status != 0)
+            let after = try await client.inspect(id: name).bootConfig
+            #expect(after.cpus == before.cpus)
+            #expect(after.memory == before.memory)
+            #expect(after.homeMount == before.homeMount)
+            #expect(after.virtualization == before.virtualization)
+            #expect(after.kernelPath == before.kernelPath)
+        }
+    }
 
     @Test func testSetCpus() async throws {
         try await ContainerFixture.with { f in

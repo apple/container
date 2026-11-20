@@ -57,7 +57,7 @@ extension Application {
 
             let kwargs = Dictionary(
                 try rawArgs.map { arg in
-                    let parts = arg.split(separator: "=", maxSplits: 1)
+                    let parts = arg.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
                     guard parts.count == 2 else {
                         throw ContainerizationError(.invalidArgument, message: "invalid argument format '\(arg)'. Expected 'key=value'")
                     }
