@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerAPIClient
 import ContainerTestSupport
 import Containerization
 import Foundation
@@ -30,6 +31,50 @@ struct TestCLIMachineCommand {
             f.addCleanup { f.cleanupMachine(name) }
             try f.doMachineCreate(name: name, image: machineImage)
             try f.doMachineRemove(name: name)
+        }
+    }
+
+    @Test func testCreateUsesDaemonConfiguration() async throws {
+        try await ContainerFixture.with { f in
+            let defaults = try await ClientHealthCheck.loadContainerSystemConfig().machine
+            let clientRoot = f.testDir.appending("client")
+            let configDirectory = clientRoot.appending("config")
+            try FileManager.default.createDirectory(atPath: configDirectory.string, withIntermediateDirectories: true)
+            let clientCPUs = defaults.cpus == 1 ? 2 : 1
+            let clientMemory = defaults.memory.toUInt64(unit: .bytes) == 1 << 30 ? "2g" : "1g"
+            let clientHomeMount = defaults.homeMount.rawValue == "none" ? "ro" : "none"
+            try """
+            [machine]
+            cpus = \(clientCPUs)
+            memory = "\(clientMemory)"
+            homeMount = "\(clientHomeMount)"
+            """.write(toFile: configDirectory.appending("config.toml").string, atomically: true, encoding: .utf8)
+            let env = [
+                "CONTAINER_APP_ROOT": clientRoot.string,
+                "CONTAINER_INSTALL_ROOT": f.testDir.appending("client-install").string,
+            ]
+
+            let name = "\(f.testID)-machine"
+            f.addCleanup { f.cleanupMachine(name) }
+            try f.runMachine(["create", "--no-boot", "--name", name, machineImage], env: env).check()
+            let snapshot = try f.doMachineInspect(name: name)
+            #expect(snapshot.cpus == defaults.cpus)
+            #expect(snapshot.memory == defaults.memory.toUInt64(unit: .bytes))
+            #expect(snapshot.homeMount == defaults.homeMount.rawValue)
+
+            let overriddenName = "\(f.testID)-override"
+            f.addCleanup { f.cleanupMachine(overriddenName) }
+            try f.runMachine(
+                [
+                    "create", "--no-boot", "--name", overriddenName,
+                    "--cpus", "\(clientCPUs)", "--memory", clientMemory, "--home-mount", clientHomeMount,
+                    machineImage,
+                ], env: env
+            ).check()
+            let overridden = try f.doMachineInspect(name: overriddenName)
+            #expect(overridden.cpus == clientCPUs)
+            #expect(overridden.memory == (clientMemory == "1g" ? 1 : 2) << 30)
+            #expect(overridden.homeMount == clientHomeMount)
         }
     }
 

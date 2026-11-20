@@ -95,7 +95,7 @@ extension Application {
             }
             progress.start()
 
-            let containerSystemConfig: ContainerSystemConfig = try await ConfigurationLoader.load()
+            let containerSystemConfig: ContainerSystemConfig = try await ClientHealthCheck.loadContainerSystemConfig()
             let defaultConfig = containerSystemConfig.machine
 
             let bootConfig = try defaultConfig.with(
