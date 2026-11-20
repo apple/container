@@ -96,7 +96,7 @@ To retain your user data so that it is available should you reinstall later, run
 
 ## Contributing
 
-Contributions to `container` are welcome and encouraged. Please see our [main contributing guide](https://github.com/apple/containerization/blob/main/CONTRIBUTING.md) for more information.
+Contributions to `container` are welcome and encouraged. Please see our [main contributing guide](https://github.com/apple/containerization/blob/main/CONTRIBUTING.md) for more info.
 
 ## Project Status
 
