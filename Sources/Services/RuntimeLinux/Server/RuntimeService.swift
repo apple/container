@@ -1153,7 +1153,7 @@ public actor RuntimeService {
 
         for mount in config.mounts {
             if try mount.isSocket() {
-                let attrs = try? FileManager.default.attributesOfItem(atPath: mount.source)
+                let attrs = try? FileManager.default.attributesOfItem(atPath: mount.resolvedSource)
                 let permissions = (attrs?[.posixPermissions] as? NSNumber)
                     .map { FilePermissions(rawValue: mode_t($0.intValue)) }
                 let socket = UnixSocketConfiguration(
@@ -1527,11 +1527,16 @@ extension Filesystem {
         }
     }
 
+    /// The source with symlinks resolved, so that a symlink to a socket is relayed like the socket.
+    var resolvedSource: String {
+        URL(filePath: self.source).resolvingSymlinksInPath().path
+    }
+
     func isSocket() throws -> Bool {
         if !self.isVirtiofs {
             return false
         }
-        let info = try File.info(self.source)
+        let info = try File.info(self.resolvedSource)
         return info.isSocket
     }
 }
