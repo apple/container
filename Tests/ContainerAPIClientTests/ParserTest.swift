@@ -581,6 +581,16 @@ struct ParserTest {
         case .volume:
             #expect(Bool(false), "Expected filesystem mount, got volume")
         }
+
+        // A symlink to the socket is accepted too, and kept as given.
+        let linkPath = socketPath + ".link"
+        try FileManager.default.createSymbolicLink(atPath: linkPath, withDestinationPath: socketPath)
+        defer { unlink(linkPath) }
+        guard case .filesystem(let linked) = try Parser.mount("type=bind,src=\(linkPath),dst=/var/run/test.sock") else {
+            Issue.record("Expected filesystem mount, got volume")
+            return
+        }
+        #expect(linked.source == linkPath)
     }
 
     @Test
