@@ -37,6 +37,53 @@ struct TestCLICopyCommand {
         }
     }
 
+    @Test func testCopyInRejectsMountedDestinations() async throws {
+        try await ContainerFixture.with { f in
+            let volume = "\(f.testID)-volume"
+            try f.doVolumeCreate(volume)
+            f.addCleanup { try f.doVolumeDelete(volume) }
+
+            let bind = f.testDir.appending("bind")
+            try FileManager.default.createDirectory(atPath: bind.string, withIntermediateDirectories: true)
+            let src = f.testDir.appending("source.txt")
+            let content = "hello from host"
+            try content.write(toFile: src.string, atomically: true, encoding: .utf8)
+
+            let bindFile = f.testDir.appending("mounted.txt")
+            let originalContent = "original bind content"
+            try originalContent.write(toFile: bindFile.string, atomically: true, encoding: .utf8)
+            let mounts = ["-v", "\(volume):/data", "-v", "\(bind.string):/bind", "-v", "\(bindFile.string):/tmp/source.txt:ro"]
+            try await f.withContainer(image: WarmupImage.alpine320.rawValue, runArgs: mounts) { name in
+                let cases = [
+                    (path: "/data", mount: "/data"),
+                    (path: "/data/source.txt", mount: "/data"),
+                    (path: "/bind", mount: "/bind"),
+                    (path: "/bind/source.txt", mount: "/bind"),
+                    (path: "/tmp/../bind/source.txt", mount: "/bind"),
+                    (path: "/tmp/source.txt", mount: "/tmp/source.txt"),
+                    (path: "/tmp/", mount: "/tmp/source.txt"),
+                ]
+                let original = try f.doExec(name, cmd: ["cat", "/tmp/source.txt"])
+                #expect(original.trimmingCharacters(in: .whitespacesAndNewlines) == originalContent)
+                for (path, mount) in cases {
+                    let result = try f.run(["cp", src.string, "\(name):\(path)"])
+                    #expect(result.status != 0, "expected copying to \(path) to fail")
+                    #expect(result.error.contains("cannot copy into a mounted destination"))
+                    #expect(result.error.contains(path))
+                    #expect(result.error.contains("(mount: \(mount))"))
+                    #expect(result.output.isEmpty)
+                }
+                try f.doExec(name, cmd: ["test", "!", "-e", "/data/source.txt"])
+                #expect(!FileManager.default.fileExists(atPath: bind.appending("source.txt").string))
+                #expect(try String(contentsOfFile: bindFile.string, encoding: .utf8) == originalContent)
+
+                try f.run(["cp", src.string, "\(name):/database/source.txt"]).check()
+                let cat = try f.doExec(name, cmd: ["cat", "/database/source.txt"])
+                #expect(cat.trimmingCharacters(in: .whitespacesAndNewlines) == content)
+            }
+        }
+    }
+
     @Test func testCopyContainerToHost() async throws {
         try await ContainerFixture.with { f in
             let image = WarmupImage.alpine320.rawValue
@@ -422,6 +469,7 @@ struct TestCLICopyCommand {
                 try "x".write(toFile: src.string, atomically: true, encoding: .utf8)
                 let result = try f.run(["copy", src.string, "\(name):/tmp/nonexistent/"])
                 #expect(result.status != 0, "expected file-to-nonexisting/ to fail")
+                #expect(result.error.contains("destination directory does not exist"))
             }
         }
     }
