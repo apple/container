@@ -486,8 +486,8 @@ struct TestCLIRunCommand {
             f.addCleanup { try? f.doRemove(c, force: true) }
             let result = try f.run(["run", "--name", c, "--publish", "127.0.0.1:80:80", image])
             #expect(result.status != 0)
-            #expect(result.error.contains("Permission denied while binding to host port 80"))
-            #expect(result.error.contains("root privileges"))
+            #expect(result.error.contains("Publishing to host port 80 on 127.0.0.1 is not supported"))
+            #expect(result.error.contains("omit the host address"))
         }
     }
 

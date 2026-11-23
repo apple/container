@@ -1069,7 +1069,8 @@ public actor RuntimeService {
                             if let port = proxyAddress.port, port < 1024 {
                                 throw ContainerizationError(
                                     .invalidArgument,
-                                    message: "Permission denied while binding to host port \(port). Binding to ports below 1024 requires root privileges."
+                                    message:
+                                        "Publishing to host port \(port) on \(proxyAddress.ipAddress ?? "a specific address") is not supported. Ports below 1024 can only be published on all interfaces: omit the host address, or use a host port of 1024 or higher."
                                 )
                             }
                             throw error
