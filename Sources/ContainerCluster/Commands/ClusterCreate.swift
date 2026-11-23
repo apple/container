@@ -69,11 +69,21 @@ public struct ClusterCreate: AsyncParsableCommand {
     @Flag(help: "Let nodes pull images from the local image store")
     var sharedImageStore = false
 
+    @Option(
+        name: [.customShort("p"), .customLong("publish")],
+        help: .init(
+            "Publish a port from the host to the control-plane node (format: [host-ip:]host-port:node-port[/protocol])",
+            valueName: "spec"))
+    var publishPorts: [String] = []
+
     public func validate() throws {
         // Fail before anything is created, the same as invalid --workers values do.
         do {
             if let cpus = resourceFlags.cpus { _ = try Parser.cpus(cpus) }
             if let memory = resourceFlags.memory { _ = try Parser.memoryInBytes(memory) }
+            guard try !Parser.publishPorts(publishPorts).hasOverlaps() else {
+                throw ContainerizationError(.invalidArgument, message: "host ports for different publish port specs may not overlap")
+            }
         } catch {
             throw ValidationError(wrapping: error)
         }
@@ -145,7 +155,8 @@ public struct ClusterCreate: AsyncParsableCommand {
             remove: remove,
             containerSystemConfig: containerSystemConfig,
             fqdn: fqdn,
-            sharedImageStore: sharedImageStore
+            sharedImageStore: sharedImageStore,
+            publishPorts: publishPorts
         )
         // Workers are numbered across groups.
         var workerNodes: [LinuxNodeProvisioner] = []
