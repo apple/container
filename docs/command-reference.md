@@ -533,6 +533,9 @@ container stats --format json --no-stream web
 
 Copies files between a container and the local filesystem. The container must be running. One of the source or destination must be a container reference in the form `container_id:path`.
 
+The command rejects destination paths that directly name a configured mount point or a path beneath it, including named volumes and bind mounts.
+This also applies when copying to a mount point's parent directory with a source of the same name as the mount point.
+
 **Usage**
 
 ```bash
