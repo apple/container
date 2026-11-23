@@ -539,8 +539,11 @@ public struct Parser {
                     guard FileManager.default.fileExists(atPath: absolutePath, isDirectory: &isDirectory) else {
                         throw ContainerizationError(.invalidArgument, message: "path '\(val)' does not exist")
                     }
-                    guard isDirectory.boolValue else {
-                        throw ContainerizationError(.invalidArgument, message: "path '\(val)' is not a directory")
+                    // A socket, or a symlink to one, is relayed into the container instead of being
+                    // mounted, as with `--volume`.
+                    let socketPath = URL(filePath: absolutePath).resolvingSymlinksInPath().path
+                    guard isDirectory.boolValue || (try? File.info(socketPath).isSocket) == true else {
+                        throw ContainerizationError(.invalidArgument, message: "path '\(val)' is not a directory or a socket")
                     }
                     fs.source = absolutePath
                 case "volume":

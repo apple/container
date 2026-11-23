@@ -277,6 +277,37 @@ struct TestCLIRunCommand {
         }
     }
 
+    @Test func testRunCommandUnixSocketMountThroughSymlink() async throws {
+        try await ContainerFixture.with { f in
+            let image = alpine.rawValue
+            let c = "\(f.testID)-c"
+            let socketDir = try f.makeShortSocketDir("sock")
+            let socketPath = socketDir + "/agent.sock"
+            let linkPath = socketDir + "/agent-link.sock"
+            let guestSocketPath = "/run/agent.sock"
+
+            let socketType = try UnixType(path: socketPath, perms: 0o766, unlinkExisting: true)
+            let socket = try Socket(type: socketType, closeOnDeinit: true)
+            try socket.listen()
+            f.addCleanup { try? socket.close() }
+            try FileManager.default.createSymbolicLink(atPath: linkPath, withDestinationPath: socketPath)
+
+            try await f.doLongRun(
+                name: c, image: image,
+                args: ["-v", "\(linkPath):\(guestSocketPath)"],
+                autoRemove: false, waitUntilRunning: true)
+            f.addCleanup {
+                try? f.doStop(c)
+                try? f.doRemove(c)
+            }
+
+            // Relayed with the socket's permissions, not shared as a file.
+            let perms = try f.doExec(c, cmd: ["sh", "-c", "test -S \(guestSocketPath) && stat -c %a \(guestSocketPath)"])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            #expect(perms == "766")
+        }
+    }
+
     @Test func testRunCommandTmpfs() async throws {
         try await ContainerFixture.with { f in
             let image = alpine.rawValue
