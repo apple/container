@@ -729,6 +729,18 @@ public actor RuntimeService {
             let createParents = message.bool(key: RuntimeKeys.createParents.rawValue)
 
             let ctr = try getContainer()
+
+            // The guest agent writes to the rootfs outside the container's mount namespace.
+            let destinationPath = FilePath(destination).lexicallyNormalized()
+            let destinationWithSourceName = FilePath(source).lastComponent.map { destinationPath.appending($0) }
+            if let mount = ctr.config.mounts.first(where: {
+                let mountPath = FilePath("/" + $0.destination).lexicallyNormalized()
+                // Copying to the parent of a mount can select the mount by source name.
+                return destinationPath.starts(with: mountPath) || destinationWithSourceName == mountPath
+            }) {
+                throw ContainerizationError(.unsupported, message: "cannot copy into a mounted destination: \(destination) (mount: \(mount.destination))")
+            }
+
             try await ctr.container.copyIn(
                 from: URL(fileURLWithPath: source),
                 to: URL(fileURLWithPath: destination),
