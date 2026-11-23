@@ -38,11 +38,14 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
     private let containerSystemConfig: ContainerSystemConfig
     private let fqdn: String?
     private let sharedImageStore: Bool
+    private let publishPorts: [String]
 
     /// - Parameters:
     ///   - name: Name of this node. The control plane is named after the cluster;
     ///     workers use `ClusterHelper.workerName(cluster:index:)`.
     ///   - clusterName: The cluster this node belongs to.
+    ///   - publishPorts: Ports to publish from the host to this node, in the
+    ///     `[host-ip:]host-port:node-port[/protocol]` form `container run --publish` takes.
     public init(
         name: String,
         clusterName: String,
@@ -55,7 +58,8 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
         remove: Bool = false,
         containerSystemConfig: ContainerSystemConfig,
         fqdn: String? = nil,
-        sharedImageStore: Bool = false
+        sharedImageStore: Bool = false,
+        publishPorts: [String] = []
     ) throws {
         guard !roles.isEmpty else {
             throw ContainerizationError(.invalidArgument, message: "LinuxNode roles must not be empty")
@@ -79,6 +83,7 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
         self.containerSystemConfig = containerSystemConfig
         self.fqdn = fqdn
         self.sharedImageStore = sharedImageStore
+        self.publishPorts = publishPorts
     }
 
     public func provision(log: Logger) async throws {
@@ -101,7 +106,10 @@ public struct LinuxNodeProvisioner: NodeProvisioner {
         let portLock = open(stateRoot.appending("port.lock").string, O_CREAT | O_RDONLY, 0o600)
         defer { close(portLock) }
         if isControlPlane && fqdn == nil { flock(portLock, LOCK_EX) }
-        let publishPorts = isControlPlane && fqdn == nil ? [try await ClusterHelper.clusterPort()] : []
+        var publishPorts = self.publishPorts
+        if isControlPlane && fqdn == nil {
+            publishPorts.append(try await ClusterHelper.clusterPort(excluding: Parser.publishPorts(publishPorts)))
+        }
 
         let management = Flags.Management(
             arch: Arch.hostArchitecture().rawValue,

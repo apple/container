@@ -67,13 +67,20 @@ extension ClusterHelper {
         throw ContainerizationError(.internalError, message: "no available host port found above \(clusterHostPortBase)")
     }
 
-    public static func clusterPort() async throws -> String {
+    /// Picks a free host port for the API server, skipping ports held by other clusters
+    /// and the host ports in `userPorts`, which the node publishes alongside it.
+    public static func clusterPort(excluding userPorts: [PublishPort] = []) async throws -> String {
         let snapshots = try await ContainerClient().list(
             filters: ContainerListFilters().withPlugin(pluginName)
         )
-        let reserved = Set(snapshots.flatMap { $0.configuration.publishedPorts.map(\.hostPort) })
+        let reserved = hostPorts(snapshots.flatMap(\.configuration.publishedPorts) + userPorts)
         let port = try findAvailableHostPort(excluding: reserved)
         return "\(port):\(clusterContainerPort)"
+    }
+
+    /// Every host port the specs cover, ranges included.
+    static func hostPorts(_ ports: [PublishPort]) -> Set<UInt16> {
+        Set(ports.flatMap { port in (0..<port.count).map { port.hostPort + $0 } })
     }
 
     // MARK: - FQDN detection
