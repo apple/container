@@ -53,8 +53,7 @@ extension ConnectHandler {
     private func connectToServer(context: ChannelHandlerContext) {
         self.log?.trace("backend - connecting")
 
-        ClientBootstrap(group: context.eventLoop)
-            .connectTimeout(self.connectTimeout)
+        Self.backendBootstrap(group: context.eventLoop, connectTimeout: self.connectTimeout)
             .connect(to: serverAddress)
             .assumeIsolatedUnsafeUnchecked()
             .whenComplete { result in
@@ -67,12 +66,35 @@ extension ConnectHandler {
                     }
                     self.log?.trace("backend - connected")
                     self.glue(channel, context: context)
+                case .failure(let error as IOError) where error.errnoCode == ECONNREFUSED:
+                    // Expected while the container is starting and nothing listens yet.
+                    self.log?.debug("backend - connection refused: \(error)")
+                    context.close(promise: nil)
+                    context.fireErrorCaught(error)
                 case .failure(let error):
                     self.log?.error("backend - connect failed: \(error)")
                     context.close(promise: nil)
                     context.fireErrorCaught(error)
                 }
             }
+    }
+
+    static func backendBootstrap(group: any EventLoopGroup, connectTimeout: TimeAmount) -> ClientBootstrap {
+        let bootstrap = ClientBootstrap(group: group)
+            .connectTimeout(connectTimeout)
+        #if canImport(Darwin)
+        // Disable ECN on the host-to-guest connection. When the guest port is not listening yet,
+        // a SYN with ECN setup flags gets no reply on the host side, so XNU retransmits it and
+        // only falls back to a plain SYN (which is refused at once) after one or more
+        // retransmission timeouts. Connecting then takes a second or more instead of failing
+        // at once. ECN gives no benefit on the virtual host-to-guest link. See apple/container#2545.
+        return bootstrap.channelOption(
+            ChannelOptions.socket(.init(IPPROTO_TCP), .init(TCP_ENABLE_ECN)),
+            value: 0
+        )
+        #else
+        return bootstrap
+        #endif
     }
 
     private func glue(_ peerChannel: Channel, context: ChannelHandlerContext) {
