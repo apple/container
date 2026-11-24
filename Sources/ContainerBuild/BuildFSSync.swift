@@ -58,8 +58,10 @@ import SystemPackage
 /// root (``FileDescriptorOps``), so there is no window between checking a path
 /// and using it in which a symlink can be swapped in. Symlinks are followed
 /// only to relative targets that stay beneath the context root.
-/// Dockerignore filtering is **not** applied here; the shim applies it after
-/// unpacking the tar.
+/// The shim applies the exact `.dockerignore` filter after unpacking the tar.
+/// When it forwards the exclude patterns, ``walk(_:_:_:)`` also leaves out the
+/// paths they certainly exclude (see ``DockerignoreMatcher``), so ignored files
+/// are neither read nor sent; ``read(_:_:_:)`` and ``info(_:_:_:)`` do not filter.
 actor BuildFSSync: BuildPipelineHandler {
     let contextDir: URL
     /// Descriptor for `contextDir`, opened once so every request is resolved
@@ -246,8 +248,10 @@ actor BuildFSSync: BuildPipelineHandler {
     /// symlink entries but their targets are not; BuildKit will resolve them
     /// against the shim's local filesystem on Linux, not the macOS host.
     ///
-    /// Dockerignore filtering is the shim's responsibility and is applied after
-    /// the tar is unpacked; this method has no knowledge of `.dockerignore`.
+    /// When the request carries `exclude-patterns` (from `.dockerignore`), paths
+    /// they certainly exclude are pruned while resolving `followpaths`, so ignored
+    /// directories are not descended into. The shim still applies the exact filter
+    /// after unpacking; without the patterns every matched path is sent, as before.
     func walk(
         _ sender: AsyncStream<ClientStream>.Continuation,
         _ packet: BuildTransfer,
@@ -258,8 +262,9 @@ actor BuildFSSync: BuildPipelineHandler {
         var entries: [String: Set<DirEntry>] = [:]
         let followPaths: [String] = packet.followPaths().flatMap { $0.isEmpty ? nil : $0 } ?? ["."]
 
-        let followPathsWalked = try walk(root: self.contextDir, includePatterns: followPaths)
-        for url in followPathsWalked {
+        let excludes = packet.excludePatterns().map { DockerignoreMatcher(patterns: $0) }
+        let globber = try glob(root: self.contextDir, includePatterns: followPaths, excluding: excludes)
+        for url in globber.results {
             guard self.contextDir.absoluteURL.cleanPath != url.absoluteURL.cleanPath else {
                 continue
             }
@@ -274,7 +279,7 @@ actor BuildFSSync: BuildPipelineHandler {
 
             if url.isSymlink {
                 let target: URL = url.resolvingSymlinksInPath()
-                if self.contextDir.parentOf(target) {
+                if self.contextDir.parentOf(target), !globber.isExcluded(target) {
                     let relPath = try target.relativeChildPath(to: self.contextDir)
                     let entry = DirEntry(url: target, isDirectory: target.hasDirectoryPath, relativePath: relPath)
                     let parentPath: String = try target.deletingLastPathComponent().relativeChildPath(to: self.contextDir)
@@ -321,35 +326,14 @@ actor BuildFSSync: BuildPipelineHandler {
             format: .paxRestricted,
             filter: .none)
 
+        // Archive exactly the entries collected above, in full-path order, rather than
+        // enumerating the whole context and filtering it: the cost then depends only
+        // on what this step needs, not on everything else in the context.
         let tarHash = try Archiver.compress(
-            source: contextDir,
+            entries: Self.archiveEntries(entries, contextDir: contextDir),
             destination: tarURL,
             writerConfiguration: writerCfg
-        ) { url in
-            guard let rel = try? url.relativeChildPath(to: contextDir) else {
-                return nil
-            }
-
-            guard let parent = try? url.deletingLastPathComponent().relativeChildPath(to: self.contextDir) else {
-                return nil
-            }
-
-            guard let items = entries[parent] else {
-                return nil
-            }
-
-            let include = items.contains { item in
-                item.relativePath == rel
-            }
-
-            guard include else {
-                return nil
-            }
-
-            return Archiver.ArchiveEntryInfo(
-                pathOnHost: url,
-                pathInArchive: URL(fileURLWithPath: rel))
-        }
+        )
 
         let hash = tarHash.compactMap { String(format: "%02x", $0) }.joined()
         let header = BuildTransfer(
@@ -410,13 +394,33 @@ actor BuildFSSync: BuildPipelineHandler {
         sender.yield(finalResp)
     }
 
-    func walk(root: URL, includePatterns: [String]) throws -> [URL] {
-        let globber = Globber(root)
+    /// Builds the tar entry list for `entries`, sorted by full relative path.
+    ///
+    /// Every collected path is included, even one whose parent directory is not
+    /// itself an entry (such as the in-context target of a symlink), and the order
+    /// matches a sorted enumeration of the context, so the archive is the same as
+    /// filtering a full enumeration would produce.
+    private static func archiveEntries(_ entries: [String: Set<DirEntry>], contextDir: URL) -> [Archiver.ArchiveEntryInfo] {
+        let source = contextDir.standardizedFileURL
+        return Set(entries.values.flatMap { $0.map(\.relativePath) })
+            .sorted(by: <)
+            .map { rel in
+                Archiver.ArchiveEntryInfo(
+                    pathOnHost: source.appending(path: rel).standardizedFileURL,
+                    pathInArchive: URL(fileURLWithPath: rel))
+            }
+    }
 
+    func walk(root: URL, includePatterns: [String], excluding excludes: DockerignoreMatcher? = nil) throws -> [URL] {
+        Array(try glob(root: root, includePatterns: includePatterns, excluding: excludes).results)
+    }
+
+    private func glob(root: URL, includePatterns: [String], excluding excludes: DockerignoreMatcher?) throws -> Globber {
+        let globber = Globber(root, excluding: excludes)
         for p in includePatterns {
             try globber.match(p)
         }
-        return Array(globber.results)
+        return globber
     }
 
     private func processDirectory(

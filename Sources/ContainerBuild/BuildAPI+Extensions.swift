@@ -43,6 +43,30 @@ extension BuildTransfer {
         return includePatternsString == "" ? nil : includePatternsString.components(separatedBy: ",")
     }
 
+    /// The `.dockerignore` exclude patterns the shim forwarded for this walk, or nil.
+    ///
+    /// Only the query-escaped form (`exclude-patterns-encoded` set) is accepted:
+    /// splitting an unescaped value on commas could turn one pattern into several
+    /// broader ones. Any value that fails to decode yields nil, which disables
+    /// host-side filtering rather than guessing.
+    func excludePatterns() -> [String]? {
+        guard let value = self.metadata["exclude-patterns"], !value.isEmpty else {
+            return nil
+        }
+        guard let flag = self.metadata["exclude-patterns-encoded"], flag == "1" || flag.lowercased() == "true" else {
+            return nil
+        }
+        var patterns: [String] = []
+        for part in value.components(separatedBy: ",") {
+            // Go's url.QueryEscape encodes a space as "+".
+            guard let decoded = part.replacingOccurrences(of: "+", with: " ").removingPercentEncoding else {
+                return nil
+            }
+            patterns.append(decoded)
+        }
+        return patterns
+    }
+
     func followPaths() -> [String]? {
         guard let followPathString = self.metadata["followpaths"] else {
             return nil

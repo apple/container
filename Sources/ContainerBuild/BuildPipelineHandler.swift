@@ -55,7 +55,8 @@ protocol BuildPipelineHandler: Sendable {
 /// - Applying dockerignore exclusions (received from BuildKit as
 ///   `exclude-patterns` metadata) when walking the unpacked cache.
 /// - Passing `followpaths` from BuildKit to the host so the host knows which
-///   context paths to include in the tar.
+///   context paths to include in the tar, and the exclude patterns so the host
+///   can skip paths `.dockerignore` excludes.
 ///
 /// **BuildKit**
 /// Parses and executes the Dockerfile. Responsibilities include:
