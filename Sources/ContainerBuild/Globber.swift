@@ -21,9 +21,16 @@ import SystemPackage
 public class Globber {
     let input: URL
     var results: Set<URL> = .init()
+    /// Paths this matcher excludes are neither returned nor descended into.
+    let excludes: DockerignoreMatcher?
 
-    public init(_ input: URL) {
+    public convenience init(_ input: URL) {
+        self.init(input, excluding: nil)
+    }
+
+    init(_ input: URL, excluding excludes: DockerignoreMatcher?) {
         self.input = input
+        self.excludes = (excludes?.isEmpty ?? true) ? nil : excludes
     }
 
     public func match(_ pattern: String) throws {
@@ -93,7 +100,15 @@ public class Globber {
         guard let dir = self.resolvedDirectory(of: url) else { return [] }
         if url.isSymlink { self.results.insert(url) }
         let names = (try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? []
-        return names.map { dir.appendingPathComponent($0) }
+        return names.map { dir.appendingPathComponent($0) }.filter { !self.isExcluded($0) }
+    }
+
+    /// True if the exclude matcher says `url` and everything beneath it can be skipped.
+    func isExcluded(_ url: URL) -> Bool {
+        guard let excludes, let relative = try? url.relativeChildPath(to: self.input) else {
+            return false
+        }
+        return excludes.excludes(relative)
     }
 
     /// Recursive form of ``children(of:)``, used once a full pattern (or `**`)
@@ -105,6 +120,9 @@ public class Globber {
     private func childrenRecursive(of url: URL) -> [URL] {
         guard let dir = self.resolvedDirectory(of: url) else { return [url] }
         if url.isSymlink { self.results.insert(url) }
+        if self.excludes != nil {
+            return [dir] + self.descendantsPruningExcluded(of: dir)
+        }
         guard let fd = try? FileDescriptor.open(FilePath(dir.path), .readOnly, options: .directory) else {
             return [dir]
         }
@@ -112,6 +130,25 @@ public class Globber {
         var found: [URL] = [dir]
         try? FileDescriptorOps.enumerate(fd) { relPath, _, _ in
             found.append(dir.appendingPathComponent(relPath.string))
+        }
+        return found
+    }
+
+    /// Lists every descendant of `dir` except excluded ones, without descending
+    /// into an excluded directory. Like ``FileDescriptorOps/enumerate``, nested
+    /// symlinks are reported but never followed.
+    private func descendantsPruningExcluded(of dir: URL) -> [URL] {
+        guard let names = try? FileManager.default.contentsOfDirectory(atPath: dir.path) else {
+            return []
+        }
+        var found: [URL] = []
+        for name in names {
+            let child = dir.appendingPathComponent(name)
+            guard !self.isExcluded(child) else { continue }
+            found.append(child)
+            if !child.isSymlink && child.isDirectory {
+                found += self.descendantsPruningExcluded(of: child)
+            }
         }
         return found
     }

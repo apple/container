@@ -51,6 +51,41 @@ public final class Archiver: Sendable {
         closure: (URL) -> ArchiveEntryInfo?
     ) throws -> SHA256.Digest {
         let source = source.standardizedFileURL
+
+        guard
+            let enumerator = FileManager.default.enumerator(atPath: source.path)
+        else {
+            throw Error.fileDoesNotExist(source)
+        }
+
+        var entryInfo = [ArchiveEntryInfo]()
+        if !source.isDirectory {
+            if let info = closure(source) {
+                entryInfo.append(info)
+            }
+        } else {
+            let relPaths = enumerator.compactMap { $0 as? String }
+            for relPath in relPaths.sorted(by: { $0 < $1 }) {
+                let url = source.appending(path: relPath).standardizedFileURL
+                guard let info = closure(url) else {
+                    continue
+                }
+                entryInfo.append(info)
+            }
+        }
+
+        return try compress(entries: entryInfo, destination: destination, writerConfiguration: writerConfiguration)
+    }
+
+    /// Archives exactly `entries`, in the given order, without enumerating any directory.
+    ///
+    /// Use this when the caller already knows which paths to archive, so that the
+    /// cost does not depend on how much else lives next to them on disk.
+    public static func compress(
+        entries entryInfo: [ArchiveEntryInfo],
+        destination: URL,
+        writerConfiguration: ArchiveWriterConfiguration = ArchiveWriterConfiguration(format: .paxRestricted, filter: .gzip)
+    ) throws -> SHA256.Digest {
         let destination = destination.standardizedFileURL
 
         let fileManager = FileManager.default
@@ -61,28 +96,6 @@ public final class Archiver: Sendable {
         do {
             let directory = destination.deletingLastPathComponent()
             try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
-
-            guard
-                let enumerator = FileManager.default.enumerator(atPath: source.path)
-            else {
-                throw Error.fileDoesNotExist(source)
-            }
-
-            var entryInfo = [ArchiveEntryInfo]()
-            if !source.isDirectory {
-                if let info = closure(source) {
-                    entryInfo.append(info)
-                }
-            } else {
-                let relPaths = enumerator.compactMap { $0 as? String }
-                for relPath in relPaths.sorted(by: { $0 < $1 }) {
-                    let url = source.appending(path: relPath).standardizedFileURL
-                    guard let info = closure(url) else {
-                        continue
-                    }
-                    entryInfo.append(info)
-                }
-            }
 
             let archiver = try ArchiveWriter(
                 configuration: writerConfiguration
