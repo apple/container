@@ -74,6 +74,7 @@ extension NetworkClient {
         hostname: String,
         macAddress: MACAddress? = nil,
         aliases: [String] = [],
+        requestedAddress: IPv4Address? = nil,
         on session: XPCClientSession
     ) async throws -> (attachment: Attachment, additionalData: XPCMessage?) {
         let request = XPCMessage(route: NetworkRoutes.allocate.rawValue)
@@ -83,6 +84,9 @@ extension NetworkClient {
         }
         if !aliases.isEmpty {
             try request.setAliases(aliases)
+        }
+        if let requestedAddress = requestedAddress {
+            request.set(key: NetworkKeys.requestedAddress.rawValue, value: requestedAddress.description)
         }
         let response = try await session.send(request)
         let attachment = try response.attachment()
