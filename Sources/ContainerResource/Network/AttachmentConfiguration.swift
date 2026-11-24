@@ -17,7 +17,7 @@
 import ContainerizationExtras
 
 /// Configuration information for attaching a container network interface to a network.
-public struct AttachmentConfiguration: Codable, Sendable {
+public struct AttachmentConfiguration: Codable, Sendable, Equatable {
     /// The network ID associated with the attachment.
     public let network: String
 
@@ -31,7 +31,7 @@ public struct AttachmentConfiguration: Codable, Sendable {
 }
 
 // Option information for a network attachment.
-public struct AttachmentOptions: Codable, Sendable {
+public struct AttachmentOptions: Codable, Sendable, Equatable {
     /// The hostname associated with the attachment.
     public let hostname: String
 

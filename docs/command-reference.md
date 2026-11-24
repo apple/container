@@ -143,6 +143,7 @@ container build [<options>] [<context-dir>]
 *   `-f, --file <path>`: Path to Dockerfile
 *   `-l, --label <key=val>`: Set a label
 *   `-m, --memory <memory>`: Amount of builder container memory (1MiByte granularity), with optional K, M, G, T, or P suffix (default: 2048MB)
+*   `--network <network>`: Attach the builder container to a network (format: `<name>[,mac=XX:XX:XX:XX:XX:XX][,mtu=VALUE][,alias=NAME]...`)
 *   `--no-cache`: Do not use cache
 *   `-o, --output <value>`: Output configuration for the build (format: type=<oci|tar|local>[,dest=]) (default: type=oci)
 *   `--os <value>`: Add the OS type to the build
@@ -756,13 +757,14 @@ Starts the BuildKit builder container. CPU and memory limits can be set for the 
 **Usage**
 
 ```bash
-container builder start [--cpus <cpus>] [--memory <memory>] [--dns <ip> ...] [--dns-domain <domain>] [--dns-option <option> ...] [--dns-search <domain> ...] [--debug]
+container builder start [--cpus <cpus>] [--memory <memory>] [--network <network> ...] [--dns <ip> ...] [--dns-domain <domain>] [--dns-option <option> ...] [--dns-search <domain> ...] [--debug]
 ```
 
 **Options**
 
 *   `-c, --cpus <cpus>`: Number of CPUs to allocate to the builder container (default: 2)
 *   `-m, --memory <memory>`: Amount of builder container memory (1MiByte granularity), with optional K, M, G, T, or P suffix (default: 2048MB)
+*   `--network <network>`: Attach the builder container to a network (format: `<name>[,mac=XX:XX:XX:XX:XX:XX][,mtu=VALUE][,alias=NAME]...`)
 *   `--dns <ip>`: DNS nameserver IP address
 *   `--dns-domain <domain>`: Default DNS domain
 *   `--dns-option <option>`: DNS options

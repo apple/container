@@ -203,24 +203,19 @@ public struct Utility {
         config.virtualization = management.virtualization
 
         // Parse network specifications with properties
-        let parsedNetworks = try management.networks.map { try Parser.network($0) }
-        if management.networks.contains(NetworkClient.noNetworkName) {
-            guard management.networks.count == 1 else {
-                throw ContainerizationError(.unsupported, message: "no other networks may be created along with network \(NetworkClient.noNetworkName)")
-            }
-            config.networks = []
-        } else {
-            let networkClient = NetworkClient()
-            let builtinNetworkId = try await networkClient.builtin?.id
-            config.networks = try getAttachmentConfigurations(
-                containerId: config.id,
-                builtinNetworkId: builtinNetworkId,
-                networks: parsedNetworks,
-                dnsDomain: containerSystemConfig.dns.domain,
-            )
-            for attachmentConfiguration in config.networks {
-                _ = try await networkClient.get(id: attachmentConfiguration.network)
-            }
+        let networkClient = NetworkClient()
+        let builtinNetworkId: String? =
+            management.networks.contains(NetworkClient.noNetworkName)
+            ? nil
+            : try await networkClient.builtin?.id
+        config.networks = try attachmentConfigurations(
+            containerId: config.id,
+            builtinNetworkId: builtinNetworkId,
+            networks: management.networks,
+            dnsDomain: containerSystemConfig.dns.domain
+        )
+        for attachmentConfiguration in config.networks {
+            _ = try await networkClient.get(id: attachmentConfiguration.network)
         }
 
         if management.dnsDisabled {
@@ -267,6 +262,31 @@ public struct Utility {
         config.runtimeHandler = management.runtime ?? "\(runtimePrefix)\(requestedPlatform.os)"
 
         return (config, kernel, management.initImage)
+    }
+
+    public static func attachmentConfigurations(
+        containerId: String,
+        builtinNetworkId: String?,
+        networks: [String],
+        dnsDomain: String?
+    ) throws -> [AttachmentConfiguration] {
+        let parsedNetworks = try networks.map { try Parser.network($0) }
+        if parsedNetworks.contains(where: { $0.name == NetworkClient.noNetworkName }) {
+            guard parsedNetworks.count == 1 else {
+                throw ContainerizationError(.unsupported, message: "no other networks may be created along with network \(NetworkClient.noNetworkName)")
+            }
+            let noneSpec = parsedNetworks[0]
+            if noneSpec.macAddress != nil || noneSpec.mtu != nil || !noneSpec.aliases.isEmpty {
+                throw ContainerizationError(.invalidArgument, message: "network \(NetworkClient.noNetworkName) does not accept properties")
+            }
+            return []
+        }
+        return try getAttachmentConfigurations(
+            containerId: containerId,
+            builtinNetworkId: builtinNetworkId,
+            networks: parsedNetworks,
+            dnsDomain: dnsDomain
+        )
     }
 
     static func getAttachmentConfigurations(
