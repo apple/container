@@ -39,6 +39,12 @@ struct BuilderStart: AsyncParsableCommand {
     )
     var memory: String?
 
+    @Option(
+        name: [.customLong("network")],
+        help: "Attach the builder container to a network (format: <name>[,mac=XX:XX:XX:XX:XX:XX][,mtu=VALUE][,alias=NAME]...)"
+    )
+    var networks: [String] = []
+
     @OptionGroup
     public var dns: Flags.DNS
 
@@ -73,6 +79,7 @@ struct BuilderStart: AsyncParsableCommand {
             dnsDomain: self.dns.domain,
             dnsSearchDomains: self.dns.searchDomains,
             dnsOptions: self.dns.options,
+            networks: self.networks,
             progressUpdate: progress.handler,
             containerSystemConfig: containerSystemConfig,
         )

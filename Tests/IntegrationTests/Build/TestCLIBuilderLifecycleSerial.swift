@@ -132,4 +132,57 @@ struct TestCLIBuilderLifecycleSerial {
             try f.assertImageBuilt(image)
         }
     }
+
+    @available(macOS 26, *)
+    @Test func testBuilderCustomNetwork() async throws {
+        try await ContainerFixture.with { f in
+            let net = "\(f.testID)-builder-net"
+            f.addCleanup { f.doNetworkDeleteIfExists(net) }
+            f.addCleanup { try? f.builderDelete(force: true) }
+
+            try f.doNetworkCreate(net)
+            _ = try? f.builderDelete(force: true)
+
+            try f.builderStart(networks: [net])
+            try await f.waitForBuilderRunning()
+
+            let builderOnCustomNet = try f.inspectContainer("buildkit")
+            #expect(
+                builderOnCustomNet.configuration.networks.map(\.network) == [net],
+                "builder should be configured with custom network \(net)")
+            #expect(
+                builderOnCustomNet.networks.map(\.network) == [net],
+                "builder should be attached to custom network \(net)")
+
+            let dir = try f.createTempDir()
+            try f.createContext(
+                dir: dir,
+                dockerfile: "FROM scratch\nADD emptyFile /",
+                context: [.file("emptyFile", content: .zeroFilled(size: 1))]
+            )
+            let image1 = "registry.local/builder-custom-net:\(UUID().uuidString)"
+            try f.build(tag: image1, contextDir: dir)
+            try f.assertImageBuilt(image1)
+
+            let builderAfterBuild = try f.inspectContainer("buildkit")
+            #expect(
+                builderAfterBuild.configuration.networks.map(\.network) == [net],
+                "build without --network should preserve the builder's existing custom network")
+
+            let missingResult = try f.run(["builder", "start", "--network", "missing-\(f.testID)"])
+            #expect(missingResult.status != 0, "builder start with nonexistent network should fail")
+            let builderAfterError = try f.inspectContainer("buildkit")
+            #expect(builderAfterError.status.state == "running")
+            #expect(builderAfterError.configuration.networks.map(\.network) == [net])
+
+            let image2 = "registry.local/builder-default-net:\(UUID().uuidString)"
+            try f.build(tag: image2, contextDir: dir, otherArgs: ["--network", "default"])
+            try f.assertImageBuilt(image2)
+
+            let builderOnDefault = try f.inspectContainer("buildkit")
+            #expect(
+                builderOnDefault.configuration.networks.map(\.network) == ["default"],
+                "build --network default should switch builder back to default network")
+        }
+    }
 }

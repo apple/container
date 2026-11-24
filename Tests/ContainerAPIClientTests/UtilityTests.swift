@@ -346,4 +346,46 @@ struct UtilityTests {
         #expect(attachments[0].options.aliases == ["api.test", ".foo.test"])
         #expect(attachments[1].options.aliases == ["db.test"])
     }
+
+    @Test("Network specification 'none' produces no attachments")
+    func testAttachmentConfigurationsNone() throws {
+        let attachments = try Utility.attachmentConfigurations(
+            containerId: "foo",
+            builtinNetworkId: "default",
+            networks: ["none"],
+            dnsDomain: "test"
+        )
+
+        #expect(attachments.isEmpty)
+    }
+
+    @Test("Network specification 'none' cannot be combined with other networks")
+    func testAttachmentConfigurationsNoneWithOtherNetworkFails() {
+        #expect {
+            _ = try Utility.attachmentConfigurations(
+                containerId: "foo",
+                builtinNetworkId: "default",
+                networks: ["none", "default"],
+                dnsDomain: "test"
+            )
+        } throws: { error in
+            guard let err = error as? ContainerizationError else { return false }
+            return err.code == .unsupported
+        }
+    }
+
+    @Test("Network specification 'none' rejects attachment properties")
+    func testAttachmentConfigurationsNoneWithPropertiesFails() {
+        #expect {
+            _ = try Utility.attachmentConfigurations(
+                containerId: "foo",
+                builtinNetworkId: "default",
+                networks: ["none,mtu=1500"],
+                dnsDomain: "test"
+            )
+        } throws: { error in
+            guard let err = error as? ContainerizationError else { return false }
+            return err.code == .invalidArgument
+        }
+    }
 }

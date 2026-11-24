@@ -65,8 +65,12 @@ extension ContainerFixture {
 extension ContainerFixture {
 
     /// Starts the buildkit builder container.
-    public func builderStart(cpus: Int64 = 2, memoryInGBs: Int64 = 2) throws {
-        try run(["builder", "start", "-c", "\(cpus)", "-m", "\(memoryInGBs)GB"]).check()
+    public func builderStart(cpus: Int64 = 2, memoryInGBs: Int64 = 2, networks: [String] = []) throws {
+        var args = ["builder", "start", "-c", "\(cpus)", "-m", "\(memoryInGBs)GB"]
+        for network in networks {
+            args += ["--network", network]
+        }
+        try run(args).check()
     }
 
     /// Stops the buildkit builder container.

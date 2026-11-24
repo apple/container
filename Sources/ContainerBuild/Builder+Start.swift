@@ -37,6 +37,7 @@ extension Builder {
         dnsDomain: String? = nil,
         dnsSearchDomains: [String] = [],
         dnsOptions: [String] = [],
+        networks: [String] = [],
         progressUpdate: @escaping ProgressUpdateHandler,
         containerSystemConfig: ContainerSystemConfig,
     ) async throws {
@@ -92,12 +93,34 @@ extension Builder {
         )
 
         let client = ContainerClient()
-        let existingContainer = try? await client.get(id: "buildkit")
+        let existingContainer = try? await client.get(id: Builder.builderContainerId)
+
+        let networkClient = NetworkClient()
+        let desiredNetworks: [AttachmentConfiguration]
+        if networks.isEmpty, let existingContainer {
+            desiredNetworks = existingContainer.configuration.networks
+        } else {
+            let builtinNetworkId: String? =
+                networks == [NetworkClient.noNetworkName]
+                ? nil
+                : try await networkClient.builtin?.id
+            desiredNetworks = try Self.resolveDesiredNetworks(
+                requested: networks,
+                existing: existingContainer?.configuration.networks,
+                builtinNetworkId: builtinNetworkId,
+                dnsDomain: containerSystemConfig.dns.domain
+            )
+            for attachmentConfiguration in desiredNetworks {
+                _ = try await networkClient.get(id: attachmentConfiguration.network)
+            }
+        }
+
         if let existingContainer {
             let existingImage = existingContainer.configuration.image.reference
             let existingResources = existingContainer.configuration.resources
             let existingEnv = existingContainer.configuration.initProcess.environment
             let existingDNS = existingContainer.configuration.dns
+            let existingNetworks = existingContainer.configuration.networks
 
             let existingManagedEnv = existingEnv.filter { envVar in
                 envVar.hasPrefix("BUILDKIT_COLORS=") || envVar.hasPrefix("NO_COLOR=")
@@ -113,10 +136,11 @@ extension Builder {
             let sshWanted = ssh && ProcessInfo.processInfo.environment["SSH_AUTH_SOCK"] != nil
             let sshChanged = sshForwarded != sshWanted
             let dnsChanged = Self.dnsConfigurationChanged(existing: existingDNS, desired: dns)
+            let networksChanged = Self.networksChanged(existing: existingNetworks, desired: desiredNetworks)
 
             switch existingContainer.status {
             case .running:
-                guard imageChanged || cpuChanged || memChanged || envChanged || dnsChanged || sshChanged else {
+                guard imageChanged || cpuChanged || memChanged || envChanged || dnsChanged || sshChanged || networksChanged else {
                     // If image, mem, cpu, env, and DNS are the same, continue using the existing builder
                     return
                 }
@@ -126,7 +150,7 @@ extension Builder {
             case .stopped:
                 // If the builder is stopped and matches our requirements, start it
                 // Otherwise, delete it and create a new one
-                if imageChanged || cpuChanged || memChanged || envChanged || dnsChanged || sshChanged {
+                if imageChanged || cpuChanged || memChanged || envChanged || dnsChanged || sshChanged || networksChanged {
                     try? await client.delete(id: existingContainer.id)
                 } else {
                     do {
@@ -224,13 +248,7 @@ extension Builder {
         // Enable Rosetta only if the user didn't ask to disable it
         config.rosetta = useRosetta
 
-        let networkClient = NetworkClient()
-        guard let defaultNetwork = try await networkClient.builtin else {
-            throw ContainerizationError(.invalidState, message: "default network is not present")
-        }
-        config.networks = [
-            AttachmentConfiguration(network: defaultNetwork.id, options: AttachmentOptions(hostname: Builder.builderContainerId))
-        ]
+        config.networks = desiredNetworks
         config.dns = ContainerConfiguration.DNSConfiguration(
             nameservers: dns.nameservers,
             domain: dns.domain,
@@ -277,6 +295,30 @@ extension Builder {
             || existing.domain != desired.domain
             || existing.searchDomains != desired.searchDomains
             || existing.options != desired.options
+    }
+
+    static func resolveDesiredNetworks(
+        requested: [String],
+        existing: [AttachmentConfiguration]?,
+        builtinNetworkId: String?,
+        dnsDomain: String?
+    ) throws -> [AttachmentConfiguration] {
+        if requested.isEmpty, let existing {
+            return existing
+        }
+        return try Utility.attachmentConfigurations(
+            containerId: Builder.builderContainerId,
+            builtinNetworkId: builtinNetworkId,
+            networks: requested,
+            dnsDomain: dnsDomain
+        )
+    }
+
+    static func networksChanged(
+        existing: [AttachmentConfiguration],
+        desired: [AttachmentConfiguration]
+    ) -> Bool {
+        existing != desired
     }
 }
 

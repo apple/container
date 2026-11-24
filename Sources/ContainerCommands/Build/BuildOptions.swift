@@ -74,6 +74,12 @@ public struct BuildOptions: ParsableArguments {
     )
     public var memory: String?
 
+    @Option(
+        name: [.customLong("network")],
+        help: "Attach the builder container to a network (format: <name>[,mac=XX:XX:XX:XX:XX:XX][,mtu=VALUE][,alias=NAME]...)"
+    )
+    public var networks: [String] = []
+
     @Flag(name: .long, help: "Do not use cache")
     public var noCache: Bool = false
 
