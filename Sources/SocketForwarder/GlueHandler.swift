@@ -56,6 +56,22 @@ extension GlueHandler {
         self.context?.close(promise: nil)
     }
 
+    /// Closes the channel after the writes already queued on it have reached the socket.
+    ///
+    /// A full `close()` fails any pending writes. When the partner's peer closes first, those
+    /// pending writes hold bytes the partner already received, so closing right away drops the
+    /// tail of the stream for a peer that drains slowly. Writes complete in order, so an empty
+    /// write completes only once everything queued before it has been written. If the write
+    /// fails instead, for example because the channel is already closed, the close still runs.
+    private func partnerCloseAfterPendingWrites() {
+        guard let context = self.context else {
+            return
+        }
+        context.writeAndFlush(NIOAny(ByteBuffer())).assumeIsolated().whenComplete { _ in
+            context.close(promise: nil)
+        }
+    }
+
     private func partnerBecameWritable() {
         if self.pendingRead {
             self.pendingRead = false
@@ -91,7 +107,9 @@ extension GlueHandler: ChannelDuplexHandler {
     }
 
     func channelInactive(context: ChannelHandlerContext) {
-        self.partner?.partnerCloseFull()
+        // The peer closed its connection. Deliver what was already read from it before closing
+        // the partner. On a read error, errorCaught runs first and closes the partner at once.
+        self.partner?.partnerCloseAfterPendingWrites()
     }
 
     func userInboundEventTriggered(context: ChannelHandlerContext, event: Any) {
