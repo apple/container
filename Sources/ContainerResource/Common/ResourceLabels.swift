@@ -115,3 +115,12 @@ public struct ResourceRoleValues {
     /// Indicates a system-created resource that cannot be deleted by the user.
     public static let builtin = "builtin"
 }
+
+/// System-defined values for the resource plugin label.
+public struct ResourcePluginValues {
+    /// Indicates a container that backs a `container machine`.
+    public static let machine = "machine"
+
+    /// Indicates a container that is a node of a `container cluster`.
+    public static let cluster = "cluster"
+}

@@ -16,6 +16,7 @@
 
 import ArgumentParser
 import ContainerAPIClient
+import ContainerClusterServiceClient
 import ContainerLog
 import ContainerPersistence
 import ContainerResource
@@ -30,7 +31,12 @@ public struct ClusterCreate: AsyncParsableCommand {
 
     public static let configuration = CommandConfiguration(
         commandName: "create",
-        abstract: "Create and start a local Kubernetes cluster and optional worker nodes"
+        abstract: "Create and start a local Kubernetes cluster and optional worker nodes",
+        discussion: """
+            --cpus and --memory size the control-plane node, or the single node if no workers are specified \
+            (default 1/4 of host CPUs and memory, minimum 2 CPUs and 2g). \
+            Size workers with --workers count=<n>,cpus=<n>,memory=<size>; a group's count defaults to 1, and cpus and memory left out default to the single-node sizes: 1/4 of host CPUs and memory (minimum 2 CPUs and 2g).
+            """
     )
 
     @Option(name: .long, help: "Cluster name")
@@ -54,25 +60,37 @@ public struct ClusterCreate: AsyncParsableCommand {
     @Option(name: .long, help: "Optional path to a CNI manifest to apply, or \"NONE\" to skip installing a CNI.")
     var cni: String?
 
-    @Option(name: .long, help: "Number of worker nodes to create")
-    var workers: UInt = 0
+    @Option(
+        name: .long,
+        help: "Worker nodes to create: a number, or count=<n>,cpus=<n>,memory=<size> (repeat for groups of differently sized workers)",
+        transform: { try WorkerGroup(parsing: $0) })
+    var workers: [WorkerGroup] = []
 
-    /// Task count is `4 + workers` as an `Int`, so keep `workers` far enough below `Int.max` to avoid overflow.
-    static let maxWorkers: UInt = 1024
+    @Flag(help: "Let nodes pull images from the local image store")
+    var sharedImageStore = false
 
     public func validate() throws {
-        guard workers <= Self.maxWorkers else {
-            throw ValidationError("--workers must be at most \(Self.maxWorkers)")
+        // Fail before anything is created, the same as invalid --workers values do.
+        do {
+            if let cpus = resourceFlags.cpus { _ = try Parser.cpus(cpus) }
+            if let memory = resourceFlags.memory { _ = try Parser.memoryInBytes(memory) }
+        } catch {
+            throw ValidationError(wrapping: error)
+        }
+
+        var total: UInt = 0
+        for group in workers {
+            // Compare against the remaining room so the running total can't overflow.
+            guard group.count <= ClusterConfiguration.maxWorkers - total else {
+                throw ValidationError("--workers must total at most \(ClusterConfiguration.maxWorkers) worker nodes")
+            }
+            total += group.count
         }
     }
 
     public func run() async throws {
         LoggingSystem.bootstrap { _ in StderrLogHandler() }
         let log = Logger(label: ClusterHelper.pluginName)
-
-        guard ManagedContainer.nameValid(name) else {
-            throw ContainerizationError(.invalidArgument, message: "cluster name \(name) is not a valid container ID")
-        }
 
         let skipCNI = cni?.uppercased() == ClusterHelper.noCNIName
         if let cni, !skipCNI {
@@ -81,8 +99,22 @@ public struct ClusterCreate: AsyncParsableCommand {
             }
         }
 
-        // Fail before provisioning the node VM.
-        _ = try ClusterHelper.kubernetesVersion(nodeImage: nodeImage)
+        let containerSystemConfig: ContainerSystemConfig = try await ClientHealthCheck.loadContainerSystemConfig()
+        let fqdn = ClusterHelper.fqdn(for: name, domain: containerSystemConfig.dns.domain)
+
+        // validate() has already bounded the total by ClusterConfiguration.maxWorkers.
+        let workerCount = workers.reduce(0) { $0 + Int($1.count) }
+
+        // Validates the name, node image and worker count; fails before provisioning the node VM.
+        let configuration = try ClusterConfiguration.make(
+            name: name,
+            nodeImage: nodeImage,
+            remove: remove,
+            sharedImageStore: sharedImageStore,
+            workers: UInt(workerCount),
+            cni: cni,
+            fqdn: fqdn
+        )
 
         let isTTY = isatty(FileHandle.standardError.fileDescriptor) == 1
         // TotalTasks include:
@@ -92,7 +124,7 @@ public struct ClusterCreate: AsyncParsableCommand {
             showTasks: true,
             showItems: true,
             ignoreSmallSize: true,
-            totalTasks: 4 + Int(workers),
+            totalTasks: 4 + workerCount,
             clearOnFinish: isTTY,
             outputMode: isTTY ? .ansi : .plain
         )
@@ -101,109 +133,64 @@ public struct ClusterCreate: AsyncParsableCommand {
         defer { progress.finish() }
         progress.start()
 
-        let containerSystemConfig: ContainerSystemConfig = try await ConfigurationLoader.load()
-        let fqdn = ClusterHelper.fqdn(for: name, domain: containerSystemConfig.dns.domain)
-
-        let provisioner = try LinuxNodeProvisioner(
+        let controlPlane = try LinuxNodeProvisioner(
+            name: name,
             clusterName: name,
-            roles: workers == 0 ? [StandardRoles.controlPlane, StandardRoles.worker] : [StandardRoles.controlPlane],
+            roles: workerCount == 0 ? [StandardRoles.controlPlane, StandardRoles.worker] : [StandardRoles.controlPlane],
             nodeImage: nodeImage,
             cpus: resourceFlags.cpus,
             memory: resourceFlags.memory,
             registryScheme: registryFlags.scheme,
             maxConcurrentDownloads: imageFetchFlags.maxConcurrentDownloads,
             remove: remove,
-            fqdn: fqdn
+            containerSystemConfig: containerSystemConfig,
+            fqdn: fqdn,
+            sharedImageStore: sharedImageStore
         )
-
-        progress.set(description: "Starting cluster")
-        try await provisioner.provision(name: name, log: log)
-
-        let client = ContainerClient()
-        var workerNames: [String] = []
-        do {
-            let vmIP = try await provisioner.address(name: name, log: log)
-            var sans = ["127.0.0.1"]
-            if let fqdn { sans.append(contentsOf: [vmIP, fqdn]) }
-
-            progress.set(description: "Running kubeadm init")
-            try await ClusterHelper.prepareNode(nodeID: name, client: client, log: log)
-            try await ClusterHelper.bootstrapControlPlane(
-                nodeID: name, nodeImage: nodeImage, apiServerSANs: sans, advertiseAddress: vmIP,
-                schedulable: provisioner.roles.contains(StandardRoles.worker),
-                cniManifestPath: cni,
-                client: client, log: log)
-
-            if workers > 0 {
-                let (token, caCertHash) = try await ClusterHelper.createJoinToken(nodeID: name, client: client)
-                let controlPlaneEndpoint = "\(vmIP):\(ClusterHelper.clusterContainerPort)"
-                for i in 1...workers {
-                    let workerName = "\(name)-worker-\(i)"
-                    progress.set(description: "Joining worker \(workerName)")
-                    let workerProvisioner = try LinuxNodeProvisioner(
+        // Workers are numbered across groups.
+        var workerNodes: [LinuxNodeProvisioner] = []
+        for group in workers {
+            for _ in 0..<group.count {
+                workerNodes.append(
+                    try LinuxNodeProvisioner(
+                        name: ClusterHelper.workerName(cluster: name, index: workerNodes.count + 1),
                         clusterName: name,
                         roles: [StandardRoles.worker],
                         nodeImage: nodeImage,
-                        cpus: resourceFlags.cpus,
-                        memory: resourceFlags.memory,
+                        cpus: group.cpus,
+                        memory: group.memory,
                         registryScheme: registryFlags.scheme,
                         maxConcurrentDownloads: imageFetchFlags.maxConcurrentDownloads,
-                        remove: remove
-                    )
-                    workerNames.append(workerName)
-                    try await workerProvisioner.provision(name: workerName, log: log)
-                    try await workerProvisioner.join(
-                        name: workerName, controlPlaneEndpoint: controlPlaneEndpoint,
-                        token: token, caCertHash: caCertHash, log: log)
-                    if skipCNI {
-                        try await workerProvisioner.waitForRegistered(name: workerName, log: log)
-                    } else {
-                        try await workerProvisioner.waitForReady(name: workerName, log: log)
-                    }
-                }
+                        remove: remove,
+                        containerSystemConfig: containerSystemConfig,
+                        sharedImageStore: sharedImageStore
+                    ))
             }
+        }
 
-            if skipCNI {
-                progress.set(description: "Waiting for API server")
-                try await ClusterHelper.waitForAPIServer(containerId: name, client: client, log: log)
-            } else {
-                progress.set(description: "Waiting for cluster to be ready")
-                try await ClusterHelper.waitForReady(containerId: name, client: client, log: log)
-            }
+        let clusterBootstrapper = ClusterBootstrapper(
+            name: name,
+            kubernetesVersion: configuration.kubernetesVersion,
+            cni: cni,
+            fqdn: fqdn,
+            sharedImageStore: sharedImageStore,
+            controlPlane: controlPlane,
+            workers: workerNodes
+        )
 
-            progress.set(description: "Writing kubeconfig")
-            let rawConfig = try await ClusterHelper.fetchConfig(containerId: name, client: client, log: log)
-            let kubeConfig = try await ClusterHelper.transformConfig(rawConfig, containerId: name, fqdn: fqdn, client: client)
-            do {
-                try ClusterHelper.mergeConfig(kubeConfig, containerId: name, setCurrentContext: true, log: log)
-            } catch {
-                log.warning("failed to write kubeconfig", metadata: ["name": "\(name)", "error": "\(error)"])
-                log.info("cluster is running; use 'container cluster write-config --name \(name)' to write the kubeconfig")
-            }
+        // Record the cluster before provisioning. Fails `.exists` for a live duplicate and replaces stale records.
+        let clusterClient = ClusterClient()
+        _ = try await clusterClient.create(configuration: configuration)
+
+        do {
+            try await clusterBootstrapper.create(progress: { progress.set(description: $0) }, log: log)
         } catch {
-            for workerName in workerNames {
-                await Self.teardownIfOwned(workerName, client: client, provisioner: provisioner, log: log)
-            }
-            await Self.teardownIfOwned(name, client: client, provisioner: provisioner, log: log)
-            try? ClusterHelper.removeConfig(containerId: name, log: log)
+            // `.exists` means a container with this name is already there; the record may belong to another live create.
+            if (error as? ContainerizationError)?.code != .exists { try? await clusterClient.delete(name: name) }
             throw error
         }
 
         progress.finish()
         print(name)
-    }
-
-    /// Tears down `containerName` only if it's a container this plugin created
-    private static func teardownIfOwned(
-        _ containerName: String, client: ContainerClient, provisioner: LinuxNodeProvisioner, log: Logger
-    ) async {
-        guard let container = try? await client.get(id: containerName) else { return }
-        guard container.configuration.labels[ResourceLabelKeys.plugin] == ClusterHelper.pluginName else {
-            log.warning(
-                "container exists but is not owned by this plugin, refusing teardown",
-                metadata: ["name": "\(containerName)"])
-            return
-        }
-        try? await provisioner.teardown(name: containerName, log: log)
     }
 }

@@ -2,6 +2,15 @@
 
 Kubernetes is an open-source orchestration platform for automating deployment, scaling, and management of containerized workloads across clusters of machines. With `container`, you can run local Kubernetes clusters for development and testing.
 
+> [!WARNING]
+> `container cluster create --shared-image-store` lets cluster nodes use your local image store, so pods can run images you build or pull with `container` without a registry. Sharing is off by default. With sharing on:
+>
+> - Anything with root on a node, including privileged pods and pods with a `hostPath` mount, can read every image in your local image store, including private images you pulled with your registry credentials.
+> - A local image is used before a registry image with the same name, for every pull policy, and without the pod's pull secrets.
+> - Nodes cannot add, change, or delete images in your local image store.
+>
+> Without `--shared-image-store`, nodes pull every image from a registry, as in a standard Kubernetes cluster.
+
 ## Why Kubernetes on container
 
 Running Kubernetes locally with `container` gives you a streamlined workflow to build and test workloads before deploying to production:
@@ -54,6 +63,8 @@ List all clusters and their status:
 container cluster list
 ```
 
+Add `--nodes` to show one row per node instead of one row per cluster. Clusters created with an earlier version are not listed.
+
 ### Cluster lifecycle
 
 Create a cluster, use it with kubectl, and delete it when finished:
@@ -68,6 +79,15 @@ kubectl --context my-cluster get pods
 # Delete the cluster when finished
 container cluster delete --name my-cluster
 ```
+
+### Cluster nodes and container commands
+
+Each cluster node runs as a container, but `container cluster` manages those containers for you. To keep them from being changed by accident, the container lifecycle commands treat cluster nodes differently:
+
+- `container list` hides cluster nodes, even with `--all`. Use `container cluster list` to see them.
+- If you name a cluster node, `container start`, `container stop`, `container kill`, and `container delete` report it as not found, as they would for a container that doesn't exist. Other containers named in the same command are still processed.
+
+Commands that don't change a node's lifecycle, such as `container inspect`, `container logs`, `container exec`, `container stats`, and `container clean`, work on a cluster node you name. Use `container cluster delete` to remove a cluster and its nodes.
 
 ### Customize resources
 
@@ -89,7 +109,18 @@ By default, `container cluster create` creates a single node that acts as both c
 container cluster create --name my-cluster --workers 3
 ```
 
-When `--workers` is greater than `0`, the control-plane node is tainted so pods only schedule onto worker nodes, matching typical multi-node cluster behavior. Worker nodes share the same `--node-image`, `--cpus`, and `--memory` settings as the control plane, and are named `<cluster-name>-worker-<n>`.
+When `--workers` is greater than `0`, the control-plane node is tainted so pods only schedule onto worker nodes, matching typical multi-node cluster behavior. Worker nodes share the control plane's `--node-image` and are named `<cluster-name>-worker-<n>`.
+
+`--cpus` and `--memory` size the control-plane node, or the single node if no workers are specified.
+
+To size workers, pass a group of workers with `--workers count=<n>,cpus=<n>,memory=<size>`. A group's `count` defaults to `1`. If you leave out `cpus` or `memory`, the workers get the single-node defaults: 1/4 of your host's CPUs and memory, minimum 2 CPUs and 2GB. Repeat the option to create groups of differently sized workers:
+
+```bash
+# Control plane with 2 CPUs and 4GB, 2 workers with 4 CPUs and 8GB, plus 1 smaller worker
+container cluster create --name my-cluster --cpus 2 --memory 4g \
+  --workers count=2,cpus=4,memory=8g \
+  --workers count=1,cpus=2,memory=4g
+```
 
 ### Access clusters with kubectl
 
@@ -104,29 +135,15 @@ kubectl --context cluster-dev describe node
 kubectl config use-context staging
 ```
 
-## Load container images into your cluster
+## Use container images in your cluster
 
-Images built with `container build` can be loaded directly into your Kubernetes cluster, so you can test them without pushing to a registry.
-
-### Build and load
-
-Build an image and load it into your cluster:
+A cluster created with `--shared-image-store` can pull the images in your local image store. Build or pull an image with `container`, and reference it by name in a pod spec:
 
 ```bash
-# Build a local image
-container build -t my-app:latest .
-
-# Load the image into every node of the cluster
-container cluster load-image my-app:latest
-
-# Load the image into a single node instead
-container cluster load-image --node cluster-dev-worker-1 my-app:latest
-
-# Load the image into specific nodes only
-container cluster load-image --node cluster-dev-worker-1 --node cluster-dev-worker-2 my-app:latest
+container cluster create --shared-image-store
+container build -t my-app:dev .
+kubectl run my-app --image=my-app:dev
 ```
-
-The image is placed in the `k8s.io` namespace, making it available for pod scheduling:
 
 ```yaml
 apiVersion: v1
@@ -136,28 +153,20 @@ metadata:
 spec:
   containers:
   - name: app
-    image: my-app:latest
-    imagePullPolicy: Never
+    image: my-app:dev
   restartPolicy: Never
 ```
 
-### Load into named clusters
+If the local image store does not have an image, or has none of its content for the node's platform, the node pulls it from its registry as usual.
 
-If you have multiple clusters, specify which one to load into:
+The first time a node uses a local image, it copies the image's content for its platform from your local image store, the same way it stores an image it pulls from a registry.
 
-```bash
-container cluster load-image --name staging my-app:latest
-container cluster load-image --name testing my-app:latest
-```
+An image name without a registry, such as `my-app:dev`, is looked up in the local image store the same way `container` resolves it, using your default registry domain (`registry.domain`). Inside the cluster, Kubernetes shows such an image under its docker.io name, for example `docker.io/library/my-app:dev`.
 
-### Multi-architecture images
-
-When loading multi-architecture images, specify the architecture if needed:
-
-```bash
-# Load the amd64 variant of a multi-arch image
-container cluster load-image --platform linux/amd64 my-app:latest
-```
+> [!NOTE]
+> - Every pull policy works, including `imagePullPolicy: Never`.
+> - Sharing is set when the cluster is created. To change it, delete the cluster and create it again.
+> - After rebuilding a tag, use `imagePullPolicy: Always` or a new tag so the node picks up the new image. With `IfNotPresent`, a node keeps the image it already has.
 
 ## Kubernetes node image
 
@@ -216,9 +225,11 @@ To have a cluster automatically remove itself when stopped, create it with `--rm
 container cluster create --name temp-cluster --rm
 ```
 
+The node containers are removed when they stop, but the cluster's stored configuration remains, so the cluster shows as `stopped` in `container cluster list` until you run `container cluster delete --name temp-cluster` or create a cluster with the same name again (which clears the stale configuration).
+
 ### Recovering a stopped cluster
 
-If a cluster's control plane node stops (for example, after `container stop`), delete and re-create the cluster:
+If a cluster's control plane node stops (for example, after `container system stop`), delete and re-create the cluster:
 
 ```bash
 container cluster delete --name my-cluster
@@ -233,11 +244,8 @@ container cluster create --name my-cluster
 # Create a test cluster
 container cluster create --name test
 
-# Build your image locally
+# Build your image locally; the cluster pulls it by name
 container build -t my-service:v1.0 .
-
-# Load it into the test cluster
-container cluster load-image --name test my-service:v1.0
 
 # Deploy to the test cluster
 kubectl --context test apply -f deployment.yaml
@@ -257,8 +265,6 @@ container cluster create --name feature-auth
 container cluster create --name feature-payments
 
 # Work on each feature in isolation, test against its own cluster
-container cluster load-image --name feature-auth my-service:feature-auth
-container cluster load-image --name feature-payments my-service:feature-payments
 ```
 
 ## See also

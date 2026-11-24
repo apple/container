@@ -116,6 +116,13 @@ data, these images grow; when a container process deletes a file, the freed bloc
 aren't automatically returned to the host filesystem, so image size doesn't shrink on
 its own.
 
+Image snapshots and container root filesystems are excluded from backups when
+those directories are first created. Backup software that honors this exclusion,
+including Time Machine, skips them. Both are large sparse files that can be
+recreated by pulling the image or creating the container again. Named volume data
+under `volumes/` stays included. An exclusion removed from an existing directory
+is left as it is.
+
 Check overall usage with:
 
 ```bash
@@ -129,6 +136,13 @@ Containers      4       2        890MB     210MB (24%)
 Local Volumes   6       3        4.5GB     2.1GB (47%)
 ```
 
+A named volume's disk image can grow to 512 GiB by default. To set a smaller limit,
+give a size when you create the volume:
+
+```bash
+container volume create -s 10g myvolume
+```
+
 ### Reclaim disk space
 
 Remove stopped containers:
@@ -137,8 +151,8 @@ Remove stopped containers:
 container prune
 ```
 
-Remove images not referenced by any container (add `--all` to remove all untagged and
-unused images, not just dangling ones):
+Remove dangling images, the ones with no tag. Add `--all` to remove every image that no
+container references, tagged or not:
 
 ```bash
 container image prune

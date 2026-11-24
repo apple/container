@@ -69,7 +69,7 @@ extension ClusterHelper {
 
     public static func clusterPort() async throws -> String {
         let snapshots = try await ContainerClient().list(
-            filters: ContainerListFilters(labels: [ResourceLabelKeys.plugin: pluginName])
+            filters: ContainerListFilters().withPlugin(pluginName)
         )
         let reserved = Set(snapshots.flatMap { $0.configuration.publishedPorts.map(\.hostPort) })
         let port = try findAvailableHostPort(excluding: reserved)
@@ -82,10 +82,5 @@ extension ClusterHelper {
         if name.contains(".") { return name }
         guard let domain, !domain.isEmpty else { return nil }
         return "\(name).\(domain)"
-    }
-
-    static func detectFQDN(name: String) async -> String? {
-        let domain = try? await ConfigurationLoader.load().dns.domain
-        return fqdn(for: name, domain: domain)
     }
 }

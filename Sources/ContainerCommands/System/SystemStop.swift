@@ -67,11 +67,14 @@ extension Application {
                 do {
                     let containers = try await client.list().map { $0.id }
                     let opts = ContainerStopOptions(timeoutInSeconds: Self.stopTimeoutSeconds, signal: nil)
-                    try await ContainerStop.stopContainers(
+                    let errors = await ContainerStop.stopContainers(
                         client: client,
                         containers: containers,
                         stopOptions: opts,
                     )
+                    if !errors.isEmpty {
+                        throw AggregateError(errors)
+                    }
                 } catch {
                     log.warning("failed to stop all containers", metadata: ["error": "\(error)"])
                 }

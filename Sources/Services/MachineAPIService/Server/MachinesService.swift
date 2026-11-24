@@ -675,7 +675,7 @@ extension MachineConfiguration {
 
         config.platform = platform
         config.labels = [
-            ResourceLabelKeys.plugin: "machine"
+            ResourceLabelKeys.plugin: ResourcePluginValues.machine
         ]
         let domain = Self.defaultDNSDomain
         config.dns = ContainerConfiguration.DNSConfiguration(

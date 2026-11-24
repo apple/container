@@ -36,11 +36,10 @@ public struct ClusterCommand: AsyncParsableCommand {
                 $ container cluster write-config --name my-cluster --kubeconfig ~/.kube/my-cluster.kubeconfig
                 $ KUBECONFIG=~/.kube/my-cluster.kubeconfig kubectl cluster-info
 
-              Load a local image into the cluster and run it:
-                $ container image pull docker.io/library/hello-world:latest
-                $ container image tag docker.io/library/hello-world:latest registry.example.com/my-hello-world:latest
-                $ container cluster load-image --name my-cluster registry.example.com/my-hello-world:latest
-                $ kubectl run hello-job --image=registry.example.com/my-hello-world:latest --image-pull-policy=Never --restart=Never --attach --rm -i
+              Run a locally built image in a cluster that shares the local image store:
+                $ container cluster create --name my-cluster --shared-image-store
+                $ container build -t my-hello:dev .
+                $ kubectl run hello --image=my-hello:dev --restart=Never --attach --rm -i
 
               Stop and delete the cluster:
                 $ container cluster delete --name my-cluster
@@ -50,7 +49,6 @@ public struct ClusterCommand: AsyncParsableCommand {
             ClusterCreate.self,
             ClusterDelete.self,
             ClusterList.self,
-            ClusterLoadImage.self,
             ClusterWriteConfig.self,
         ]
     )

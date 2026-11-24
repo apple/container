@@ -98,7 +98,7 @@ extension Application {
 
             var resources: ResourceCounts? = nil
             let containerClient = ContainerClient()
-            if let all = try? await containerClient.list(filters: ContainerListFilters.all.withoutMachines()) {
+            if let all = try? await containerClient.list(filters: ContainerListFilters.all.withoutPlugins([ResourcePluginValues.machine, ResourcePluginValues.cluster])) {
                 let running = all.filter { $0.status == .running }.count
                 resources = ResourceCounts(
                     containersTotal: all.count,

@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerClusterServiceClient
 import ContainerResource
 import Foundation
 import Testing
@@ -72,58 +73,102 @@ private func makeWorker(_ id: String, cpus: Int = max(fixtureDefaultCPUs / 2, 1)
     try makeSnapshot(id: id, role: "worker", cpus: cpus, memoryMiB: memoryMiB)
 }
 
-// MARK: - ClusterNodeResource header / row shape
+// MARK: - Cluster list state derivation and renderers
 
-@Suite("ClusterNodeResource")
+private func makeConfig(_ name: String, workers: UInt = 0) throws -> ClusterConfiguration {
+    try ClusterConfiguration.make(
+        name: name, nodeImage: "docker.io/kindest/node:v1.35.5", remove: false, workers: workers, cni: nil, fqdn: nil)
+}
+
+@Suite("ClusterResource table")
+struct ClusterResourceTableTests {
+    @Test func headerAndRow() throws {
+        let info = ClusterResource(
+            configuration: try makeConfig("dev"),
+            status: ClusterStatus(
+                state: .running,
+                nodes: [ClusterNodeState(name: "dev", status: .running)]))
+        #expect(ClusterResource.tableHeader == ["NAME", "NODES", "K8S VERSION", "STATE"])
+        #expect(info.tableRow == ["dev", "1", "v1.35.5", "running"])
+        #expect(info.quietValue == "dev")
+    }
+
+    @Test func degradedAndStoppedStateText() throws {
+        let degraded = ClusterResource(
+            configuration: try makeConfig("dev", workers: 1),
+            status: ClusterStatus(
+                state: .degraded,
+                nodes: [
+                    ClusterNodeState(name: "dev", status: .running),
+                    ClusterNodeState(name: "dev-worker-1", status: .stopped),
+                ]))
+        #expect(degraded.tableRow[3] == "degraded (1 of 2 up)")
+        let stopped = ClusterResource(
+            configuration: try makeConfig("dev"),
+            status: ClusterStatus(
+                state: .stopped,
+                nodes: [ClusterNodeState(name: "dev", status: .stopped)]))
+        #expect(stopped.tableRow[3] == "stopped")
+    }
+}
+
+@Suite("ClusterNodeRow")
 struct ClusterNodeRowTests {
-    @Test func tableHeaderHasEightColumns() throws {
-        #expect(ClusterNodeResource.tableHeader.count == 8)
+    @Test func headerLabels() {
+        #expect(ClusterNodeRow.tableHeader == ["CLUSTER", "NODE", "ROLE", "STATE", "CPUS", "MEMORY", "ADDR", "PORTS"])
     }
 
-    @Test func tableHeaderLabels() throws {
-        #expect(ClusterNodeResource.tableHeader == ["CLUSTER", "NODE", "ROLE", "STATE", "CPUS", "MEMORY", "ADDR", "PORTS"])
+    @Test func rowsIncludeResourcesFromSnapshots() throws {
+        let infos = [
+            ClusterResource(
+                configuration: try makeConfig("dev", workers: 1),
+                status: ClusterStatus(
+                    state: .degraded,
+                    nodes: [
+                        ClusterNodeState(name: "dev", status: .running, addresses: ["10.0.0.1"]),
+                        ClusterNodeState(name: "dev-worker-1", status: .stopped),
+                    ]))
+        ]
+        let rows = ClusterHelper.buildNodeRows(
+            infos: infos,
+            snapshots: [
+                try makeControlPlane("dev", cpus: 4, memoryMiB: 4096, addr: "10.0.0.1"),
+                try makeSnapshot(id: "dev-worker-1", role: "worker", status: .stopped, cpus: 2, memoryMiB: 512),
+            ])
+        #expect(rows.count == 2)
+        #expect(rows[0].tableRow == ["dev", "dev", "control-plane", "running", "4", "4 GB", "10.0.0.1", ""])
+        #expect(rows[1].tableRow == ["dev", "dev-worker-1", "worker", "stopped", "2", "512 MB", "", ""])
+        #expect(rows[1].quietValue == "dev-worker-1")
     }
 
-    @Test func rowColumnCountMatchesHeader() throws {
-        let snapshot = try makeControlPlane("dev")
-        let row = ClusterNodeResource(clusterName: "dev", snapshot: snapshot)
-        #expect(row.tableRow.count == ClusterNodeResource.tableHeader.count)
+    @Test func rowsMatchNodeStatesByNameNotPosition() throws {
+        let infos = [
+            ClusterResource(
+                configuration: try makeConfig("dev", workers: 1),
+                status: ClusterStatus(
+                    state: .degraded,
+                    nodes: [
+                        ClusterNodeState(name: "dev-worker-1", status: .stopped),
+                        ClusterNodeState(name: "dev", status: .running, addresses: ["10.0.0.1"]),
+                    ]))
+        ]
+        let rows = ClusterHelper.buildNodeRows(infos: infos, snapshots: [])
+        #expect(rows.map(\.node.name) == ["dev", "dev-worker-1"])
+        #expect(rows[0].tableRow[3] == "running")
+        #expect(rows[0].tableRow[6] == "10.0.0.1")
+        #expect(rows[1].tableRow[3] == "stopped")
     }
 
-    @Test func controlPlaneRowValues() throws {
-        let cpus = fixtureDefaultCPUs
-        let memoryMiB = fixtureDefaultMemoryMiB
-        let snapshot = try makeControlPlane("dev", cpus: cpus, memoryMiB: memoryMiB, addr: "10.0.0.1")
-        let row = ClusterNodeResource(clusterName: "dev", snapshot: snapshot)
-        let cols = row.tableRow
-        #expect(cols[0] == "dev")  // CLUSTER
-        #expect(cols[1] == "dev")  // NODE
-        #expect(cols[2] == ClusterHelper.controlPlaneRoleName)  // ROLE
-        #expect(cols[3] == "running")  // STATE
-        #expect(cols[4] == "\(cpus)")  // CPUS
-        #expect(cols[5] == "\(memoryMiB) MB")  // MEMORY
-        #expect(cols[6].contains("10.0.0.1"))  // ADDR
-        // cols[7] PORTS: no publishedPorts in fixture → empty string
-        #expect(cols[7] == "")
-    }
-
-    @Test func workerRowValues() throws {
-        let cpus = max(fixtureDefaultCPUs / 2, 1)
-        let memoryMiB = max(fixtureDefaultMemoryMiB / 2, 512)
-        let snapshot = try makeWorker("dev-worker-1", cpus: cpus, memoryMiB: memoryMiB)
-        let row = ClusterNodeResource(clusterName: "dev", snapshot: snapshot)
-        let cols = row.tableRow
-        #expect(cols[0] == "dev")  // CLUSTER
-        #expect(cols[1] == "dev-worker-1")  // NODE
-        #expect(cols[2] == "worker")  // ROLE
-        #expect(cols[4] == "\(cpus)")  // CPUS
-        #expect(cols[5] == "\(memoryMiB) MB")  // MEMORY
-    }
-
-    @Test func quietValueIsNodeID() throws {
-        let snapshot = try makeWorker("dev-worker-2")
-        let row = ClusterNodeResource(clusterName: "dev", snapshot: snapshot)
-        #expect(row.quietValue == "dev-worker-2")
+    @Test func missingContainerHasBlankResources() throws {
+        let infos = [
+            ClusterResource(
+                configuration: try makeConfig("dev"),
+                status: ClusterStatus(
+                    state: .stopped,
+                    nodes: [ClusterNodeState(name: "dev", status: .stopped)]))
+        ]
+        let rows = ClusterHelper.buildNodeRows(infos: infos, snapshots: [])
+        #expect(rows[0].tableRow == ["dev", "dev", "control-plane,worker", "stopped", "", "", "", ""])
     }
 }
 
@@ -154,106 +199,6 @@ struct WorkerContainerNamesTests {
         let other = try makeWorker("dev2-worker-1")
         let names = ClusterHelper.workerContainerNames(from: [w1, other], clusterName: "dev")
         #expect(names == ["dev-worker-1"])
-    }
-}
-
-// MARK: - buildClusterRows ordering and grouping
-
-@Suite("ClusterHelper.buildClusterRows")
-struct BuildClusterRowsTests {
-    @Test func emptyInputProducesNoRows() {
-        #expect(ClusterHelper.buildClusterRows(from: []).isEmpty)
-    }
-
-    @Test func singleControlPlaneAlone() throws {
-        let cp = try makeControlPlane("dev")
-        let rows = ClusterHelper.buildClusterRows(from: [cp])
-        #expect(rows.count == 1)
-        #expect(rows[0].snapshot.configuration.id == "dev")
-    }
-
-    @Test func controlPlaneFollowedByItsWorkers() throws {
-        let cp = try makeControlPlane("dev")
-        let w1 = try makeWorker("dev-worker-1")
-        let w2 = try makeWorker("dev-worker-2")
-        let rows = ClusterHelper.buildClusterRows(from: [w2, w1, cp])
-        #expect(rows.count == 3)
-        #expect(rows[0].snapshot.id == "dev")
-        #expect(rows[1].snapshot.id == "dev-worker-1")
-        #expect(rows[2].snapshot.id == "dev-worker-2")
-    }
-
-    @Test func mixedControlPlaneRoleIsGroupedAsControlPlane() throws {
-        let cp = try makeSnapshot(
-            id: "cluster-dev",
-            role: "\(ClusterHelper.controlPlaneRoleName),worker")
-        let worker = try makeWorker("cluster-dev-worker-1")
-
-        let rows = ClusterHelper.buildClusterRows(from: [worker, cp])
-
-        #expect(rows.count == 2)
-        #expect(rows[0].snapshot.id == "cluster-dev")
-        #expect(rows[0].clusterName == "cluster-dev")
-        #expect(rows[1].snapshot.id == "cluster-dev-worker-1")
-        #expect(rows[1].clusterName == "cluster-dev")
-    }
-
-    @Test func workersGroupedUnderCorrectControlPlane() throws {
-        let cp1 = try makeControlPlane("alpha")
-        let cp2 = try makeControlPlane("beta")
-        let w1 = try makeWorker("alpha-worker-1")
-        let w2 = try makeWorker("beta-worker-1")
-        let rows = ClusterHelper.buildClusterRows(from: [w2, cp2, w1, cp1])
-        #expect(rows[0].snapshot.id == "alpha")
-        #expect(rows[1].snapshot.id == "alpha-worker-1")
-        #expect(rows[1].clusterName == "alpha")
-        #expect(rows[2].snapshot.id == "beta")
-        #expect(rows[3].snapshot.id == "beta-worker-1")
-        #expect(rows[3].clusterName == "beta")
-    }
-
-    @Test func multipleClustersAreSortedByName() throws {
-        let cpZ = try makeControlPlane("zebra")
-        let cpA = try makeControlPlane("apple")
-        let rows = ClusterHelper.buildClusterRows(from: [cpZ, cpA])
-        #expect(rows[0].snapshot.id == "apple")
-        #expect(rows[1].snapshot.id == "zebra")
-    }
-
-    @Test func orphanedWorkerAppearsAtEnd() throws {
-        let cp = try makeControlPlane("dev")
-        let orphan = try makeWorker("old-worker-1")
-        let rows = ClusterHelper.buildClusterRows(from: [orphan, cp])
-        #expect(rows.count == 2)
-        #expect(rows[0].snapshot.id == "dev")
-        #expect(rows[1].snapshot.id == "old-worker-1")
-        #expect(rows[1].clusterName == "old")
-    }
-
-    @Test func orphanedWorkerClusterNameDerivedFromID() throws {
-        let orphan = try makeWorker("mycluster-worker-3")
-        let rows = ClusterHelper.buildClusterRows(from: [orphan])
-        #expect(rows.count == 1)
-        #expect(rows[0].clusterName == "mycluster")
-    }
-
-    @Test func clusterNameWithWorkerInItIsHandledCorrectly() throws {
-        let cp = try makeControlPlane("foo-worker")
-        let w = try makeWorker("foo-worker-worker-1")
-        let rows = ClusterHelper.buildClusterRows(from: [w, cp])
-        #expect(rows.count == 2)
-        #expect(rows[0].snapshot.id == "foo-worker")
-        #expect(rows[1].snapshot.id == "foo-worker-worker-1")
-        #expect(rows[1].clusterName == "foo-worker")
-    }
-
-    @Test func workerNotAssignedToWrongCluster() throws {
-        let cp = try makeControlPlane("dev")
-        let w = try makeWorker("dev2-worker-1")
-        let rows = ClusterHelper.buildClusterRows(from: [w, cp])
-        #expect(rows[0].snapshot.id == "dev")
-        #expect(rows[1].snapshot.id == "dev2-worker-1")
-        #expect(rows[1].clusterName == "dev2")
     }
 }
 

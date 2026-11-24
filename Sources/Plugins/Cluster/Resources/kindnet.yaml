@@ -4,7 +4,7 @@
 # from kubernetes-sigs/kind pkg/build/nodeimage/const_cni.go at tag v0.29.0:
 # https://github.com/kubernetes-sigs/kind/blob/v0.29.0/pkg/build/nodeimage/const_cni.go
 #
-# The POD_SUBNET value must stay in sync with podSubnet in K8sHelper.
+# The POD_SUBNET value must stay in sync with podSubnet in ClusterHelper.
 #
 # kindnetd image pinned by the same kind release: docker.io/kindest/kindnetd:v20260528-9350166c
 ---

@@ -15,19 +15,22 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerAPIClient
+import ContainerClusterServiceClient
+import ContainerPlugin
 import ContainerResource
 import ContainerizationError
 import ContainerizationOS
 import Foundation
 import Logging
+import SystemPackage
 
 // MARK: - ClusterHelper
 
 public struct ClusterHelper {
-    public static let pluginName: String = "cluster"
+    public static let pluginName: String = ResourcePluginValues.cluster
     public static let defaultName: String = "cluster-dev"
-    public static let controlPlaneRoleName: String = "control-plane"
-    public static let workerRoleName: String = "worker"
+    public static let controlPlaneRoleName: String = ClusterConfiguration.controlPlaneRole
+    public static let workerRoleName: String = ClusterConfiguration.workerRole
     private static var defaultCPUs: Int64 {
         Int64(max(ProcessInfo.processInfo.processorCount / 4, 2))
     }
@@ -53,6 +56,38 @@ public struct ClusterHelper {
     static let proxyEnvVars = ["HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy"]
 
     public static let clusterContainerPort: UInt16 = 6443
+
+    /// Host socket served by the cluster-hoststore plugin and relayed into each node.
+    public static let hostStoreSocketPath = ApplicationRoot.path.appending("cluster-hoststore.sock")
+    /// Where the host store socket appears inside a node. Must match cluster-shim.
+    static let nodeHostStoreSocketPath = "/opt/cluster-shim/hoststore.sock"
+    /// Where the cluster-shim binary is installed inside a node.
+    static let nodeShimPath = "/usr/local/bin/cluster-shim"
+    /// The kubelet's CRI image service, served by cluster-shim. Must match cluster-shim.
+    static let nodeImageServiceSocketPath = "/run/cluster-shim/cri-image.sock"
+
+    /// Returns the cluster-shim binary in the cluster plugin's resources.
+    /// Builds made without container services running do not include it.
+    static func clusterShimURL(log: Logger) async throws -> URL {
+        let shim = try await pluginResourceURL(log: log).appendingPathComponent("cluster-shim")
+        guard FileManager.default.fileExists(atPath: shim.path) else {
+            throw ContainerizationError(
+                .notFound,
+                message: "--shared-image-store needs cluster-shim, and this build of container has none at \(shim.path)")
+        }
+        return shim
+    }
+
+    /// Returns the resources directory of the installed cluster plugin.
+    static func pluginResourceURL(log: Logger) async throws -> URL {
+        let pluginLoader = try await Utility.createPluginLoader(log: log)
+        guard let plugin = pluginLoader.findPlugin(forExecutable: CommandLine.executablePath),
+            let resourceURL = plugin.resourceURL
+        else {
+            throw ContainerizationError(.internalError, message: "unable to locate cluster plugin installation or resources")
+        }
+        return resourceURL
+    }
 
     public static var nodeEntrypointScript: String {
         """
@@ -160,13 +195,22 @@ public struct ClusterHelper {
 
     // MARK: - Node enumeration
 
+    /// Container name of the `index`th (1-based) worker of `cluster`. `list` and `delete` find workers by this prefix.
+    static func workerName(cluster: String, index: Int) -> String {
+        ClusterConfiguration.workerName(cluster: cluster, index: index)
+    }
+
+    static func workerNamePrefix(cluster: String) -> String {
+        ClusterConfiguration.workerNamePrefix(cluster: cluster)
+    }
+
     /// Names of worker containers belonging to `clusterName`, sorted (e.g. `<clusterName>-worker-1`).
     /// Only dedicated workers are returned, never the control-plane container. With no workers
     /// (`--workers 0`) the control plane doubles as the worker node and this list is empty; with
     /// one or more workers the control plane is tainted and is not a combined control-plane/worker node.
     static func workerContainerNames(clusterName: String, client: ContainerClient) async throws -> [String] {
         let snapshots = try await client.list(
-            filters: ContainerListFilters(labels: [ResourceLabelKeys.plugin: pluginName])
+            filters: ContainerListFilters().withPlugin(pluginName)
         )
         return workerContainerNames(from: snapshots, clusterName: clusterName)
     }
@@ -176,53 +220,44 @@ public struct ClusterHelper {
         snapshots
             .filter { $0.configuration.labels[ResourceLabelKeys.role] == workerRoleName }
             .map { $0.configuration.id }
-            .filter { $0.hasPrefix("\(clusterName)-worker-") }
+            .filter { $0.hasPrefix(workerNamePrefix(cluster: clusterName)) }
             .sorted()
     }
 
-    // MARK: - List rows
+    // MARK: - List output
 
-    static func buildClusterRows(from snapshots: [ContainerSnapshot]) -> [ClusterNodeResource] {
-        var controlPlanes: [ContainerSnapshot] = []
-        var workers: [ContainerSnapshot] = []
-        for snapshot in snapshots {
-            let roles = snapshot.configuration.labels[ResourceLabelKeys.role, default: ""]
-                .split(separator: ",")
-                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            if roles.contains(controlPlaneRoleName) {
-                controlPlanes.append(snapshot)
-            } else {
-                workers.append(snapshot)
+    /// Builds one row per node of every cluster. CPU and memory come from the node's container, when one exists.
+    static func buildNodeRows(infos: [ClusterResource], snapshots: [ContainerSnapshot]) -> [ClusterNodeRow] {
+        var rows: [ClusterNodeRow] = []
+
+        for cluster in infos {
+            for node in cluster.configuration.nodes {
+                let state =
+                    cluster.status.nodes.first { $0.name == node.name }
+                    ?? ClusterNodeState(name: node.name, status: .stopped)
+                let container = snapshots.first { $0.configuration.id == node.name }
+
+                var cpus = ""
+                var memory = ""
+                if let resources = container?.configuration.resources {
+                    cpus = "\(resources.cpus)"
+                    memory = formatMemory(bytes: resources.memoryInBytes)
+                }
+
+                rows.append(
+                    ClusterNodeRow(
+                        clusterName: cluster.configuration.name, node: node, state: state,
+                        cpus: cpus, memory: memory))
             }
-        }
-
-        var rows: [ClusterNodeResource] = []
-        var assignedWorkerIDs = Set<String>()
-
-        for cp in controlPlanes.sorted(by: { $0.configuration.id < $1.configuration.id }) {
-            let clusterName = cp.configuration.id
-            rows.append(ClusterNodeResource(clusterName: clusterName, snapshot: cp))
-            let cpWorkers =
-                workers
-                .filter { $0.configuration.id.hasPrefix("\(clusterName)-worker-") }
-                .sorted { $0.configuration.id < $1.configuration.id }
-            for w in cpWorkers {
-                rows.append(ClusterNodeResource(clusterName: clusterName, snapshot: w))
-                assignedWorkerIDs.insert(w.configuration.id)
-            }
-        }
-
-        for w
-            in workers
-            .filter({ !assignedWorkerIDs.contains($0.configuration.id) })
-            .sorted(by: { $0.configuration.id < $1.configuration.id })
-        {
-            let clusterName = w.configuration.id
-                .components(separatedBy: "-worker-").dropLast().joined(separator: "-worker-")
-            rows.append(ClusterNodeResource(clusterName: clusterName, snapshot: w))
         }
 
         return rows
+    }
+
+    private static func formatMemory(bytes: UInt64) -> String {
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .memory
+        return formatter.string(fromByteCount: Int64(clamping: bytes))
     }
 
     static func renderTable<T: ListDisplayable>(_ items: [T]) -> String {
@@ -234,42 +269,46 @@ public struct ClusterHelper {
     }
 }
 
-// MARK: - ClusterNodeResource
+extension ClusterResource: ListDisplayable {
+    static var tableHeader: [String] { ["NAME", "NODES", "K8S VERSION", "STATE"] }
 
-struct ClusterNodeResource: ManagedResource, ListDisplayable {
+    var stateText: String {
+        switch status.state {
+        case .running, .stopped:
+            return status.state.rawValue
+        case .degraded:
+            let nodes = status.nodes
+            let up = nodes.filter { $0.status == .running }.count
+            return "\(status.state.rawValue) (\(up) of \(nodes.count) up)"
+        }
+    }
+
+    var tableRow: [String] {
+        [configuration.name, "\(status.nodes.count)", configuration.kubernetesVersion, stateText]
+    }
+
+    var quietValue: String { configuration.name }
+}
+
+struct ClusterNodeRow: ListDisplayable {
     let clusterName: String
-    let snapshot: ContainerSnapshot
-
-    // MARK: ManagedResource
-    var id: String { snapshot.configuration.id }
-    var name: String { snapshot.configuration.id }
-    var creationDate: Date { snapshot.configuration.creationDate }
-    var labels: ResourceLabels { (try? ResourceLabels(snapshot.configuration.labels)) ?? .init() }
-
-    static func nameValid(_ name: String) -> Bool { ManagedContainer.nameValid(name) }
+    let node: NodeConfiguration
+    let state: ClusterNodeState
+    let cpus: String
+    let memory: String
 
     static var tableHeader: [String] {
         ["CLUSTER", "NODE", "ROLE", "STATE", "CPUS", "MEMORY", "ADDR", "PORTS"]
     }
 
     var tableRow: [String] {
-        let role = snapshot.configuration.labels[ResourceLabelKeys.role] ?? ""
-        let addr = snapshot.networks.map { $0.ipv4Address.address.description }.joined(separator: ",")
-        let memoryMB = snapshot.configuration.resources.memoryInBytes / (1024 * 1024)
-        let ports = snapshot.configuration.publishedPorts
-            .map { "\($0.hostPort)->\($0.containerPort)" }
-            .joined(separator: ",")
-        return [
-            clusterName,
-            snapshot.configuration.id,
-            role,
-            snapshot.status.rawValue,
-            "\(snapshot.configuration.resources.cpus)",
-            "\(memoryMB) MB",
-            addr,
-            ports,
+        [
+            clusterName, node.name, node.roles.joined(separator: ","),
+            state.status.rawValue, cpus, memory,
+            (state.addresses ?? []).joined(separator: ","),
+            (state.ports ?? []).joined(separator: ","),
         ]
     }
 
-    var quietValue: String { snapshot.configuration.id }
+    var quietValue: String { node.name }
 }

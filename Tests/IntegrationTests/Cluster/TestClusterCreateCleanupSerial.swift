@@ -72,4 +72,20 @@ struct TestClusterCreateCleanupSerial {
             #expect(throws: (any Error).self) { try f.getContainerStatus(name) }
         }
     }
+
+    /// Invalid `--workers` values must be rejected before any node is created.
+    @Test(arguments: ["count=0,cpus=4", "memory=x", "cpus=0", "1025"])
+    func testInvalidWorkersFailsBeforeCreatingNodes(_ workers: String) async throws {
+        try await ContainerFixture.with { f in
+            let name = "cluster-\(f.testID)"
+            f.addCleanup { _ = try? f.run(["cluster", "delete", "--name", name]) }
+
+            let result = try f.run(["cluster", "create", "--name", name, "--workers", workers])
+            print("[cluster-create-cleanup] cluster create stderr: \(result.error)")
+            #expect(result.status != 0)
+
+            #expect(throws: (any Error).self) { try f.getContainerStatus(name) }
+            #expect(throws: (any Error).self) { try f.getContainerStatus("\(name)-worker-1") }
+        }
+    }
 }

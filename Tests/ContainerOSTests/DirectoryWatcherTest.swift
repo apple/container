@@ -14,11 +14,14 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
-import ContainerOS
 import ContainerizationError
+import Darwin
 import Foundation
+import Synchronization
 import SystemPackage
 import Testing
+
+@testable import ContainerOS
 
 struct DirectoryWatcherTest {
     let testUUID = UUID().uuidString
@@ -149,6 +152,52 @@ struct DirectoryWatcherTest {
         }
     }
 
+    @Test func testOpenFailureIncludesErrno() async throws {
+        try await withTempDir { tempPath in
+            let missingPath = tempPath.appending("missing")
+            let watcher = DirectoryWatcher(directoryPath: missingPath, log: nil)
+            do {
+                try await watcher._startWatching { _ in
+                    Issue.record("handler must not run when open fails")
+                }
+                Issue.record("expected opening a missing directory to fail")
+            } catch let error as ContainerizationError {
+                let description = String(describing: error)
+                #expect(description.contains("cannot open \(missingPath.string)"))
+                #expect(description.contains("error=\(ENOENT)"))
+            }
+        }
+    }
+
+    @Test func testFailingHandlerDoesNotLeakDescriptors() async throws {
+        try await withTempDir { tempPath in
+            let watcher = DirectoryWatcher(directoryPath: tempPath, log: nil)
+            let baseline = try openDescriptorCount(for: tempPath)
+            let handlerCalls = Mutex(0)
+
+            for _ in 0..<32 {
+                do {
+                    try await watcher._startWatching { _ in
+                        handlerCalls.withLock { $0 += 1 }
+                        throw ContainerizationError(.internalError, message: "intentional test failure")
+                    }
+                    Issue.record("expected the failing watch handler to throw")
+                } catch let error as ContainerizationError {
+                    let description = String(describing: error)
+                    #expect(description.contains("failed to run handler for \(tempPath.string)"))
+                    #expect(description.contains("intentional test failure"))
+                }
+            }
+
+            let afterFailures = try openDescriptorCount(for: tempPath)
+            #expect(handlerCalls.withLock { $0 } == 32)
+            #expect(
+                afterFailures == baseline,
+                "failing handlers leaked descriptors: before=\(baseline), after=\(afterFailures)"
+            )
+        }
+    }
+
     @Test func testWatchingRecreatedDirectory() async throws {
         try await withTempDir { tempPath in
             let dirPath = tempPath.appending(UUID().uuidString)
@@ -191,5 +240,25 @@ struct DirectoryWatcherTest {
             #expect(
                 Set(createdPaths.paths.compactMap { $0.lastComponent?.string }) == Set([beforeDelete, afterDelete]))
         }
+    }
+
+    private func openDescriptorCount(for path: FilePath) throws -> Int {
+        var expectedBuffer = [CChar](repeating: 0, count: Int(MAXPATHLEN))
+        guard realpath(path.string, &expectedBuffer) != nil else {
+            throw ContainerizationError(.internalError, message: "failed to resolve test directory: \(path)")
+        }
+        let expectedPath = String(decoding: expectedBuffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
+
+        return try FileManager.default.contentsOfDirectory(atPath: "/dev/fd")
+            .compactMap(Int.init)
+            .filter { descriptor in
+                var buffer = [CChar](repeating: 0, count: Int(MAXPATHLEN))
+                guard fcntl(CInt(descriptor), F_GETPATH, &buffer) == 0 else {
+                    return false
+                }
+                let resolvedPath = String(decoding: buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
+                return resolvedPath == expectedPath
+            }
+            .count
     }
 }

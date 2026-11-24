@@ -9,7 +9,7 @@ The tool consumes and produces [OCI-compatible container images](https://github.
 
 `container` uses the [Containerization](https://github.com/apple/containerization) Swift package for low-level container, image, and process management.
 
-![introductory movie showing some basic commands](./docs/assets/landing-movie.gif)
+<img src="./docs/assets/landing-movie.gif" width="830" alt="Introductory movie: running a web server in a container, then opening an Ubuntu container machine that shares your home directory">
 
 ## Get started
 
@@ -17,7 +17,7 @@ The tool consumes and produces [OCI-compatible container images](https://github.
 
 You need a Mac with Apple silicon to run `container`. To build it, see the [BUILDING](./BUILDING.md) document.
 
-`container` is supported on macOS 26, since it takes advantage of new features and enhancements to virtualization and networking in this release. We do not support older versions of macOS and the `container` maintainers typically will not address issues that cannot be reproduced on macOS 26.
+`container` is designed to run on macOS 26 or later, since it takes advantage of new features and enhancements to virtualization and networking in this release. We do not support older versions of macOS and the `container` maintainers typically will not address issues that cannot be reproduced on macOS 26 or later.
 
 ### Initial install
 
@@ -88,6 +88,7 @@ To retain your user data so that it is available should you reinstall later, run
 
 - Take [a guided tour of `container`](./docs/tutorials/start-here.md) by building, running, and publishing a simple web server image.
 - Learn how to [use various `container` features](./docs/how-to.md).
+- Explore the [container-examples repo](https://github.com/apple/container-examples/) that contains examples that show you how to work with `container`, such as [developing Linux apps in a container machine with Visual Studio Code](https://github.com/apple/container-examples/tree/main/container-machine-vscode) and [running a three-tier app on a container cluster behind a gateway](https://github.com/apple/container-examples/tree/main/container-cluster-gateway).
 - Read a brief description and [technical overview](./docs/technical-overview.md) of `container`.
 - Browse the [full command reference](./docs/command-reference.md).
 - [Build and run](./BUILDING.md) `container` on your own development system.

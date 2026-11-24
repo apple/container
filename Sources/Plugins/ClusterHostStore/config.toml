@@ -1,0 +1,12 @@
+abstract = "Serves host images to container cluster nodes (EXPERIMENTAL)"
+author = "Apple"
+version = 0.1
+
+[servicesConfig]
+loadAtBoot = true
+runAtLoad = true
+defaultArguments = []
+
+[[servicesConfig.services]]
+type = "core"
+description = "Serve host blobs and image descriptors to cluster nodes over a Unix socket."

@@ -31,9 +31,9 @@ memory = "1gb"
 domain = "test"
 
 [kernel]
-binaryPath = "opt/kata/share/kata-containers/vmlinux-6.18.35-197-debug"
-url = "https://github.com/kata-containers/kata-containers/releases/download/3.32.0/kata-static-3.32.0-arm64.tar.zst"
-digest = "sha256:8736c054d9223974735394f822000823baef509e1c33405ec798240fa9b6e4b5"
+binaryPath = "opt/kata/share/kata-containers/vmlinux-6.18.56-208-debug"
+url = "https://github.com/kata-containers/kata-containers/releases/download/4.3.1/kata-static-4.3.1-arm64.tar.zst"
+digest = "sha256:2c5bf7cde334ad5307d482f45cceda496f91c9b6b96f5278c47f4f4eac1bbae6"
 
 [network]
 
@@ -91,6 +91,19 @@ Defaults applied when `container run` / `container create` is invoked without `-
 | `cpus`   | `Int`      | `4`     | Default CPU count per container.                                           |
 | `memory` | [MemorySize](#memorysize-format) | `"1g"`  | Default RAM per container. |
 
+### `[container.dns]`
+
+Default DNS settings applied when `container run` / `container build` / `container builder start` is invoked without `--dns`, `--dns-search`, `--dns-option`, or `--dns-domain`. CLI flags override these values.
+
+| Key            | Type        | Default | Description                                                          |
+|----------------|-------------|---------|----------------------------------------------------------------------|
+| `domain`       | `String?`   | unset   | DNS domain appended to container hostnames.                          |
+| `nameservers`  | `[String]?` | unset   | DNS nameservers configured in the container's resolver.              |
+| `searchDomains`| `[String]?` | unset   | DNS search domains configured in the container's resolver.           |
+| `options`      | `[String]?` | unset   | DNS options (e.g. `"ndots:2"`) configured in the container's resolver. |
+
+See [Networking: Set default DNS settings for containers](./networking.md#set-default-dns-settings-for-containers) for the walkthrough.
+
 ## `[dns]`
 
 | Key      | Type      | Default | Description                                                                |
@@ -103,9 +116,9 @@ Guest kernel used when launching container VMs. Defaults change per release as k
 
 | Key          | Type      | Default                                                                                                | Description                                                                  |
 |--------------|-----------|--------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------|
-| `binaryPath` | `String`  | `"opt/kata/share/kata-containers/vmlinux-6.18.35-197-debug"`                                           | Path **inside** the downloaded kernel archive that points to the kernel binary. |
-| `url`        | `URL`     | `"https://github.com/kata-containers/kata-containers/releases/download/3.32.0/kata-static-3.32.0-arm64.tar.zst"` | Archive to download when no kernel is installed. Encoded and decoded as a plain string in TOML. |
-| `digest`     | `String`  | `"sha256:8736c054d9223974735394f822000823baef509e1c33405ec798240fa9b6e4b5"`                             | Expected digest for the archive, for example `sha256:<hex>`. Required when configuring a custom `url`. |
+| `binaryPath` | `String`  | `"opt/kata/share/kata-containers/vmlinux-6.18.56-208-debug"`                                           | Path **inside** the downloaded kernel archive that points to the kernel binary. |
+| `url`        | `URL`     | `"https://github.com/kata-containers/kata-containers/releases/download/4.3.1/kata-static-4.3.1-arm64.tar.zst"` | Archive to download when no kernel is installed. Encoded and decoded as a plain string in TOML. |
+| `digest`     | `String`  | `"sha256:2c5bf7cde334ad5307d482f45cceda496f91c9b6b96f5278c47f4f4eac1bbae6"`                             | Expected digest for the archive, for example `sha256:<hex>`. Required when configuring a custom `url`. |
 
 ## `[network]`
 

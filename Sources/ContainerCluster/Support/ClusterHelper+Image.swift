@@ -16,6 +16,7 @@
 
 import ContainerAPIClient
 import ContainerPersistence
+import ContainerResource
 import ContainerizationError
 import ContainerizationOCI
 import Logging

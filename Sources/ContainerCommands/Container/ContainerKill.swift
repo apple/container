@@ -54,15 +54,19 @@ extension Application {
         public mutating func run() async throws {
             let client = ContainerClient()
 
+            var errors: [any Error] = []
             let containers: [String]
             if self.all {
-                let filters = ContainerListFilters(status: .running).withoutMachines()
+                let filters = ContainerListFilters(status: .running).withoutPlugins([ResourcePluginValues.machine, ResourcePluginValues.cluster])
                 containers = try await client.list(filters: filters).map { $0.id }
             } else {
-                containers = containerIds
+                // Cluster nodes are managed by `container cluster`, so naming one reports it as not found.
+                let filters = ContainerListFilters().withoutPlugins([ResourcePluginValues.cluster])
+                let (found, notFoundErrors) = try await client.findContainers(named: containerIds, filters: filters)
+                containers = found.map { $0.id }
+                errors += notFoundErrors
             }
 
-            var errors: [any Error] = []
             for container in containers {
                 do {
                     try await client.kill(id: container, signal: signal)

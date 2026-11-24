@@ -18,6 +18,23 @@ import ContainerTestSupport
 import Foundation
 
 extension ContainerFixture {
+    func dumpEnvDiagnostics(clusterName: String) {
+        print("=== ENV DUMP [\(clusterName)] ===")
+        if let result = try? self.run(["system", "status"]) {
+            print("[system status]\n\(result.output)")
+        }
+        if let result = try? self.run(["list"]) {
+            print("[container list]\n\(result.output)")
+        }
+        if let result = try? self.run(["cluster", "list"]) {
+            print("[cluster list]\n\(result.output)")
+        }
+        if let result = try? self.run(["inspect", clusterName]) {
+            print("[inspect \(clusterName)] stdout: \(result.output) stderr: \(result.error)")
+        }
+        print("=== END ENV DUMP ===")
+    }
+
     func dumpNodeDiagnostics(node: String) {
         print("=== NODE DIAGNOSTICS [\(node)] ===")
         let cmds: [(label: String, args: [String])] = [

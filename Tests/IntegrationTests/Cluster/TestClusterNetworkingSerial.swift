@@ -22,19 +22,28 @@ import Testing
 struct TestClusterNetworkingSerial {
 
     private static let testImage = WarmupImage.alpine320
+    /// A name only the host image store has, so pods can start only through cluster-shim.
+    private static let hostOnlyImage = "cluster-test/alpine:host-only"
 
-    private func dumpEnv(_ f: ContainerFixture, clusterName: String) {
-        print("=== ENV DUMP [\(clusterName)] ===")
-        if let result = try? f.run(["system", "status"]) {
-            print("[system status]\n\(result.output)")
+    /// Shares the local image store with the cluster when the build includes cluster-shim.
+    private static var sharedImageStoreArgs: [String] {
+        guard ContainerFixture.clusterShimInstalled else {
+            print("[cluster-net] no cluster-shim in this build; testing without the shared image store")
+            return []
         }
-        if let result = try? f.run(["list"]) {
-            print("[container list]\n\(result.output)")
+        return ["--shared-image-store"]
+    }
+
+    /// Makes the test image available to pods and returns the reference and pull
+    /// policy to use. With cluster-shim, pods use a name only the host has.
+    private static func preparePodImage(_ f: ContainerFixture) throws -> (reference: String, pullPolicy: String) {
+        print("[cluster-net] pulling \(testImage.rawValue)")
+        try f.restoreWarmupImage(testImage)
+        guard ContainerFixture.clusterShimInstalled else {
+            return (testImage.rawValue, "IfNotPresent")
         }
-        if let result = try? f.run(["inspect", clusterName]) {
-            print("[inspect \(clusterName)] stdout: \(result.output) stderr: \(result.error)")
-        }
-        print("=== END ENV DUMP ===")
+        try f.run(["image", "tag", testImage.rawValue, hostOnlyImage]).check()
+        return (hostOnlyImage, "Never")
     }
 
     private func waitForPod(_ f: ContainerFixture, node: String, podName: String, timeoutSeconds: Int) throws {
@@ -58,34 +67,16 @@ struct TestClusterNetworkingSerial {
     @Test func testPodsScheduleAndRun() async throws {
         try await ContainerFixture.with { f in
             let name = "cluster-\(f.testID)"
-            f.addCleanup { _ = try? f.run(["cluster", "delete", "--name", name]) }
+            try f.createCluster(name: name, args: Self.sharedImageStoreArgs)
 
-            try f.restoreWarmupImage(.kindestNodeV1_35_5)
-            print("[cluster-net] cluster create --name \(name)")
-            let result = try f.run(["cluster", "create", "--name", name])
-            print("[cluster-net] cluster create exit=\(result.status)")
-            if result.status != 0 {
-                print("[cluster-net] cluster create stderr: \(result.error)")
-                dumpEnv(f, clusterName: name)
-                f.dumpNodeDiagnostics(node: name)
-            }
-            try result.check()
-
-            print("[cluster-net] pulling \(Self.testImage.rawValue)")
-            try f.restoreWarmupImage(Self.testImage)
-
-            print("[cluster-net] cluster load-image --name \(name) \(Self.testImage.rawValue)")
-            let loadResult = try f.run(["cluster", "load-image", "--name", name, Self.testImage.rawValue])
-            print("[cluster-net] cluster load-image exit=\(loadResult.status)")
-            if loadResult.status != 0 { print("[cluster-net] cluster load-image stderr: \(loadResult.error)") }
-            #expect(loadResult.status == 0)
+            let podImage = try Self.preparePodImage(f)
 
             let (_, createStatus) = try f.kubectl(
                 node: name,
                 args: [
                     "run", "test-pod",
-                    "--image=\(Self.testImage.rawValue)",
-                    "--image-pull-policy=Never",
+                    "--image=\(podImage.reference)",
+                    "--image-pull-policy=\(podImage.pullPolicy)",
                     "--restart=Never",
                     "--", "sleep", "300",
                 ])
@@ -107,34 +98,17 @@ struct TestClusterNetworkingSerial {
     @Test func testPodToServiceCommunication() async throws {
         try await ContainerFixture.with { f in
             let name = "cluster-\(f.testID)"
-            f.addCleanup { _ = try? f.run(["cluster", "delete", "--name", name]) }
+            try f.createCluster(name: name, args: Self.sharedImageStoreArgs)
 
-            try f.restoreWarmupImage(.kindestNodeV1_35_5)
-            print("[cluster-net] cluster create --name \(name)")
-            let result = try f.run(["cluster", "create", "--name", name])
-            print("[cluster-net] cluster create exit=\(result.status)")
-            if result.status != 0 {
-                print("[cluster-net] cluster create stderr: \(result.error)")
-                dumpEnv(f, clusterName: name)
-            }
-            try result.check()
-
-            print("[cluster-net] pulling \(Self.testImage.rawValue)")
-            try f.restoreWarmupImage(Self.testImage)
-
-            print("[cluster-net] cluster load-image --name \(name) \(Self.testImage.rawValue)")
-            let loadResult = try f.run(["cluster", "load-image", "--name", name, Self.testImage.rawValue])
-            print("[cluster-net] cluster load-image exit=\(loadResult.status)")
-            if loadResult.status != 0 { print("[cluster-net] cluster load-image stderr: \(loadResult.error)") }
-            #expect(loadResult.status == 0)
+            let podImage = try Self.preparePodImage(f)
 
             // Server: alpine busybox httpd serving a static response.
             let (_, serverStatus) = try f.kubectl(
                 node: name,
                 args: [
                     "run", "server",
-                    "--image=\(Self.testImage.rawValue)",
-                    "--image-pull-policy=Never",
+                    "--image=\(podImage.reference)",
+                    "--image-pull-policy=\(podImage.pullPolicy)",
                     "--restart=Never",
                     "--port=8080",
                     "--", "sh", "-c",
@@ -156,8 +130,8 @@ struct TestClusterNetworkingSerial {
                 node: name,
                 args: [
                     "run", "client",
-                    "--image=\(Self.testImage.rawValue)",
-                    "--image-pull-policy=Never",
+                    "--image=\(podImage.reference)",
+                    "--image-pull-policy=\(podImage.pullPolicy)",
                     "--restart=Never",
                     "--", "sleep", "300",
                 ])

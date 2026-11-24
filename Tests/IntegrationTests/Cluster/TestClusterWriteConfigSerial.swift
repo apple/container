@@ -53,20 +53,6 @@ struct TestClusterWriteConfigSerial {
         print("[cluster-cfg] kubeconfig: clusters=\(clusters) contexts=\(contexts) current-context=\(current)")
     }
 
-    private func dumpEnv(_ f: ContainerFixture, clusterName: String) {
-        print("=== ENV DUMP [\(clusterName)] ===")
-        if let result = try? f.run(["system", "status"]) {
-            print("[system status]\n\(result.output)")
-        }
-        if let result = try? f.run(["list"]) {
-            print("[container list]\n\(result.output)")
-        }
-        if let result = try? f.run(["inspect", clusterName]) {
-            print("[inspect \(clusterName)] stdout: \(result.output) stderr: \(result.error)")
-        }
-        print("=== END ENV DUMP ===")
-    }
-
     private func kubeconfigContains(name: String) -> Bool {
         guard let kubeconfig = try? loadKubeconfig() else { return false }
         let clusters = (kubeconfig["clusters"] as? [[String: Any]]) ?? []
@@ -76,25 +62,14 @@ struct TestClusterWriteConfigSerial {
     @Test func testWriteConfigMergesContext() async throws {
         try await ContainerFixture.with { f in
             let name = "cluster-\(f.testID)"
-            f.addCleanup { _ = try? f.run(["cluster", "delete", "--name", name]) }
-
-            try f.restoreWarmupImage(.kindestNodeV1_35_5)
-            print("[cluster-cfg] cluster create --name \(name)")
-            let result = try f.run(["cluster", "create", "--name", name])
-            print("[cluster-cfg] cluster create exit=\(result.status)")
-            if result.status != 0 {
-                print("[cluster-cfg] cluster create stderr: \(result.error)")
-                dumpEnv(f, clusterName: name)
-                f.dumpNodeDiagnostics(node: name)
-            }
-            try result.check()
+            try f.createCluster(name: name)
 
             print("[cluster-cfg] cluster write-config --name \(name)")
             let writeResult = try f.run(["cluster", "write-config", "--name", name])
             print("[cluster-cfg] cluster write-config exit=\(writeResult.status)")
             if writeResult.status != 0 {
                 print("[cluster-cfg] cluster write-config stderr: \(writeResult.error)")
-                dumpEnv(f, clusterName: name)
+                f.dumpEnvDiagnostics(clusterName: name)
             }
             #expect(writeResult.status == 0)
 
@@ -114,18 +89,7 @@ struct TestClusterWriteConfigSerial {
     @Test func testWriteConfigIsIdempotent() async throws {
         try await ContainerFixture.with { f in
             let name = "cluster-\(f.testID)"
-            f.addCleanup { _ = try? f.run(["cluster", "delete", "--name", name]) }
-
-            try f.restoreWarmupImage(.kindestNodeV1_35_5)
-            print("[cluster-cfg] cluster create --name \(name)")
-            let result = try f.run(["cluster", "create", "--name", name])
-            print("[cluster-cfg] cluster create exit=\(result.status)")
-            if result.status != 0 {
-                print("[cluster-cfg] cluster create stderr: \(result.error)")
-                dumpEnv(f, clusterName: name)
-                f.dumpNodeDiagnostics(node: name)
-            }
-            try result.check()
+            try f.createCluster(name: name)
 
             print("[cluster-cfg] cluster write-config --name \(name) (first)")
             _ = try f.run(["cluster", "write-config", "--name", name])
@@ -144,18 +108,7 @@ struct TestClusterWriteConfigSerial {
     @Test func testDeleteClusterCleansUpKubeconfig() async throws {
         try await ContainerFixture.with { f in
             let name = "cluster-\(f.testID)"
-            f.addCleanup { _ = try? f.run(["cluster", "delete", "--name", name]) }
-
-            try f.restoreWarmupImage(.kindestNodeV1_35_5)
-            print("[cluster-cfg] cluster create --name \(name)")
-            let result = try f.run(["cluster", "create", "--name", name])
-            print("[cluster-cfg] cluster create exit=\(result.status)")
-            if result.status != 0 {
-                print("[cluster-cfg] cluster create stderr: \(result.error)")
-                dumpEnv(f, clusterName: name)
-                f.dumpNodeDiagnostics(node: name)
-            }
-            try result.check()
+            try f.createCluster(name: name)
 
             print("[cluster-cfg] cluster write-config --name \(name)")
             _ = try f.run(["cluster", "write-config", "--name", name])
