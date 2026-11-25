@@ -357,6 +357,10 @@ struct TestCLIRunCommand {
             let output = try f.doExec(c, cmd: ["cat", "/tmp/testvolume/data.txt"])
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             #expect(output == testData)
+
+            _ = try f.doExec(c, cmd: ["sh", "-c", "echo y > /tmp/testvolume/data.txt"])
+            let hostOutput = try String(contentsOfFile: volumeFile.string, encoding: .utf8)
+            #expect(hostOutput == "y\n")
         }
     }
 
