@@ -147,6 +147,7 @@ private final class UDPProxyFrontend: ChannelInboundHandler {
                 let proxyAddress = try SocketAddress(ipAddress: "0.0.0.0", port: 0)
                 let loopBoundProxy = NIOLoopBound(proxy, eventLoop: context.eventLoop)
                 let proxyToServerFuture = DatagramBootstrap(group: context.eventLoop)
+                    .channelOption(.recvAllocator, value: FixedSizeRecvByteBufferAllocator(capacity: 65_535))
                     .channelInitializer { [log] channel in
                         log?.trace("frontend - initializing backend")
                         return channel.eventLoop.makeCompletedFuture {
@@ -194,6 +195,7 @@ public struct UDPForwarder: SocketForwarder {
     public func run() throws -> EventLoopFuture<SocketForwarderResult> {
         self.log?.trace("frontend - creating channel")
         let bootstrap = DatagramBootstrap(group: self.eventLoopGroup)
+            .channelOption(.recvAllocator, value: FixedSizeRecvByteBufferAllocator(capacity: 65_535))
             .channelInitializer { serverChannel in
                 self.log?.trace("frontend - initializing channel")
                 let proxyToServerHandler = UDPProxyFrontend(

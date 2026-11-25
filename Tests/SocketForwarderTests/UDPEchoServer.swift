@@ -28,6 +28,7 @@ struct UDPEchoServer: Sendable {
 
     public func run() throws -> EventLoopFuture<any Channel> {
         let bootstrap = DatagramBootstrap(group: self.eventLoopGroup)
+            .channelOption(.recvAllocator, value: FixedSizeRecvByteBufferAllocator(capacity: 65_535))
             .channelInitializer { channel in
                 channel.eventLoop.makeCompletedFuture {
                     try channel.pipeline.syncOperations.addHandler(
