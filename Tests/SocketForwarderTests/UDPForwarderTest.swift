@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import Foundation
 import Logging
 import NIO
 import Testing
@@ -23,9 +24,9 @@ import Testing
 struct UDPForwarderTest {
     let eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
 
-    @Test
-    func testUDPForwarder() async throws {
-        let requestCount = 100
+    @Test(.timeLimit(.minutes(1)), arguments: [32, 2_048, 2_049, 8_192])
+    func testUDPForwarder(payloadSize: Int) async throws {
+        let requestCount = payloadSize == 32 ? 100 : 1
         var responses: [String] = []
 
         // bring up server on ephemeral port and get address
@@ -51,6 +52,7 @@ struct UDPForwarderTest {
                 group.addTask {
                     var response: String = "\(i): error"
                     let channel = try await DatagramBootstrap(group: self.eventLoopGroup)
+                        .channelOption(.recvAllocator, value: FixedSizeRecvByteBufferAllocator(capacity: 65_535))
                         .connect(to: actualProxyAddress) { channel in
                             channel.eventLoop.makeCompletedFuture {
                                 try NIOAsyncChannel(
@@ -65,7 +67,8 @@ struct UDPForwarderTest {
 
                     try await channel.executeThenClose { inbound, outbound in
                         let remoteAddress = try #require(channel.channel.remoteAddress)
-                        let data = ByteBufferAllocator().buffer(string: "\(i): success-udp")
+                        let payload = "\(i): success-udp".padding(toLength: payloadSize, withPad: "x", startingAt: 0)
+                        let data = ByteBufferAllocator().buffer(string: payload)
                         try await outbound.write(AddressedEnvelope<ByteBuffer>(remoteAddress: remoteAddress, data: data))
                         for try await inboundData in inbound {
                             response = String(buffer: inboundData.data)
@@ -104,7 +107,8 @@ struct UDPForwarderTest {
         }
         #expect(sortedResponses.count == requestCount)
         for i in 0..<requestCount {
-            #expect(sortedResponses[i] == "\(i): success-udp")
+            let expected = "\(i): success-udp".padding(toLength: payloadSize, withPad: "x", startingAt: 0)
+            #expect(sortedResponses[i] == expected)
         }
     }
 }
