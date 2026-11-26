@@ -23,6 +23,26 @@ import Testing
 
 struct PluginLoaderTest {
     @Test
+    func testPluginDirectoriesWithoutUserPlugins() throws {
+        let installRoot = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: installRoot) }
+        try FileManager.default.createDirectory(at: installRoot, withIntermediateDirectories: true)
+
+        let installedPlugins = installRoot.appending(path: "libexec").appending(path: "container").appending(path: "plugins")
+        #expect(PluginLoader.pluginDirectories(installRoot: installRoot) == [installedPlugins])
+    }
+
+    @Test
+    func testPluginDirectoriesPutUserPluginsFirst() throws {
+        let installRoot = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: installRoot) }
+        try FileManager.default.createDirectory(at: PluginLoader.userPluginsDir(installRoot: installRoot), withIntermediateDirectories: true)
+
+        let installedPlugins = installRoot.appending(path: "libexec").appending(path: "container").appending(path: "plugins")
+        #expect(PluginLoader.pluginDirectories(installRoot: installRoot) == [PluginLoader.userPluginsDir(installRoot: installRoot), installedPlugins])
+    }
+
+    @Test
     func testFindAll() async throws {
         let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: tempURL) }

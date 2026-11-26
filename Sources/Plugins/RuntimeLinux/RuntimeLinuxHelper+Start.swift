@@ -53,22 +53,11 @@ extension RuntimeLinuxHelper {
         private func initializePluginLoader(log: Logger) throws -> PluginLoader {
             let installRootURL = URL(fileURLWithPath: InstallRoot.path.string)
             let appRootURL = URL(fileURLWithPath: ApplicationRoot.path.string)
-            let installPluginsURL =
-                installRootURL
-                .appendingPathComponent("libexec")
-                .appendingPathComponent("container")
-                .appendingPathComponent("plugins")
-            var pluginDirectories = [installPluginsURL]
-            let userPluginsURL = PluginLoader.userPluginsDir(installRoot: installRootURL)
-            var isDirectory: ObjCBool = false
-            if FileManager.default.fileExists(atPath: userPluginsURL.path, isDirectory: &isDirectory), isDirectory.boolValue {
-                pluginDirectories.insert(userPluginsURL, at: 0)
-            }
             return try PluginLoader(
                 appRoot: appRootURL,
                 installRoot: installRootURL,
                 logRoot: logRoot,
-                pluginDirectories: pluginDirectories,
+                pluginDirectories: PluginLoader.pluginDirectories(installRoot: installRootURL),
                 pluginFactories: [DefaultPluginFactory(logger: log), AppBundlePluginFactory(logger: log)],
                 log: log
             )
