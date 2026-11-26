@@ -32,10 +32,12 @@ extension RuntimeService {
                     case .isolated:
                         strategies[key] = IsolatedInterfaceStrategy()
                     case .nonisolated:
-                        // The strategy type is gated to macOS 26, and a plugin offers this
-                        // variant only where it is available.
+                        // The strategy type is gated to macOS 26. A manifest declares its
+                        // variants on every system, and a plugin starts its networks with this
+                        // one only where the strategy is available, so an earlier system skips
+                        // it, and an attachment naming it fails where the table is read.
                         guard #available(macOS 26, *) else {
-                            log.error(
+                            log.debug(
                                 "interface strategy unavailable on this OS",
                                 metadata: ["plugin": "\(plugin.name)", "variant": "\(variant)", "strategy": "\(type.rawValue)"])
                             continue
