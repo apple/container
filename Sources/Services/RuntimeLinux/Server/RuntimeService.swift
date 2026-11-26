@@ -17,6 +17,7 @@
 import ContainerNetworkClient
 import ContainerOS
 import ContainerPersistence
+import ContainerPlugin
 import ContainerResource
 import ContainerRuntimeClient
 import ContainerXPC
@@ -96,13 +97,16 @@ public actor RuntimeService {
 
     public init(
         root: URL,
-        interfaceStrategies: [NetworkInterfaceKey: InterfaceStrategy],
+        pluginLoader: PluginLoader,
         eventLoopGroup: any EventLoopGroup,
         connection: xpc_connection_t,
         log: Logger
     ) {
         self.root = root
-        self.interfaceStrategies = interfaceStrategies
+        self.interfaceStrategies = Self.interfaceStrategies(
+            plugins: pluginLoader.findPlugins().filter { $0.hasType(.network) },
+            log: log
+        )
         self.log = log
         self.monitor = ExitMonitor(log: log)
         self.eventLoopGroup = eventLoopGroup

@@ -65,6 +65,22 @@ public struct PluginLoader: Sendable {
             .appending(path: "container-plugins")
             .resolvingSymlinksInPath()
     }
+
+    /// The directories plugins load from: the user plugins directory, when it
+    /// exists, ahead of the plugins installed under `installRoot`.
+    static public func pluginDirectories(installRoot: URL) -> [URL] {
+        let userPluginsURL = userPluginsDir(installRoot: installRoot)
+        var isDirectory: ObjCBool = false
+        let userPlugins =
+            FileManager.default.fileExists(atPath: userPluginsURL.path, isDirectory: &isDirectory) && isDirectory.boolValue
+            ? [userPluginsURL] : []
+        let installedPlugins =
+            installRoot
+            .appending(path: "libexec")
+            .appending(path: "container")
+            .appending(path: "plugins")
+        return userPlugins + [installedPlugins]
+    }
 }
 
 extension PluginLoader {

@@ -50,6 +50,19 @@ extension RuntimeLinuxHelper {
             "\(Self.label).\(uuid)"
         }
 
+        private func initializePluginLoader(log: Logger) throws -> PluginLoader {
+            let installRootURL = URL(fileURLWithPath: InstallRoot.path.string)
+            let appRootURL = URL(fileURLWithPath: ApplicationRoot.path.string)
+            return try PluginLoader(
+                appRoot: appRootURL,
+                installRoot: installRootURL,
+                logRoot: logRoot,
+                pluginDirectories: PluginLoader.pluginDirectories(installRoot: installRootURL),
+                pluginFactories: [DefaultPluginFactory(logger: log), AppBundlePluginFactory(logger: log)],
+                log: log
+            )
+        }
+
         func run() async throws {
             let commandName = RuntimeLinuxHelper._commandName
             let logPath = logRoot.map { $0.appending("\(commandName)-\(uuid).log") }
@@ -64,20 +77,14 @@ extension RuntimeLinuxHelper {
                 try adjustLimits()
                 signal(SIGPIPE, SIG_IGN)
 
-                // FIXME: The network plugins that the runtime supports should be configurable elsewhere
-                var interfaceStrategies: [NetworkInterfaceKey: InterfaceStrategy] = [
-                    NetworkInterfaceKey(plugin: "container-network-vmnet", variant: "allocationOnly"): IsolatedInterfaceStrategy()
-                ]
-                if #available(macOS 26, *) {
-                    interfaceStrategies[NetworkInterfaceKey(plugin: "container-network-vmnet", variant: "reserved")] = NonisolatedInterfaceStrategy(log: log)
-                }
+                let pluginLoader = try initializePluginLoader(log: log)
 
                 log.info("configuring XPC server")
                 nonisolated(unsafe) let anonymousConnection = xpc_connection_create(nil, nil)
 
                 let server = RuntimeService(
                     root: .init(fileURLWithPath: root),
-                    interfaceStrategies: interfaceStrategies,
+                    pluginLoader: pluginLoader,
                     eventLoopGroup: eventLoopGroup,
                     connection: anonymousConnection,
                     log: log

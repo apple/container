@@ -185,22 +185,7 @@ extension APIServer {
             let installRootURL = URL(fileURLWithPath: installRoot.string)
             let pluginsURL = PluginLoader.userPluginsDir(installRoot: installRootURL)
             log.info("detecting user plugins directory", metadata: ["path": "\(pluginsURL.path(percentEncoded: false))"])
-            var directoryExists: ObjCBool = false
-            _ = FileManager.default.fileExists(atPath: pluginsURL.path, isDirectory: &directoryExists)
-            let userPluginsURL = directoryExists.boolValue ? pluginsURL : nil
-
-            // plugins built into the application installed as a Unix-like application
-            let installRootPluginsPath =
-                installRoot
-                .appending(FilePath.Component("libexec"))
-                .appending(FilePath.Component("container"))
-                .appending(FilePath.Component("plugins"))
-            let installRootPluginsURL = URL(fileURLWithPath: installRootPluginsPath.string)
-
-            let pluginDirectories = [
-                userPluginsURL,
-                installRootPluginsURL,
-            ].compactMap { $0 }
+            let pluginDirectories = PluginLoader.pluginDirectories(installRoot: installRootURL)
 
             let pluginFactories: [PluginFactory] = [
                 DefaultPluginFactory(logger: log),
