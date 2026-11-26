@@ -74,6 +74,9 @@ extension Application {
         @Option(name: .long, help: "Path to a custom kernel binary (e.g. vmlinux).")
         public var kernel: String?
 
+        @Option(name: .long, help: "Init image reference. Default: the system init image")
+        public var initImage: String?
+
         @Argument(help: "Container image reference (e.g., alpine:3.22)")
         var image: String
 
@@ -105,6 +108,7 @@ extension Application {
                     "home-mount": homeMount,
                     "virtualization": virtualization ? "true" : nil,
                     "kernel": resolvedKernel?.string,
+                    "init-image": initImage,
                 ].compactMapValues { $0 }
             )
 

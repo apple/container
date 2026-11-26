@@ -385,7 +385,8 @@ public actor MachinesService {
                 try await self.client.create(
                     configuration: config,
                     options: ContainerCreateOptions(autoRemove: true, rootFsOverride: rootfs),
-                    kernel: kernel
+                    kernel: kernel,
+                    initImage: bootConfig.initImage
                 )
 
                 let process = try await self.client.bootstrap(
