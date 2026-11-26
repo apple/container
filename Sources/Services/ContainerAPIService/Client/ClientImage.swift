@@ -56,15 +56,24 @@ public struct ClientImage: Sendable {
         guard let desc else {
             throw ContainerizationError(.unsupported, message: "platform \(platform.description)")
         }
-        guard let content: Content = try await contentStore.get(digest: desc.digest) else {
-            throw ContainerizationError(.notFound, message: "content with digest \(desc.digest)")
-        }
-        return try content.decode()
+        return try await self.manifest(at: desc)
     }
 
     /// Returns the OCI config for the specified platform.
     public func config(for platform: Platform) async throws -> ContainerizationOCI.Image {
-        let manifest = try await self.manifest(for: platform)
+        try await self.config(of: try await self.manifest(for: platform))
+    }
+
+    /// Returns the manifest that a descriptor from this image's index points to.
+    func manifest(at descriptor: Descriptor) async throws -> Manifest {
+        guard let content: Content = try await contentStore.get(digest: descriptor.digest) else {
+            throw ContainerizationError(.notFound, message: "content with digest \(descriptor.digest)")
+        }
+        return try content.decode()
+    }
+
+    /// Returns the OCI config that a manifest points to.
+    func config(of manifest: Manifest) async throws -> ContainerizationOCI.Image {
         let desc = manifest.config
         guard let content: Content = try await contentStore.get(digest: desc.digest) else {
             throw ContainerizationError(.notFound, message: "content with digest \(desc.digest)")
