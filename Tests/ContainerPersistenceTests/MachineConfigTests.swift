@@ -56,6 +56,14 @@ struct MachineConfigTests {
         #expect(cleared.kernelPath == nil)
     }
 
+    @Test func withSetsClearsAndValidatesInitImage() throws {
+        let set = try MachineConfig.default.with(["init-image": "ghcr.io/example/vminit:1.0"])
+        #expect(set.initImage == "ghcr.io/example/vminit:1.0")
+        #expect(try set.with(["cpus": "8"]).initImage == set.initImage)
+        #expect(try set.with(["init-image": ""]).initImage == nil)
+        #expect(throws: ContainerizationError.self) { try set.with(["init-image": "not a valid ref!"]) }
+    }
+
     @Test func withPreservesUnchangedFields() throws {
         let updated = try MachineConfig.default.with([
             "virtualization": "true",

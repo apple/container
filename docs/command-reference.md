@@ -1122,6 +1122,7 @@ container machine create [<options>] <image>
 *   `--home-mount <home-mount>`: User's home directory mount option (ro, rw, none). Default: rw
 *   `--virtualization`: Enable nested virtualization. Requires Apple Silicon M3+ and macOS 15+ and kernel with CONFIG_KVM=y.
 *   `--kernel <path>`: Path to a custom kernel binary (e.g. `vmlinux`).
+*   `--init-image <reference>`: Init image reference. Default: the system init image.
 
 **Management Options**
 
@@ -1263,6 +1264,7 @@ container machine set [--name <name>] [--debug] <setting> ...
 *   `home-mount=<string>`: User home directory mount option (ro, rw, none). Default: rw
 *   `virtualization=<bool>`: Enable nested virtualization (`true`|`false`). Requires Apple Silicon M3+ and macOS 15+ and kernel with CONFIG_KVM=y.
 *   `kernel=<path>`: Path to a custom kernel binary. An empty value (`kernel=`) clears the override and falls back to the system default.
+*   `init-image=<reference>`: Init image reference. An empty value (`init-image=`) clears the override and falls back to the system default.
 
 **Options**
 

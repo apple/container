@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerizationError
+import ContainerizationOCI
 import Foundation
 import SystemPackage
 
@@ -25,7 +26,7 @@ import SystemPackage
 /// "use the container runtime default."
 public struct MachineConfig: Codable, Sendable {
     public static let `default`: MachineConfig = try! .init(
-        cpus: nil, memory: nil, homeMount: nil, virtualization: nil, kernelPath: nil)
+        cpus: nil, memory: nil, homeMount: nil, virtualization: nil, kernelPath: nil, initImage: nil)
 
     public static var defaultCPUs: Int {
         max(ProcessInfo.processInfo.processorCount / 2, 4)
@@ -56,6 +57,8 @@ public struct MachineConfig: Codable, Sendable {
     public let virtualization: Bool
     /// Optional path to a custom kernel binary. nil falls back to the system default.
     public let kernelPath: FilePath?
+    /// Optional init image reference. nil falls back to the system default.
+    public let initImage: String?
 
     private enum CodingKeys: String, CodingKey {
         case cpus
@@ -63,6 +66,7 @@ public struct MachineConfig: Codable, Sendable {
         case homeMount
         case virtualization
         case kernelPath
+        case initImage
     }
 
     /// Settable keys and their descriptions, for CLI help text generation.
@@ -72,6 +76,7 @@ public struct MachineConfig: Codable, Sendable {
         ("home-mount", "<string>", "User home directory mount option (ro, rw, none). Default: rw"),
         ("virtualization", "<bool>", "Enable nested virtualization (true|false). Requires Apple Silicon M3+ and macOS 15+ and kernel with CONFIG_KVM=y."),
         ("kernel", "<path>", "Path to a custom kernel binary. Empty value resets to the system default."),
+        ("init-image", "<reference>", "Init image reference. Empty value resets to the system default."),
     ]
 
     public init(
@@ -79,13 +84,15 @@ public struct MachineConfig: Codable, Sendable {
         memory: MemorySize?,
         homeMount: HomeMountOption?,
         virtualization: Bool?,
-        kernelPath: FilePath?
+        kernelPath: FilePath?,
+        initImage: String? = nil
     ) throws {
         self.cpus = cpus ?? Self.defaultCPUs
         self.memory = memory ?? Self.defaultMemory
         self.homeMount = homeMount ?? Self.defaultHomeMount
         self.virtualization = virtualization ?? false
         self.kernelPath = kernelPath
+        self.initImage = initImage
 
         try self.validate()
     }
@@ -102,12 +109,15 @@ public struct MachineConfig: Codable, Sendable {
         // and lift to FilePath in memory.
         let kernelPath = try container.decodeIfPresent(String.self, forKey: .kernelPath).map { FilePath($0) }
 
+        let initImage = try container.decodeIfPresent(String.self, forKey: .initImage)
+
         try self.init(
             cpus: cpus,
             memory: memory,
             homeMount: homeMount,
             virtualization: virtualization,
-            kernelPath: kernelPath)
+            kernelPath: kernelPath,
+            initImage: initImage)
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -117,6 +127,7 @@ public struct MachineConfig: Codable, Sendable {
         try container.encode(homeMount, forKey: .homeMount)
         try container.encode(virtualization, forKey: .virtualization)
         try container.encodeIfPresent(kernelPath?.string, forKey: .kernelPath)
+        try container.encodeIfPresent(initImage, forKey: .initImage)
     }
 
     private func validate() throws {
@@ -169,12 +180,22 @@ extension MachineConfig {
             kernelPath = self.kernelPath
         }
 
+        // Empty string explicitly clears the init image override; absent key leaves it unchanged.
+        let initImage = try kwargs["init-image"].map { raw -> String? in
+            guard !raw.isEmpty else { return nil }
+            guard (try? Reference.parse(raw)) != nil else {
+                throw ContainerizationError(.invalidArgument, message: "invalid init image reference '\(raw)'")
+            }
+            return raw
+        } ?? self.initImage
+
         return try .init(
             cpus: cpus ?? self.cpus,
             memory: memory ?? self.memory,
             homeMount: homeMount ?? self.homeMount,
             virtualization: virtualization ?? self.virtualization,
-            kernelPath: kernelPath
+            kernelPath: kernelPath,
+            initImage: initImage
         )
     }
 
