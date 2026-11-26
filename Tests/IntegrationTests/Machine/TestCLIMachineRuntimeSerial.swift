@@ -25,6 +25,45 @@ import Testing
 struct TestCLIMachineRuntimeSerial {
     private let machineImage = "ghcr.io/linuxcontainers/alpine:3.20"
 
+    // MARK: - Init image tests
+
+    @Test func testSetInitImageAndBoot() async throws {
+        try await ContainerFixture.with { f in
+            let name = "\(f.testID)-machine"
+            f.addCleanup { f.cleanupMachine(name) }
+            let initImage = try f.getSystemConfig().vminit.image
+            try f.doMachineCreate(name: name, image: machineImage)
+
+            let set = try f.runMachine(["set", "-n", name, "init-image=\(initImage)"]).check()
+            #expect(set.output.contains(name))
+            try f.doMachineBoot(name: name)
+
+            try f.doMachineStop(name: name)
+            try f.runMachine(["set", "-n", name, "init-image="]).check()
+            try f.doMachineBoot(name: name)
+        }
+    }
+
+    @Test func testCreateWithInitImage() async throws {
+        try await ContainerFixture.with { f in
+            let name = "\(f.testID)-machine"
+            f.addCleanup { f.cleanupMachine(name) }
+            let initImage = try f.getSystemConfig().vminit.image
+            try f.doMachineCreate(name: name, image: machineImage, extraArgs: ["--init-image", initImage])
+            try f.doMachineBoot(name: name)
+        }
+    }
+
+    @Test func testSetInvalidInitImage() async throws {
+        try await ContainerFixture.with { f in
+            let name = "\(f.testID)-machine"
+            f.addCleanup { f.cleanupMachine(name) }
+            try f.doMachineCreate(name: name, image: machineImage)
+            let result = try f.runMachine(["set", "-n", name, "init-image=not a valid ref!"])
+            #expect(result.status != 0, "set should reject an invalid init image reference")
+        }
+    }
+
     // MARK: - Stop tests
 
     @Test func testStopRunningMachine() async throws {
