@@ -1101,18 +1101,30 @@ public actor ContainersService {
         }
 
         // Always try to delete the bundle directory, even if it's incomplete
+        var bundleDeleteError: (any Error)?
         do {
             try bundle.delete()
         } catch {
-            self.log.warning(
+            self.log.error(
                 "failed to delete bundle for container",
                 metadata: [
                     "id": "\(id)",
+                    "path": "\(path.path(percentEncoded: false))",
                     "error": "\(error)",
                 ])
+            bundleDeleteError = error
         }
 
         self.containers.removeValue(forKey: id)
+
+        // The container is no longer usable either way, but the caller must know that data is
+        // still on disk so that commands like `delete` and `prune` can report it instead of
+        // claiming the container was fully removed.
+        if let bundleDeleteError {
+            throw ContainerizationError(
+                .internalError,
+                message: "failed to delete bundle for container \(id) at \(path.path(percentEncoded: false)): \(bundleDeleteError)")
+        }
     }
 
     private func cleanUp(id: String, context: AsyncLock.Context) async throws {

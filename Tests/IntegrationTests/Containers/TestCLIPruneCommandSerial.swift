@@ -15,11 +15,38 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerTestSupport
+import Foundation
+import SystemPackage
 import Testing
 
 /// Serial prune tests — `container prune` affects all stopped containers regardless of name.
 @Suite(.serialized)
 struct TestCLIPruneCommandSerial {
+    @Test func testDeleteReportsBundleCleanupFailure() async throws {
+        try await ContainerFixture.with { f in
+            let image = WarmupImage.alpine320.rawValue
+            if try !f.isImagePresent(image) { try f.doPull(image) }
+
+            let name = "\(f.testID)-bundlefail"
+            try f.doCreate(name: name, image: image, args: ["true"])
+            f.addCleanup { try? f.doRemoveIfExists(name, force: true) }
+
+            // Clearing the bundle's write bits makes cleanup fail without affecting other containers.
+            let status = try f.run(["system", "status", "--format", "json"]).check()
+            let paths = (try JSONSerialization.jsonObject(with: status.outputData) as? [String: Any])?["paths"] as? [String: String]
+            let appRoot = try #require(paths?["appRoot"])
+            let bundle = FilePath(appRoot).appending("containers").appending(name)
+            try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: bundle.string)
+            defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: bundle.string) }
+
+            let result = try f.run(["delete", name])
+            #expect(result.status != 0, "delete should fail when the bundle cannot be removed")
+            #expect(
+                result.error.contains("failed to delete bundle for container \(name)"),
+                "\(result.error)")
+        }
+    }
+
     @Test func testContainerPruneNoContainers() async throws {
         try await ContainerFixture.with { f in
             // Establish empty state — the serial global pass runs after the concurrent

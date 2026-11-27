@@ -38,13 +38,14 @@ extension Application {
             let containersToPrune = try await client.list(filters: filters)
 
             var prunedContainerIds = [String]()
+            var failures = [String]()
             var totalSize: UInt64 = 0
 
             for container in containersToPrune {
                 do {
                     let actualSize = try await client.diskUsage(id: container.id)
-                    totalSize += actualSize
                     try await client.delete(id: container.id)
+                    totalSize += actualSize
                     prunedContainerIds.append(container.id)
                 } catch {
                     log.error(
@@ -53,6 +54,7 @@ extension Application {
                             "id": "\(container.id)",
                             "error": "\(error)",
                         ])
+                    failures.append(container.id)
                 }
             }
 
@@ -62,7 +64,14 @@ extension Application {
             for name in prunedContainerIds {
                 print(name)
             }
-            log.info("Reclaimed \(freed) in disk space")
+            if !prunedContainerIds.isEmpty {
+                log.info("Reclaimed \(freed) in disk space")
+            }
+            if !failures.isEmpty {
+                throw ContainerizationError(
+                    .internalError,
+                    message: "failed to prune one or more containers: \(failures)")
+            }
         }
     }
 }
